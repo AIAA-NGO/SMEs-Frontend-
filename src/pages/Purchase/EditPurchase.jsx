@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Select, Table, message, Card, Row, Col, InputNumber, DatePicker } from 'antd';
+import { Form, Button, Select, Table, message, Card, Row, Col, InputNumber, DatePicker } from 'antd';
 import { getPurchaseById, updatePurchase } from '../../services/purchaseService';
 import { getSuppliers as getAllSuppliers } from '../../services/supplierService';
 import { getAllProducts } from '../../services/productServices';
