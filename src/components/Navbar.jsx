@@ -6,7 +6,6 @@ import {
   FaUser,
   FaHeart,
   FaBoxOpen,
-  FaQuestionCircle,
   FaChevronDown,
 } from "react-icons/fa";
 import logo from "../assets/logo.png";
@@ -25,7 +24,6 @@ const NavBar = () => {
   const user = useSelector((state) => state.auth.user);
   
   const [showDropdown, setShowDropdown] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const [cartItemCount, setCartItemCount] = useState(0);
 
   useEffect(() => {
@@ -81,14 +79,6 @@ const NavBar = () => {
     setShowDropdown(false);
   };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchTerm.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
-      setSearchTerm("");
-    }
-  };
-
   return (
     <nav className="sticky top-0 z-50 w-full bg-white border-b shadow-md h-20 flex items-center px-6">
       <div className="container mx-auto flex items-center justify-between w-full">
@@ -105,35 +95,7 @@ const NavBar = () => {
           </Link>
         </div>
 
-        <div className="flex-grow max-w-3xl mx-8">
-          <form onSubmit={handleSearch} className="relative w-full">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search products, brands, categories..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
-            />
-            <button
-              type="submit"
-              className="absolute right-0 top-0 h-full px-4 bg-yellow-400 hover:bg-yellow-500 rounded-r-md transition-colors duration-200"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </button>
-          </form>
-        </div>
-
         <div className="flex items-center space-x-6">
-          <Link
-            to="/help"
-            className="hidden md:flex items-center text-gray-700 hover:text-orange-500 font-medium"
-          >
-            <FaQuestionCircle className="mr-1" />
-            <span>Help?</span>
-          </Link>
-
           <Link
             to="/cart"
             className="relative flex items-center text-gray-700 hover:text-orange-500"
@@ -212,6 +174,16 @@ const NavBar = () => {
                   <FaHeart className="mr-3 text-gray-500 text-sm" />
                   Wishlist
                 </Link>
+
+                {user?.role === "ADMIN" && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setShowDropdown(false)}
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 border-t"
+                  >
+                    <span className="text-blue-500 font-medium">Admin Dashboard</span>
+                  </Link>
+                )}
 
                 {user && (
                   <button

@@ -2,7 +2,7 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: "http://localhost:8080/api",
-  headers: { "Content-Type": "application/json" },
+  // Removed default Content-Type header since we'll set it per request
 });
 
 api.interceptors.request.use((config) => {
@@ -35,7 +35,8 @@ const transformProduct = (product) => ({
   category_id: Number(product.categoryId || product.category_id) || 0,
   supplier_id: product.supplierId || product.supplier_id || "",
   price: Number(product.price) || 0,
-  image_data: product.image_data ,
+  image_data: product.imageData || product.image_data,
+  image_content_type: product.imageContentType || product.image_content_type,
   sku: product.sku || "",
   barcode: product.barcode || "",
   brand_id: product.brandId || product.brand_id || null,
@@ -71,6 +72,31 @@ export const getAllProducts = async () => {
   } catch (error) {
     console.error("Error fetching products:", error);
     return [];
+  }
+};
+
+export const getProductById = async (id) => {
+  try {
+    const response = await api.get(`/products/${id}`);
+    return transformProduct(response.data);
+  } catch (error) {
+    console.error("Error fetching product:", error);
+    throw error;
+  }
+};
+
+export const getProductImage = async (id) => {
+  try {
+    const response = await api.get(`/products/${id}/image`, {
+      responseType: 'arraybuffer'
+    });
+    return {
+      data: response.data,
+      contentType: response.headers['content-type']
+    };
+  } catch (error) {
+    console.error("Error fetching product image:", error);
+    throw error;
   }
 };
 
@@ -142,20 +168,21 @@ export const getSuppliers = async () => {
   }
 };
 
-export const addProduct = async (product) => {
+export const addProduct = async (productData) => {
   try {
-    let response;
+    let config = {};
     
-    if (product instanceof FormData) {
-      response = await api.post("/products", product, {
-        headers: {
-          "Content-Type": "multipart/form-data"
-        }
-      });
+    if (productData instanceof FormData) {
+      config.headers = {
+        'Content-Type': 'multipart/form-data'
+      };
     } else {
-      response = await api.post("/products", product);
+      config.headers = {
+        'Content-Type': 'application/json'
+      };
     }
     
+    const response = await api.post("/products", productData, config);
     return response.data;
   } catch (error) {
     console.error("Error adding product:", error);
@@ -172,7 +199,19 @@ export const addProduct = async (product) => {
 
 export const updateProduct = async (productId, updatedData) => {
   try {
-    const response = await api.put(`/products/${productId}`, updatedData);
+    let config = {};
+    
+    if (updatedData instanceof FormData) {
+      config.headers = {
+        'Content-Type': 'multipart/form-data'
+      };
+    } else {
+      config.headers = {
+        'Content-Type': 'application/json'
+      };
+    }
+    
+    const response = await api.put(`/products/${productId}`, updatedData, config);
     return response.data;
   } catch (error) {
     console.error("Error updating product:", error);
@@ -186,6 +225,16 @@ export const deleteProduct = async (id) => {
     return id;
   } catch (error) {
     console.error("Error deleting product:", error);
+    throw error;
+  }
+};
+
+export const deleteProductImage = async (id) => {
+  try {
+    const response = await api.delete(`/products/${id}/image`);
+    return response.data;
+  } catch (error) {
+    console.error("Error deleting product image:", error);
     throw error;
   }
 };

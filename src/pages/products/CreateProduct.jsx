@@ -26,7 +26,7 @@ export default function CreateProduct() {
     categoryId: '',
     brandId: '',
     unitId: '',
-    image: '',
+    imageFile: null, // Changed to match backend field name
     expiryDate: '',
   });
 
@@ -80,27 +80,28 @@ export default function CreateProduct() {
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate file type if needed
+      // Validate file type
       if (!file.type.startsWith('image/')) {
-        setError('Only image files are allowed');
+        setError('Only image files are allowed (JPEG, PNG, etc.)');
         return;
       }
   
-      // Validate file size (e.g., 2MB max)
+      // Validate file size (2MB max)
       if (file.size > 2 * 1024 * 1024) {
         setError('Image size should be less than 2MB');
         return;
       }
   
-      // Set preview and form data
+      // Set preview
       const reader = new FileReader();
       reader.onloadend = () => setImagePreview(reader.result);
-      reader.readAsDataURL(file); // for preview only
+      reader.readAsDataURL(file);
   
-      setFormData(prev => ({ ...prev, image: file }));
+      // Store file object - using 'imageFile' to match backend
+      setFormData(prev => ({ ...prev, imageFile: file }));
+      setError('');
     }
   };
-  
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -110,35 +111,29 @@ export default function CreateProduct() {
     setError('');
 
     try {
-      const payload = {
-        name: formData.name.trim(),
-        description: formData.description.trim() || null,
-        sku: formData.sku.trim(),
-        barcode: formData.barcode.trim() || null,
-        price: parseFloat(formData.price),
-        costPrice: formData.costPrice ? parseFloat(formData.costPrice) : null,
-        quantityInStock: parseInt(formData.quantityInStock, 10) || 0,
-        lowStockThreshold: parseInt(formData.lowStockThreshold, 10) || 10,
-        supplierId: parseInt(formData.supplierId, 10),
-        categoryId: parseInt(formData.categoryId, 10),
-        brandId: formData.brandId ? parseInt(formData.brandId, 10) : null,
-        unitId: parseInt(formData.unitId, 10),
-        expiryDate: formData.expiryDate || null,
-      };
-
-      let response;
-      if (formData.image) {
-        const formDataToSend = new FormData();
-        Object.entries(payload).forEach(([key, value]) => {
-          if (value !== null && value !== undefined) {
-            formDataToSend.append(key, value);
-          }
-        });
-        formDataToSend.append('image', formData.image);
-        response = await addProduct(formDataToSend);
-      } else {
-        response = await addProduct(payload);
+      const formDataToSend = new FormData();
+      
+      // Append all fields to FormData
+      formDataToSend.append('name', formData.name.trim());
+      formDataToSend.append('description', formData.description.trim() || '');
+      formDataToSend.append('sku', formData.sku.trim());
+      formDataToSend.append('barcode', formData.barcode.trim() || '');
+      formDataToSend.append('price', formData.price);
+      formDataToSend.append('costPrice', formData.costPrice || '0');
+      formDataToSend.append('quantityInStock', formData.quantityInStock);
+      formDataToSend.append('lowStockThreshold', formData.lowStockThreshold);
+      formDataToSend.append('supplierId', formData.supplierId);
+      formDataToSend.append('categoryId', formData.categoryId);
+      formDataToSend.append('brandId', formData.brandId || '');
+      formDataToSend.append('unitId', formData.unitId);
+      formDataToSend.append('expiryDate', formData.expiryDate || '');
+      
+      // Append image file if exists - using 'imageFile' as the field name to match backend
+      if (formData.imageFile) {
+        formDataToSend.append('imageFile', formData.imageFile);
       }
+
+      const response = await addProduct(formDataToSend);
 
       navigate('/products', { 
         state: { 
@@ -286,7 +281,7 @@ export default function CreateProduct() {
                       type="button"
                       onClick={() => {
                         setImagePreview(null);
-                        setFormData(prev => ({ ...prev, image: null }));
+                        setFormData(prev => ({ ...prev, imageFile: null }));
                       }}
                       className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
                     >

@@ -17,31 +17,6 @@ const formatCurrency = (amount) => {
   }).format(amount || 0);
 };
 
-// Enhanced image handler
-const getImageUrl = (imageData) => {
-  if (!imageData) return null;
-  
-  if (typeof imageData === 'string') {
-    if (imageData.startsWith('data:')) return imageData;
-    return `data:image/jpeg;base64,${imageData}`;
-  }
-  
-  if (imageData instanceof Blob) {
-    return URL.createObjectURL(imageData);
-  }
-  
-  if (imageData instanceof ArrayBuffer) {
-    const base64String = btoa(
-      new Uint8Array(imageData).reduce(
-        (data, byte) => data + String.fromCharCode(byte), ''
-      )
-    );
-    return `data:image/jpeg;base64,${base64String}`;
-  }
-  
-  return null;
-};
-
 const ProductPage = () => {
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
@@ -84,28 +59,33 @@ const ProductPage = () => {
             suppliers: suppliersData
           });
 
-          const processedProducts = await Promise.all(
-            productsData.map(async (product) => {
-              const imageUrl = getImageUrl(product.image_data);
-              
-              return {
-                ...product,
-                name: product.name || 'Unnamed Product',
-                sku: product.sku || 'N/A',
-                barcode: product.barcode || 'N/A',
-                price: product.price || 0,
-                costPrice: product.cost_price || 0,
-                quantityInStock: product.quantity_in_stock || 0,
-                lowStockThreshold: product.low_stock_threshold || 0,
-                description: product.description || '',
-                imageUrl: imageUrl || 'https://via.placeholder.com/100?text=No+Image',
-                categoryName: categoriesData.find(c => c.id === product.category_id)?.name || 'N/A',
-                brandName: brandsData.find(b => b.id === product.brand_id)?.name || 'N/A',
-                unitName: unitsData.find(u => u.id === product.unit_id)?.name || 'N/A',
-                supplierName: suppliersData.find(s => s.id === product.supplier_id)?.name || 'N/A'
-              };
-            })
-          );
+          const processedProducts = productsData.map((product) => {
+            // Create image URL from byte array data
+            let imageUrl = null;
+            if (product.imageData) {
+              const blob = new Blob([new Uint8Array(product.imageData)], { 
+                type: product.imageContentType || 'image/jpeg' 
+              });
+              imageUrl = URL.createObjectURL(blob);
+            }
+            
+            return {
+              ...product,
+              name: product.name || 'Unnamed Product',
+              sku: product.sku || 'N/A',
+              barcode: product.barcode || 'N/A',
+              price: product.price || 0,
+              costPrice: product.costPrice || 0,
+              quantityInStock: product.quantityInStock || product.quantity_in_stock || 0, // Handle both naming conventions
+              lowStockThreshold: product.lowStockThreshold || product.low_stock_threshold || 0,
+              description: product.description || '',
+              imageUrl,
+              categoryName: categoriesData.find(c => c.id === product.categoryId || c.id === product.category_id)?.name || 'N/A',
+              brandName: brandsData.find(b => b.id === product.brandId || b.id === product.brand_id)?.name || 'N/A',
+              unitName: unitsData.find(u => u.id === product.unitId || u.id === product.unit_id)?.name || 'N/A',
+              supplierName: suppliersData.find(s => s.id === product.supplierId || s.id === product.supplier_id)?.name || 'N/A'
+            };
+          });
 
           setProducts(processedProducts);
           setFilteredProducts(processedProducts);
@@ -135,6 +115,12 @@ const ProductPage = () => {
 
     return () => {
       isMounted = false;
+      // Clean up object URLs to avoid memory leaks
+      products.forEach(product => {
+        if (product.imageUrl) {
+          URL.revokeObjectURL(product.imageUrl);
+        }
+      });
     };
   }, [navigate, location]);
 
@@ -267,14 +253,23 @@ const ProductPage = () => {
                       <tr key={product.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="h-10 w-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-100">
-                            <img 
-                              src={product.imageUrl} 
-                              alt={product.name} 
-                              className="h-full w-full object-cover"
-                              onError={(e) => {
-                                e.target.src = 'https://via.placeholder.com/100?text=No+Image';
-                              }}
-                            />
+                            {product.imageUrl ? (
+                              <img 
+                                src={product.imageUrl} 
+                                alt={product.name} 
+                                className="h-full w-full object-cover"
+                                onError={(e) => {
+                                  e.target.src = '';
+                                  e.target.parentElement.classList.add('bg-gray-200');
+                                }}
+                              />
+                            ) : (
+                              <div className="h-full w-full bg-gray-200 flex items-center justify-center text-gray-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -365,14 +360,23 @@ const ProductPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="col-span-1 md:col-span-2 flex justify-center">
                   <div className="h-64 w-64 bg-gray-100 rounded-lg border flex items-center justify-center overflow-hidden">
-                    <img 
-                      src={selectedProduct.imageUrl} 
-                      alt={selectedProduct.name} 
-                      className="h-full w-full object-contain"
-                      onError={(e) => {
-                        e.target.src = 'https://via.placeholder.com/200?text=No+Image';
-                      }}
-                    />
+                    {selectedProduct.imageUrl ? (
+                      <img 
+                        src={selectedProduct.imageUrl} 
+                        alt={selectedProduct.name} 
+                        className="h-full w-full object-contain"
+                        onError={(e) => {
+                          e.target.src = '';
+                          e.target.parentElement.classList.add('bg-gray-200');
+                        }}
+                      />
+                    ) : (
+                      <div className="h-full w-full bg-gray-200 flex items-center justify-center text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    )}
                   </div>
                 </div>
 

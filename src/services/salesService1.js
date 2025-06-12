@@ -1,5 +1,6 @@
+// services/salesService.js
+
 const API_BASE_URL = 'http://localhost:8080/api/sales';
-const REPORTS_BASE_URL = 'http://localhost:8080/api/reports';
 
 // Helper function to get authorization header
 const getAuthHeader = () => {
@@ -172,25 +173,19 @@ export const getSalesByStatus = async (status) => {
  * @param {Date} endDate - End date
  * @returns {Promise<Array>} - Array of sales
  */
-// In salesService.js
 export const getSalesByDateRange = async (startDate, endDate) => {
   try {
     const response = await fetch(
-      `${API_BASE_URL}/date-range?startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`,
+      `${API_BASE_URL}/date-range?start=${startDate.toISOString().split('T')[0]}&end=${endDate.toISOString().split('T')[0]}`,
       {
         headers: {
           ...getAuthHeader()
         }
       }
     );
-    
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.message || `Failed to fetch sales by date range: ${response.statusText}`
-      );
+      throw new Error(`Failed to fetch sales by date range: ${response.statusText}`);
     }
-    
     return await response.json();
   } catch (error) {
     console.error('Error fetching sales by date range:', error);
@@ -291,127 +286,6 @@ export const getDailySummary = async (date = new Date()) => {
     return await response.json();
   } catch (error) {
     console.error('Error fetching daily summary:', error);
-    throw error;
-  }
-};
-
-// ======================================
-// NEW REPORT-RELATED FUNCTIONS ADDED BELOW
-// ======================================
-
-/**
- * Get sales report data
- * @param {Date} startDate - Start date filter
- * @param {Date} endDate - End date filter
- * @returns {Promise<Array>} - Array of sales report items
- */
-export const getSalesReport = async (startDate, endDate) => {
-  try {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
-    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
-
-    const response = await fetch(`${REPORTS_BASE_URL}/sales?${params.toString()}`, {
-      headers: {
-        ...getAuthHeader()
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch sales report: ${response.statusText}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching sales report:', error);
-    throw error;
-  }
-};
-
-/**
- * Export sales report
- * @param {Date} startDate - Start date filter
- * @param {Date} endDate - End date filter
- * @param {string} format - Export format (CSV, PDF, etc.)
- * @returns {Promise<Blob>} - The exported file as a Blob
- */
-export const exportSalesReport = async (startDate, endDate, format = 'CSV') => {
-  try {
-    const response = await fetch(`${REPORTS_BASE_URL}/export`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeader()
-      },
-      body: JSON.stringify({
-        reportType: 'SALES',
-        startDate: startDate?.toISOString().split('T')[0],
-        endDate: endDate?.toISOString().split('T')[0],
-        format
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to export sales report: ${response.statusText}`);
-    }
-    return await response.blob();
-  } catch (error) {
-    console.error('Error exporting sales report:', error);
-    throw error;
-  }
-};
-
-/**
- * Get product performance report
- * @param {Date} startDate - Start date filter
- * @param {Date} endDate - End date filter
- * @returns {Promise<Array>} - Array of product performance items
- */
-export const getProductPerformanceReport = async (startDate, endDate) => {
-  try {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
-    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
-
-    const response = await fetch(`${REPORTS_BASE_URL}/products?${params.toString()}`, {
-      headers: {
-        ...getAuthHeader()
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch product performance report: ${response.statusText}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching product performance report:', error);
-    throw error;
-  }
-};
-
-/**
- * Get profit and loss report
- * @param {Date} startDate - Start date filter
- * @param {Date} endDate - End date filter
- * @returns {Promise<Object>} - Profit and loss data
- */
-export const getProfitLossReport = async (startDate, endDate) => {
-  try {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
-    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
-
-    const response = await fetch(`${REPORTS_BASE_URL}/profit-loss?${params.toString()}`, {
-      headers: {
-        ...getAuthHeader()
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch profit/loss report: ${response.statusText}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching profit/loss report:', error);
     throw error;
   }
 };

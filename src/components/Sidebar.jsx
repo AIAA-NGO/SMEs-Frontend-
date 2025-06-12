@@ -180,18 +180,19 @@ export default function Sidebar({
   {!isMinimized && 'Inventory'}
 </Link>
 
-        {/* Transactions */}
-        <Link
-          to="/expenses"
-          onClick={onLinkClick}
-          className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-800 transition
-            ${isActive('/expenses') ? 'bg-gray-800 font-bold' : ''}
-            ${isMinimized ? 'justify-center' : ''}`}
-          title={isMinimized ? 'Transactions' : undefined}
-        >
-          <DollarSign size={18} />
-          {!isMinimized && 'Transactions'}
-        </Link>
+       {/* Apply Discount */}
+<Link
+  to="/apply-discount"
+  onClick={onLinkClick}
+  className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-800 transition
+    ${isActive('/apply-discount') ? 'bg-gray-800 font-bold' : ''}
+    ${isMinimized ? 'justify-center' : ''}`}
+  title={isMinimized ? 'Apply Discount' : undefined}
+>
+  <DollarSign size={18} />
+  {!isMinimized && 'Apply Discount'}
+</Link>
+
 
 
         {/* Users */}
@@ -230,28 +231,102 @@ export default function Sidebar({
           )}
         </div>
 
-        {/* Reports Dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setReportsOpen(!reportsOpen)}
-            className={`flex items-center justify-between w-full px-3 py-2 rounded-md hover:bg-gray-800 transition
-              ${isActive('/reports') ? 'bg-gray-800 font-bold' : ''}
-              ${isMinimized ? 'justify-center' : ''}`}
-            title={isMinimized ? 'Sales Reports' : undefined}
-          >
-            <div className="flex items-center gap-3">
-              <FileBarChart2 size={18} />
-              {!isMinimized && 'Sales Reports'}
-            </div>
-            {!isMinimized && <ChevronDown size={16} className={`transition-transform ${reportsOpen ? 'rotate-180' : ''}`} />}
-          </button>
-          {reportsOpen && !isMinimized && (
-            <div className="ml-8 mt-2 flex flex-col gap-2 text-xs">
-              <Link to="/reports/sales" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/reports/sales' ? 'font-semibold' : ''}`}>Sales Report</Link>
-              <Link to="/reports/purchases" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/reports/purchases' ? 'font-semibold' : ''}`}>Purchase Report</Link>
-            </div>
-          )}
+      {/* Reports Dropdown */}
+<div className="relative">
+      <button
+        onClick={() => setReportsOpen(!reportsOpen)}
+        className={`flex items-center justify-between w-full px-3 py-2 rounded-md hover:bg-gray-800 transition
+          ${isActive('/reports') ? 'bg-gray-800 font-bold' : ''}
+          ${isMinimized ? 'justify-center' : ''}`}
+        title={isMinimized ? 'Reports' : undefined}
+      >
+        <div className="flex items-center gap-3">
+          <FileBarChart2 size={18} />
+          {!isMinimized && 'Reports'}
         </div>
+        {!isMinimized && (
+          <ChevronDown 
+            size={16} 
+            className={`transition-transform ${reportsOpen ? 'rotate-180' : ''}`}
+
+          />
+        )}
+      </button>
+      
+      {reportsOpen && !isMinimized && (
+        <div className="ml-8 mt-2 flex flex-col gap-2 text-xs">
+          {/* Sales Report Link */}
+          <Link 
+            to="/reports/sales" 
+            onClick={() => {
+              onLinkClick();
+              setReportsOpen(false);
+            }}
+            className={`hover:underline pl-2 ${
+              isActive('/reports/sales') ? 'font-semibold text-blue-400' : ''
+            }`}
+          >
+            Sales Report
+          </Link>
+          
+          {/* Product Performance Link */}
+          <Link 
+            to="/reports/products" 
+            onClick={() => {
+              onLinkClick();
+              setReportsOpen(false);
+            }}
+            className={`hover:underline pl-2 ${
+              isActive('/reports/products') ? 'font-semibold text-blue-400' : ''
+            }`}
+          >
+            Product Performance
+          </Link>
+          
+          {/* Inventory Valuation Link */}
+          <Link 
+            to="/reports/inventory" 
+            onClick={() => {
+              onLinkClick();
+              setReportsOpen(false);
+            }}
+            className={`hover:underline pl-2 ${
+              isActive('/reports/inventory') ? 'font-semibold text-blue-400' : ''
+            }`}
+          >
+            Inventory Valuation
+          </Link>
+          
+          {/* Financial Reports Link */}
+          <Link 
+            to="/reports/financial" 
+            onClick={() => {
+              onLinkClick();
+              setReportsOpen(false);
+            }}
+            className={`hover:underline pl-2 ${
+              isActive('/reports/financial') ? 'font-semibold text-blue-400' : ''
+            }`}
+          >
+            Financial Reports
+          </Link>
+          
+          {/* Supplier Purchases Link */}
+          <Link 
+            to="/reports/suppliers" 
+            onClick={() => {
+              onLinkClick();
+              setReportsOpen(false);
+            }}
+            className={`hover:underline pl-2 ${
+              isActive('/reports/suppliers') ? 'font-semibold text-blue-400' : ''
+            }`}
+          >
+            Supplier Purchases
+          </Link>
+        </div>
+      )}
+    </div>
 
         {/* Settings Dropdown */}
         <div className="relative">

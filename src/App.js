@@ -6,13 +6,11 @@ import { store } from './redux/store';
 import DashboardLayout from "./layouts/DashboardLayout";
 import Signin from "./pages/auth/Signin";
 import SignUp from './pages/auth/Signup';
-import Footer from "./components/Footer";
 import CategoriesPage from './pages/Categories/CategoriesPage';
 import BrandsPage from './pages/Brands/BrandsPage';
 import UnitsPage from "./pages/Unit/UnitsPage";
 import CreateProduct from './pages/products/CreateProduct';
 import Cart from "./pages/Cart/cart";
-import Checkout from "./pages/Checkout";
 import Reports from "./pages/Sales reports/reports";
 import SuppliersPage from './pages/suppliers/SuppliersPage';
 import CustomersPage from './pages/Customers/CustomersPage';
@@ -29,6 +27,7 @@ import SalesList from "./pages/sales/SalesList";
 import SalesHistory from "./pages/sales/SalesHistory";
 import SalesReturnPage from './pages/sales/SalesReturnPage';
 import CreatePurchase from './pages/Purchase/CreatePurchase';
+import TrackPurchase from './pages/Purchase/TrackPurchase';
 import PurchaseDetails from './pages/Purchase/PurchaseDetails';
 import BusinessProfile from './pages/settings/business/BusinessProfile';
 import CurrencySettings from './pages/settings/business/CurrencySettings';
@@ -36,6 +35,13 @@ import Roles from './pages/settings/business/Roles';
 import RolesPermissions from './pages/settings/business/RolesPermissions';
 import InventoryPage from './pages/inventory/InventoryPage';
 import EditPurchase from './pages/Purchase/EditPurchase';
+import ApplyDiscount from './pages/Discount/ApplyDiscount';
+import SalesReport from './pages/reports/SalesReport';
+import ProductPerformanceReport from './pages/reports/ProductPerformanceReport';
+import InventoryValuationReport from './pages/reports/InventoryValuationReport';
+import FinancialReports from './pages/reports/FinancialReports';
+import SupplierPurchasesReport from './pages/reports/SupplierPurchasesReport';
+
 
 function App() {
   return (
@@ -48,8 +54,6 @@ function App() {
                 <Route path="/" element={<Navigate to="/dashboard/admin" replace />} />
                 <Route path="/signin" element={<Signin />} />
                 <Route path="/signup" element={<SignUp />} />
-               
-    
                 <Route path="/Users/create" element={<CreateUser />} />
                 <Route path="/Users/edit/:id" element={<EditUser />} />
                 <Route path="/Users/change-password/:id" element={<UserChangePassword />} />
@@ -57,7 +61,6 @@ function App() {
                 <Route path="/sales/returns" element={<SalesReturnPage />} />
                 <Route path="/sales/returns/create" element={<SalesReturnPage />} />
                 <Route path="/purchases/edit/:id" element={<EditPurchase />} />
-
                 <Route path="*" element={<NotFound />} />
                 <Route path="/dashboard/admin" element={<DashboardLayout><AdminDashboardControl/></DashboardLayout>} />
                 <Route path="/products" element={<DashboardLayout><ProductPage /></DashboardLayout>} />
@@ -67,22 +70,31 @@ function App() {
                 <Route path="/Unit" element={<DashboardLayout><UnitsPage /></DashboardLayout>} />
                 <Route path="/pos" element={<DashboardLayout><PosPage /></DashboardLayout>} />
                 <Route path="/cart" element={<DashboardLayout><Cart /></DashboardLayout>} />
-                <Route path="/checkout" element={<DashboardLayout><Checkout /></DashboardLayout>} />
                 <Route path="/reports" element={<DashboardLayout><Reports /></DashboardLayout>} />
                 <Route path="/suppliers/*" element={<DashboardLayout><SuppliersPage /></DashboardLayout>} />
                 <Route path="/customers" element={<DashboardLayout><CustomersPage /></DashboardLayout>} />
                 <Route path="/users" element={<DashboardLayout>{<UsersList />}</DashboardLayout>} />
                 <Route path="/inventory" element={<DashboardLayout><InventoryPage /></DashboardLayout>}/>
                 <Route path="/purchases/create" element={<DashboardLayout><CreatePurchase /></DashboardLayout>} />
+                <Route path="/purchases/track" element={<DashboardLayout><TrackPurchase /></DashboardLayout>} />
                 <Route  path="/purchases"element={<DashboardLayout><PurchaseDetails /></DashboardLayout>} />
-                <Route path="/sales" element={<DashboardLayout><SalesList /></DashboardLayout>} /> 
+                <Route path="/sales" element={<DashboardLayout><SalesList /></DashboardLayout>} />
+                <Route path="/apply-discount" element={<DashboardLayout><ApplyDiscount /></DashboardLayout>} />
+                 
+                {/* Report Routes */}
+                <Route path="/reports/sales" element={<DashboardLayout><SalesReport /></DashboardLayout>} />
+                <Route path="/reports/products" element={<DashboardLayout><ProductPerformanceReport /></DashboardLayout>} />
+                <Route path="/reports/inventory" element={<DashboardLayout><InventoryValuationReport /></DashboardLayout>} />
+                <Route path="/reports/financial" element={<DashboardLayout><FinancialReports /></DashboardLayout>} />
+                <Route path="/reports/suppliers" element={<DashboardLayout><SupplierPurchasesReport /></DashboardLayout>} />
+ 
                 <Route path="/settings/business/profile" element={<BusinessProfile />} />
                 <Route path="/settings/business/currency" element={<CurrencySettings />} />
                 <Route path="/settings/business/roles" element={<Roles />} />
                 <Route path="/settings/business/roles-permissions" element={<RolesPermissions />} />
               </Routes>
             </div>
-            <Footer />
+            
           </div>
         </Router>
       </AuthProvider> 
