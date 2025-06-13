@@ -1,23 +1,24 @@
 import React, { useState, useEffect } from 'react';
-
-import { format } from 'date-fns';
+import { format, isAfter, parseISO } from 'date-fns';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { InventoryService } from '../../services/InventoryService';
 
-
 const InventoryPage = () => {
+  // Main inventory state
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
-    search: '',
-    expiredOnly: false,
-    lowStockOnly: false,
     page: 0,
-    size: 10
+    size: 10,
+    search: '',
+    lowStockOnly: false,
+    expiredOnly: false
   });
   const [totalItems, setTotalItems] = useState(0);
+
+  // Adjustment modal state
   const [adjustmentModal, setAdjustmentModal] = useState(false);
   const [currentProduct, setCurrentProduct] = useState(null);
   const [adjustmentData, setAdjustmentData] = useState({
@@ -29,23 +30,42 @@ const InventoryPage = () => {
   const [adjustmentHistory, setAdjustmentHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
 
+  // Submodules state
+  const [activeTab, setActiveTab] = useState('all');
+  const [lowStockItems, setLowStockItems] = useState([]);
+  const [expiredItems, setExpiredItems] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+
+  // Check if a product is expired
+  const isProductExpired = (product) => {
+    return product.expiryDate ? isAfter(new Date(), parseISO(product.expiryDate)) : false;
+  };
+
   // Fetch inventory data
   const fetchInventory = async () => {
     try {
       setLoading(true);
       const response = await InventoryService.getInventoryStatus(
         filters.search,
-        null, // categoryId (not used in current implementation)
-        null, // brandId (not used in current implementation)
+        null,
+        null,
         filters.lowStockOnly,
         filters.expiredOnly,
         {
           page: filters.page,
           size: filters.size,
-          sort: 'name,asc' // Default sorting
+          sort: 'name,asc'
         }
       );
-      setInventory(response.content);
+      
+      // Enhance products with correct isExpired status
+      const enhancedInventory = response.content.map(product => ({
+        ...product,
+        isExpired: isProductExpired(product)
+      }));
+      
+      setInventory(enhancedInventory);
       setTotalItems(response.totalElements);
       setError(null);
     } catch (err) {
@@ -57,7 +77,38 @@ const InventoryPage = () => {
     }
   };
 
-  // Fetch adjustment history for a product
+  // Fetch low stock items
+  const fetchLowStockItems = async () => {
+    try {
+      const data = await InventoryService.getLowStockItems();
+      setLowStockItems(data);
+    } catch (err) {
+      console.error('Error fetching low stock items:', err);
+      toast.error(`Error fetching low stock items: ${err.message}`);
+    }
+  };
+
+  // Fetch expired items - CORRECTED VERSION
+  const fetchExpiredItems = async () => {
+    try {
+      // Get all products to properly check expiry status
+      const allProducts = await InventoryService.getInventoryStatus(
+        '', null, null, false, false, { page: 0, size: 1000 }
+      );
+      
+      // Filter to only actually expired products
+      const expired = allProducts.content.filter(product => 
+        product.expiryDate && isAfter(new Date(), parseISO(product.expiryDate))
+      );
+      
+      setExpiredItems(expired);
+    } catch (err) {
+      console.error('Error fetching expired items:', err);
+      toast.error(`Error fetching expired items: ${err.message}`);
+    }
+  };
+
+  // Fetch adjustment history
   const fetchAdjustmentHistory = async (productId) => {
     try {
       const history = await InventoryService.getAdjustmentHistory(productId);
@@ -68,63 +119,33 @@ const InventoryPage = () => {
     }
   };
 
-  // Initial fetch
+  // Handle search
+  const handleSearch = async (query) => {
+    if (!query.trim()) {
+      setShowSearchResults(false);
+      return;
+    }
+    
+    try {
+      const results = await InventoryService.searchProducts(query);
+      setSearchResults(results);
+      setShowSearchResults(true);
+    } catch (err) {
+      console.error('Error searching products:', err);
+      toast.error(`Error searching products: ${err.message}`);
+    }
+  };
+
+  // Initial fetches
   useEffect(() => {
     fetchInventory();
+    fetchLowStockItems();
+    fetchExpiredItems();
   }, [filters]);
-
-  // Handle search
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setFilters(prev => ({
-      ...prev,
-      page: 0 // Reset to first page when searching
-    }));
-  };
-
-  // Handle filter changes
-  const handleFilterChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFilters(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-  };
-
-  // Toggle expired only filter
-  const toggleExpiredOnly = () => {
-    setFilters(prev => ({
-      ...prev,
-      expiredOnly: !prev.expiredOnly,
-      lowStockOnly: false, // Ensure only one filter is active at a time
-      page: 0
-    }));
-  };
-
-  // Toggle low stock only filter
-  const toggleLowStockOnly = () => {
-    setFilters(prev => ({
-      ...prev,
-      lowStockOnly: !prev.lowStockOnly,
-      expiredOnly: false, // Ensure only one filter is active at a time
-      page: 0
-    }));
-  };
 
   // Handle page change
   const handlePageChange = (newPage) => {
     setFilters(prev => ({ ...prev, page: newPage }));
-  };
-
-  // Remove expired products
-  const handleRemoveExpired = async () => {
-    try {
-      await InventoryService.removeExpiredProducts();
-      toast.success('Expired products removed successfully!');
-      fetchInventory();
-    } catch (err) {
-      toast.error(`Error removing expired products: ${err.message}`);
-    }
   };
 
   // Open adjustment modal
@@ -172,8 +193,22 @@ const InventoryPage = () => {
       toast.success('Inventory adjusted successfully!');
       closeAdjustmentModal();
       fetchInventory();
+      fetchLowStockItems();
+      fetchExpiredItems();
     } catch (err) {
       toast.error(`Error adjusting inventory: ${err.message}`);
+    }
+  };
+
+  // Remove expired products
+  const handleRemoveExpired = async () => {
+    try {
+      await InventoryService.removeExpiredProducts();
+      toast.success('Expired products removed successfully!');
+      fetchInventory();
+      fetchExpiredItems();
+    } catch (err) {
+      toast.error(`Error removing expired products: ${err.message}`);
     }
   };
 
@@ -187,9 +222,11 @@ const InventoryPage = () => {
     return dateString ? format(new Date(dateString), 'MMM dd, yyyy HH:mm') : 'N/A';
   };
 
-  // Status badge component
+  // Status badge component - UPDATED to use correct expiry check
   const StatusBadge = ({ product }) => {
-    if (product.isExpired) {
+    const isExpired = isProductExpired(product);
+    
+    if (isExpired) {
       return (
         <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
           Expired
@@ -225,6 +262,99 @@ const InventoryPage = () => {
     );
   };
 
+  // Render inventory table rows - UPDATED with correct expiry display
+  const renderInventoryRows = (items) => {
+    return items.map((item) => {
+      const isExpired = isProductExpired(item);
+      
+      return (
+        <tr key={item.id} className="hover:bg-gray-50">
+          <td className="px-6 py-4 whitespace-nowrap">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 h-10 w-10">
+                {item.imageUrl ? (
+                  <img className="h-10 w-10 rounded-full" src={item.imageUrl} alt={item.name} />
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+                    {item.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div className="ml-4">
+                <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                <div className="text-sm text-gray-500">{item.categoryName}</div>
+              </div>
+            </div>
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{item.sku}</td>
+          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            {item.quantityInStock} {item.unitName}
+            {item.maxStockLevel && (
+              <span className="text-xs text-gray-500 ml-1">
+                (max: {item.maxStockLevel})
+              </span>
+            )}
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap">
+            <StatusBadge product={item} />
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <div className={`flex items-center ${isExpired ? 'text-red-500' : ''}`}>
+              {item.expiryDate ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {formatDate(item.expiryDate)}
+                  {isExpired && <span className="ml-1">(Expired)</span>}
+                </>
+              ) : 'N/A'}
+            </div>
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+            <button
+              onClick={() => openAdjustmentModal(item)}
+              className="text-blue-600 hover:text-blue-900 mr-3 flex items-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              Adjust
+            </button>
+          </td>
+        </tr>
+      );
+    });
+  };
+
+  // Get current items based on active tab
+  const getCurrentItems = () => {
+    switch (activeTab) {
+      case 'low-stock':
+        return lowStockItems;
+      case 'expired':
+        return expiredItems;
+      case 'search':
+        return searchResults;
+      default:
+        return inventory;
+    }
+  };
+
+  // Get current item count
+  const getCurrentItemCount = () => {
+    switch (activeTab) {
+      case 'low-stock':
+        return lowStockItems.length;
+      case 'expired':
+        return expiredItems.length;
+      case 'search':
+        return searchResults.length;
+      default:
+        return totalItems;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <ToastContainer position="top-right" autoClose={3000} />
@@ -237,23 +367,54 @@ const InventoryPage = () => {
             Track and manage your product inventory in real-time
           </p>
         </div>
-        <button
-          onClick={handleRemoveExpired}
-          className="mt-4 md:mt-0 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg shadow-md transition-colors flex items-center"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-          Remove Expired
-        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200 mb-6">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('all')}
+            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'all' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            All Inventory
+          </button>
+          <button
+            onClick={() => setActiveTab('low-stock')}
+            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'low-stock' ? 'border-yellow-500 text-yellow-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Low Stock
+            {lowStockItems.length > 0 && (
+              <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                {lowStockItems.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('expired')}
+            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'expired' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Expired
+            {expiredItems.length > 0 && (
+              <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                {expiredItems.length}
+              </span>
+            )}
+          </button>
+        </nav>
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-md p-4 md:p-6 mb-6">
-        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
-            <div className="relative">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="md:col-span-2">
+            <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <div className="relative rounded-md shadow-sm">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
@@ -261,62 +422,50 @@ const InventoryPage = () => {
               </div>
               <input
                 type="text"
-                name="search"
+                id="search"
+                className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-12 py-2 sm:text-sm border-gray-300 rounded-md"
+                placeholder="Search by name or barcode"
                 value={filters.search}
-                onChange={handleFilterChange}
-                placeholder="Search by name, SKU, etc..."
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                onChange={(e) => {
+                  setFilters(prev => ({ ...prev, search: e.target.value, page: 0 }));
+                  handleSearch(e.target.value);
+                }}
               />
-              <button 
-                type="submit"
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-              >
-                <svg className="h-5 w-5 text-gray-400 hover:text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                </svg>
-              </button>
             </div>
           </div>
-          
-          <div className="flex items-center space-x-4">
-            <button
-              type="button"
-              onClick={toggleExpiredOnly}
-              className={`px-3 py-2 rounded-md text-sm font-medium flex items-center ${
-                filters.expiredOnly 
-                  ? 'bg-red-100 text-red-800' 
-                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-              }`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Expired Only
-            </button>
-            
-            <button
-              type="button"
-              onClick={toggleLowStockOnly}
-              className={`px-3 py-2 rounded-md text-sm font-medium flex items-center ${
-                filters.lowStockOnly 
-                  ? 'bg-yellow-100 text-yellow-800' 
-                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-              }`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-              Low Stock Only
-            </button>
+          <div className="flex items-end space-x-4">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="lowStockOnly"
+                checked={filters.lowStockOnly}
+                onChange={(e) => setFilters(prev => ({ ...prev, lowStockOnly: e.target.checked, page: 0 }))}
+                className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
+              />
+              <label htmlFor="lowStockOnly" className="ml-2 block text-sm text-gray-700">
+                Low Stock Only
+              </label>
+            </div>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="expiredOnly"
+                checked={filters.expiredOnly}
+                onChange={(e) => setFilters(prev => ({ ...prev, expiredOnly: e.target.checked, page: 0 }))}
+                className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+              />
+              <label htmlFor="expiredOnly" className="ml-2 block text-sm text-gray-700">
+                Expired Only
+              </label>
+            </div>
           </div>
-          
-          <div className="md:col-span-2 flex justify-end">
+          <div className="flex justify-end items-end">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Items per page</label>
               <select
                 name="size"
                 value={filters.size}
-                onChange={handleFilterChange}
+                onChange={(e) => setFilters(prev => ({ ...prev, size: Number(e.target.value), page: 0 }))}
                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
               >
                 <option value="5">5</option>
@@ -326,8 +475,20 @@ const InventoryPage = () => {
               </select>
             </div>
           </div>
-        </form>
+        </div>
       </div>
+
+      {/* Action buttons */}
+      {activeTab === 'expired' && expiredItems.length > 0 && (
+        <div className="mb-4 flex justify-end">
+          <button
+            onClick={handleRemoveExpired}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+          >
+            Remove All Expired
+          </button>
+        </div>
+      )}
 
       {/* Inventory Table */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -337,12 +498,16 @@ const InventoryPage = () => {
           </div>
         ) : error ? (
           <div className="p-6 text-red-500">{error}</div>
-        ) : inventory.length === 0 ? (
+        ) : getCurrentItems().length === 0 ? (
           <div className="p-6 text-center text-gray-500">
             <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
             </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No inventory items found</h3>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">
+              {activeTab === 'search' ? 'No search results found' : 
+               activeTab === 'low-stock' ? 'No low stock items' : 
+               activeTab === 'expired' ? 'No expired items' : 'No inventory items found'}
+            </h3>
             <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filter criteria</p>
           </div>
         ) : (
@@ -360,151 +525,98 @@ const InventoryPage = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {inventory.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10">
-                            {item.imageUrl ? (
-                              <img className="h-10 w-10 rounded-full" src={item.imageUrl} alt={item.name} />
-                            ) : (
-                              <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
-                                {item.name.charAt(0).toUpperCase()}
-                              </div>
-                            )}
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                            <div className="text-sm text-gray-500">{item.categoryName}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{item.sku}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.quantityInStock} {item.unitName}
-                        {item.maxStockLevel && (
-                          <span className="text-xs text-gray-500 ml-1">
-                            (max: {item.maxStockLevel})
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <StatusBadge product={item} />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div className={`flex items-center ${item.isExpired ? 'text-red-500' : ''}`}>
-                          {item.expiryDate ? (
-                            <>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                              {formatDate(item.expiryDate)}
-                            </>
-                          ) : 'N/A'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          onClick={() => openAdjustmentModal(item)}
-                          className="text-blue-600 hover:text-blue-900 mr-3 flex items-center"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                          </svg>
-                          Adjust
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {renderInventoryRows(getCurrentItems())}
                 </tbody>
               </table>
             </div>
 
-            {/* Pagination */}
-            <div className="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
-              <div className="flex-1 flex justify-between sm:hidden">
-                <button
-                  onClick={() => handlePageChange(Math.max(0, filters.page - 1))}
-                  disabled={filters.page === 0}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => handlePageChange(filters.page + 1)}
-                  disabled={(filters.page + 1) * filters.size >= totalItems}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-gray-700">
-                    Showing <span className="font-medium">{filters.page * filters.size + 1}</span> to{' '}
-                    <span className="font-medium">
-                      {Math.min((filters.page + 1) * filters.size, totalItems)}
-                    </span>{' '}
-                    of <span className="font-medium">{totalItems}</span> results
-                  </p>
+            {/* Pagination - only for main inventory */}
+            {activeTab === 'all' && (
+              <div className="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                <div className="flex-1 flex justify-between sm:hidden">
+                  <button
+                    onClick={() => handlePageChange(Math.max(0, filters.page - 1))}
+                    disabled={filters.page === 0}
+                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => handlePageChange(filters.page + 1)}
+                    disabled={(filters.page + 1) * filters.size >= totalItems}
+                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Next
+                  </button>
                 </div>
-                <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                    <button
-                      onClick={() => handlePageChange(0)}
-                      disabled={filters.page === 0}
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <span className="sr-only">First</span>
-                      «
-                    </button>
-                    <button
-                      onClick={() => handlePageChange(Math.max(0, filters.page - 1))}
-                      disabled={filters.page === 0}
-                      className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <span className="sr-only">Previous</span>
-                      ‹
-                    </button>
-                    {Array.from({ length: Math.min(5, Math.ceil(totalItems / filters.size)) }, (_, i) => {
-                      const pageNum = Math.max(0, Math.min(
-                        Math.ceil(totalItems / filters.size) - 5,
-                        filters.page - 2
-                      )) + i;
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => handlePageChange(pageNum)}
-                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                            filters.page === pageNum
-                              ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                          }`}
-                        >
-                          {pageNum + 1}
-                        </button>
-                      );
-                    })}
-                    <button
-                      onClick={() => handlePageChange(filters.page + 1)}
-                      disabled={(filters.page + 1) * filters.size >= totalItems}
-                      className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <span className="sr-only">Next</span>
-                      ›
-                    </button>
-                    <button
-                      onClick={() => handlePageChange(Math.ceil(totalItems / filters.size) - 1)}
-                      disabled={(filters.page + 1) * filters.size >= totalItems}
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <span className="sr-only">Last</span>
-                      »
-                    </button>
-                  </nav>
+                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm text-gray-700">
+                      Showing <span className="font-medium">{filters.page * filters.size + 1}</span> to{' '}
+                      <span className="font-medium">
+                        {Math.min((filters.page + 1) * filters.size, totalItems)}
+                      </span>{' '}
+                      of <span className="font-medium">{totalItems}</span> results
+                    </p>
+                  </div>
+                  <div>
+                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                      <button
+                        onClick={() => handlePageChange(0)}
+                        disabled={filters.page === 0}
+                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <span className="sr-only">First</span>
+                        «
+                      </button>
+                      <button
+                        onClick={() => handlePageChange(Math.max(0, filters.page - 1))}
+                        disabled={filters.page === 0}
+                        className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Previous</span>
+                        ‹
+                      </button>
+                      {Array.from({ length: Math.min(5, Math.ceil(totalItems / filters.size)) }, (_, i) => {
+                        const pageNum = Math.max(0, Math.min(
+                          Math.ceil(totalItems / filters.size) - 5,
+                          filters.page - 2
+                        )) + i;
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => handlePageChange(pageNum)}
+                            className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                              filters.page === pageNum
+                                ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                                : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                            }`}
+                          >
+                            {pageNum + 1}
+                          </button>
+                        );
+                      })}
+                      <button
+                        onClick={() => handlePageChange(filters.page + 1)}
+                        disabled={(filters.page + 1) * filters.size >= totalItems}
+                        className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Next</span>
+                        ›
+                      </button>
+                      <button
+                        onClick={() => handlePageChange(Math.ceil(totalItems / filters.size) - 1)}
+                        disabled={(filters.page + 1) * filters.size >= totalItems}
+                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Last</span>
+                        »
+                      </button>
+                    </nav>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </>
         )}
       </div>

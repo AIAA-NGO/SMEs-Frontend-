@@ -13,7 +13,8 @@ import {
 } from "chart.js";
 import { FaBell, FaSearch, FaBoxes, FaExclamationTriangle, FaHistory, FaCalendarAlt } from "react-icons/fa";
 import { FiTrendingUp } from "react-icons/fi";
-import { fetchSales } from '../../services/salesService';
+import { getSales } from '../../services/salesService';
+import { InventoryService } from '../../services/InventoryService';
 
 // Register ChartJS components
 ChartJS.register(
@@ -26,6 +27,8 @@ ChartJS.register(
   Tooltip,
   Legend
 );
+
+const API_BASE_URL = 'http://localhost:8080/api/sales';
 
 // Helper function to get auth headers
 const getAuthHeader = () => {
@@ -67,23 +70,23 @@ const Dashboard = () => {
     subtotal: 0,
     discount: 0,
     total: 0,
-    due: 0,
+    salesProfit: 0,
     totalSales: 0,
     inventoryCount: 0,
-    customerCount: 0
+    customerCount: 0,
+    expiredItemsCount: 0,
+    lowStockItemsCount: 0
   });
   const [topProducts, setTopProducts] = useState([]);
   const [lowStockItems, setLowStockItems] = useState([]);
   const [recentSales, setRecentSales] = useState([]);
-  const [expiringItems, setExpiringItems] = useState([]);
+  const [expiringAndExpiredItems, setExpiringAndExpiredItems] = useState([]);
   const [salesTrend, setSalesTrend] = useState({ 
     daily: [], 
     monthly: [],
     dailyLabels: [],
     monthlyLabels: []
   });
-  const [customerCount, setCustomerCount] = useState(0);
-  const [inventoryCount, setInventoryCount] = useState(0);
 
   // Format Kenyan Shillings
   const formatKES = (amount) => {
@@ -111,27 +114,119 @@ const Dashboard = () => {
         subtotal: 0,
         discount: 0,
         total: 0,
-        due: 0,
+        salesProfit: 0,
         totalSales: 0,
-        inventoryCount: inventoryCount,
-        customerCount: customerCount
+        inventoryCount: 0,
+        customerCount: 0,
+        expiredItemsCount: 0,
+        lowStockItemsCount: 0
       };
     }
 
     const subtotal = salesData.reduce((sum, sale) => sum + (sale.subtotal || 0), 0);
     const discount = salesData.reduce((sum, sale) => sum + (sale.discount_amount || 0), 0);
     const total = salesData.reduce((sum, sale) => sum + (sale.total || 0), 0);
-    const tax = salesData.reduce((sum, sale) => sum + (sale.tax_amount || 0), 0);
+    const salesProfit = salesData.reduce((sum, sale) => {
+      const profit = (sale.total || 0) - (sale.cost_of_goods || 0) - (sale.discount_amount || 0);
+      return sum + (profit > 0 ? profit : 0);
+    }, 0);
 
     return {
       subtotal,
       discount,
       total,
-      tax,
+      salesProfit,
       totalSales: salesData.length,
-      inventoryCount: inventoryCount,
-      customerCount: customerCount
+      inventoryCount: summary.inventoryCount,
+      customerCount: summary.customerCount,
+      expiredItemsCount: summary.expiredItemsCount,
+      lowStockItemsCount: summary.lowStockItemsCount
     };
+  };
+
+  // Check if a product is expired
+  const isProductExpired = (expiryDate) => {
+    return expiryDate ? new Date() > new Date(expiryDate) : false;
+  };
+
+  // Process sales data for daily trends
+  const processDailySales = (salesData) => {
+    const dailyTotals = {};
+    
+    salesData.forEach(sale => {
+      const saleDate = new Date(sale.sale_date);
+      const dayKey = saleDate.toLocaleDateString('en-US', { 
+        weekday: 'short', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+      
+      if (!dailyTotals[dayKey]) {
+        dailyTotals[dayKey] = 0;
+      }
+      dailyTotals[dayKey] += sale.total || 0;
+    });
+    
+    return {
+      days: Object.keys(dailyTotals),
+      amounts: Object.values(dailyTotals)
+    };
+  };
+
+  // Process sales data for monthly trends
+  const processMonthlySales = (salesData) => {
+    const monthlyTotals = {};
+    
+    salesData.forEach(sale => {
+      const saleDate = new Date(sale.sale_date);
+      const monthKey = saleDate.toLocaleDateString('en-US', { 
+        month: 'short', 
+        year: 'numeric' 
+      });
+      
+      if (!monthlyTotals[monthKey]) {
+        monthlyTotals[monthKey] = 0;
+      }
+      monthlyTotals[monthKey] += sale.total || 0;
+    });
+    
+    return {
+      months: Object.keys(monthlyTotals),
+      amounts: Object.values(monthlyTotals)
+    };
+  };
+
+  // Fetch inventory data
+  const fetchInventoryData = async () => {
+    try {
+      setLoading(prev => ({ ...prev, inventory: true }));
+      
+      const inventoryResponse = await InventoryService.getInventoryStatus(
+        '', null, null, false, false, { page: 0, size: 1000 }
+      );
+      
+      const totalItems = inventoryResponse.totalElements;
+      const expiredItems = inventoryResponse.content.filter(product => 
+        product.expiryDate && isProductExpired(product.expiryDate)
+      );
+      const lowStockItems = inventoryResponse.content.filter(product => 
+        product.quantityInStock <= product.lowStockThreshold
+      );
+      
+      setSummary(prev => ({
+        ...prev,
+        inventoryCount: totalItems,
+        expiredItemsCount: expiredItems.length,
+        lowStockItemsCount: lowStockItems.length
+      }));
+      
+      setError(prev => ({ ...prev, inventory: null }));
+    } catch (err) {
+      console.error("Failed to fetch inventory data:", err);
+      setError(prev => ({ ...prev, inventory: err.message }));
+    } finally {
+      setLoading(prev => ({ ...prev, inventory: false }));
+    }
   };
 
   // Fetch data from backend API
@@ -142,18 +237,18 @@ const Dashboard = () => {
         const storedName = localStorage.getItem("userName");
         if (storedName) setUserName(storedName);
 
-        // First fetch sales data which will be used to calculate summary
+        // First fetch inventory data which will be used for counts
+        await fetchInventoryData();
+        
+        // Then fetch sales data which will be used to calculate summary
         await fetchSales();
         
         // Then fetch other dashboard data
         await Promise.all([
           fetchTopProducts(),
           fetchLowStockItems(),
-          fetchSales(),
-          fetchExpiringItems(),
-          fetchSalesTrend(),
-          fetchCustomerCount(),
-          fetchInventoryCount()
+          fetchExpiringAndExpiredItems(),
+          fetchCustomerCount()
         ]);
       } catch (err) {
         console.error("Dashboard initialization error:", err);
@@ -165,27 +260,48 @@ const Dashboard = () => {
 
   // Fetch sales data
   const fetchSales = async () => {
-    setLoading(prev => ({ ...prev, sales: true }));
-    setError(prev => ({ ...prev, sales: null }));
+    setLoading(prev => ({ ...prev, sales: true, salesTrend: true }));
+    setError(prev => ({ ...prev, sales: null, salesTrend: null }));
     
     try {
-      const response = await fetch('http://localhost:8080/api/sales', {
+      const response = await fetch(API_BASE_URL, {
         headers: getAuthHeader()
       });
       if (!response.ok) throw new Error('Failed to fetch sales');
+      
       const data = await response.json();
       setSales(data);
-      setRecentSales(data.slice(0, 5)); // Use first 5 sales for recent sales
+      setRecentSales(data.slice(0, 5));
+      
+      // Process data for charts
+      const dailySales = processDailySales(data);
+      const monthlySales = processMonthlySales(data);
+      
+      setSalesTrend({
+        daily: dailySales.amounts,
+        dailyLabels: dailySales.days,
+        monthly: monthlySales.amounts,
+        monthlyLabels: monthlySales.months
+      });
+      
       setSummary(prev => ({
         ...calculateSummary(data),
         inventoryCount: prev.inventoryCount,
-        customerCount: prev.customerCount
+        customerCount: prev.customerCount,
+        expiredItemsCount: prev.expiredItemsCount,
+        lowStockItemsCount: prev.lowStockItemsCount
       }));
     } catch (err) {
       console.error("Failed to fetch sales:", err);
-      setError(prev => ({ ...prev, sales: err.message }));
+      setError(prev => ({ ...prev, sales: err.message, salesTrend: err.message }));
     } finally {
-      setLoading(prev => ({ ...prev, sales: false, summary: false, recentSales: false }));
+      setLoading(prev => ({ 
+        ...prev, 
+        sales: false, 
+        summary: false, 
+        recentSales: false,
+        salesTrend: false
+      }));
     }
   };
 
@@ -200,7 +316,6 @@ const Dashboard = () => {
       });
       if (!response.ok) throw new Error('Failed to fetch customers');
       const data = await response.json();
-      setCustomerCount(data.length);
       setSummary(prev => ({
         ...prev,
         customerCount: data.length
@@ -210,30 +325,6 @@ const Dashboard = () => {
       setError(prev => ({ ...prev, customers: err.message }));
     } finally {
       setLoading(prev => ({ ...prev, customers: false }));
-    }
-  };
-
-  // Fetch inventory count
-  const fetchInventoryCount = async () => {
-    setLoading(prev => ({ ...prev, inventory: true }));
-    setError(prev => ({ ...prev, inventory: null }));
-    
-    try {
-      const response = await fetch('http://localhost:8080/api/inventory', {
-        headers: getAuthHeader()
-      });
-      if (!response.ok) throw new Error('Failed to fetch inventory');
-      const data = await response.json();
-      setInventoryCount(data.length);
-      setSummary(prev => ({
-        ...prev,
-        inventoryCount: data.length
-      }));
-    } catch (err) {
-      console.error("Failed to fetch inventory:", err);
-      setError(prev => ({ ...prev, inventory: err.message }));
-    } finally {
-      setLoading(prev => ({ ...prev, inventory: false }));
     }
   };
 
@@ -277,8 +368,8 @@ const Dashboard = () => {
     }
   };
 
-  // Fetch expiring items
-  const fetchExpiringItems = async () => {
+  // Fetch expiring and expired items
+  const fetchExpiringAndExpiredItems = async () => {
     setLoading(prev => ({ ...prev, expiringItems: true }));
     setError(prev => ({ ...prev, expiringItems: null }));
     
@@ -288,51 +379,18 @@ const Dashboard = () => {
       });
       if (!response.ok) throw new Error('Failed to fetch expiring items');
       const data = await response.json();
-      setExpiringItems(data);
+      
+      const processedItems = data.map(item => ({
+        ...item,
+        status: isProductExpired(item.expiryDate) ? 'expired' : 'expiring'
+      }));
+      
+      setExpiringAndExpiredItems(processedItems);
     } catch (err) {
       console.error("Failed to fetch expiring items:", err);
       setError(prev => ({ ...prev, expiringItems: err.message }));
     } finally {
       setLoading(prev => ({ ...prev, expiringItems: false }));
-    }
-  };
-
-  // Fetch sales trend data
-  const fetchSalesTrend = async () => {
-    setLoading(prev => ({ ...prev, salesTrend: true }));
-    setError(prev => ({ ...prev, salesTrend: null }));
-    
-    try {
-      const response = await fetch('http://localhost:8080/api/dashboard/sales-trend', {
-        headers: getAuthHeader()
-      });
-      if (!response.ok) throw new Error('Failed to fetch sales trend');
-      const data = await response.json();
-      
-      // If no data returned, create mock data for demonstration
-      if (!data.daily || data.daily.length === 0) {
-        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-        const mockDaily = days.map(day => Math.floor(Math.random() * 10000) + 5000);
-        
-        setSalesTrend({
-          daily: mockDaily,
-          monthly: [15000, 18000, 22000, 19000, 25000, 30000, 28000, 32000, 29000, 35000, 40000, 45000],
-          dailyLabels: days,
-          monthlyLabels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        });
-      } else {
-        setSalesTrend({
-          daily: data.daily?.map(item => item.amount) || [],
-          monthly: data.monthly?.map(item => item.amount) || [],
-          dailyLabels: data.daily?.map(item => item.day) || [],
-          monthlyLabels: data.monthly?.map(item => item.month) || []
-        });
-      }
-    } catch (err) {
-      console.error("Failed to fetch sales trend:", err);
-      setError(prev => ({ ...prev, salesTrend: err.message }));
-    } finally {
-      setLoading(prev => ({ ...prev, salesTrend: false }));
     }
   };
 
@@ -343,30 +401,30 @@ const Dashboard = () => {
       {
         label: 'Daily Sales (KES)',
         data: salesTrend.daily,
-        borderColor: '#000000', // Black
-        backgroundColor: 'rgba(59, 130, 246, 0.5)', // Blue with opacity
+        borderColor: '#3b82f6', // Blue
+        backgroundColor: 'rgba(59, 130, 246, 0.1)', // Light blue with opacity
         tension: 0.3,
         fill: true,
         borderWidth: 2,
-        pointBackgroundColor: '#000000',
+        pointBackgroundColor: '#3b82f6',
         pointBorderColor: '#ffffff',
         pointBorderWidth: 1
       }
     ]
   };
 
-  // Monthly sales chart data with black and blue bars
+  // Monthly sales chart data with blue bars
   const monthlyChartData = {
     labels: salesTrend.monthlyLabels,
     datasets: [
       {
         label: 'Monthly Sales (KES)',
         data: salesTrend.monthly,
-        backgroundColor: '#000000', // Black
-        borderColor: '#3b82f6', // Blue
-        borderWidth: 2,
+        backgroundColor: 'rgba(59, 130, 246, 0.7)', // Semi-transparent blue
+        borderColor: '#1d4ed8', // Darker blue
+        borderWidth: 1,
         hoverBackgroundColor: '#3b82f6', // Blue on hover
-        hoverBorderColor: '#000000'
+        hoverBorderColor: '#1d4ed8'
       }
     ]
   };
@@ -382,7 +440,7 @@ const Dashboard = () => {
           callback: value => formatKES(value)
         },
         grid: {
-          color: 'rgba(0, 0, 0, 0.1)'
+          color: 'rgba(0, 0, 0, 0.05)'
         }
       },
       x: {
@@ -398,6 +456,7 @@ const Dashboard = () => {
         }
       },
       legend: {
+        position: 'top',
         labels: {
           font: {
             weight: 'bold'
@@ -420,13 +479,24 @@ const Dashboard = () => {
     });
   };
 
+  // Format expiry date for display
+  const formatExpiryDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-KE', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
   return (
     <div className="p-4">
       {/* Top Bar with Greeting and Search */}
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold">
-            {getTimeOfDay()}, {userName || 'Guest'} 👋
+            {getTimeOfDay()}, {userName} 👋
           </h1>
           <p className="text-gray-600">Track your sales and performance here!</p>
         </div>
@@ -467,15 +537,15 @@ const Dashboard = () => {
         </div>
         
         <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-600">Tax Amount</h2>
+          <h2 className="text-lg font-semibold text-gray-600">Sales Profit</h2>
           <p className="text-3xl font-bold mt-2 text-purple-600">
-            {formatKES(summary.tax)}
+            {formatKES(summary.salesProfit)}
           </p>
         </div>
       </div>
 
       {/* Secondary Metrics Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
         <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
           <div className="bg-blue-100 p-3 rounded-full mr-4">
             <FiTrendingUp className="text-blue-600 text-xl" />
@@ -498,23 +568,39 @@ const Dashboard = () => {
               {loading.inventory ? (
                 <span className="inline-block h-6 w-12 bg-gray-200 rounded animate-pulse"></span>
               ) : (
-                inventoryCount
+                summary.inventoryCount
               )}
             </p>
           </div>
         </div>
 
         <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
-          <div className="bg-purple-100 p-3 rounded-full mr-4">
-            <FaHistory className="text-purple-600 text-xl" />
+          <div className="bg-yellow-100 p-3 rounded-full mr-4">
+            <FaExclamationTriangle className="text-yellow-600 text-xl" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-600">Total Customers</h2>
+            <h2 className="text-lg font-semibold text-gray-600">Low Stock Items</h2>
             <p className="text-2xl font-bold mt-1">
-              {loading.customers ? (
+              {loading.inventory ? (
                 <span className="inline-block h-6 w-12 bg-gray-200 rounded animate-pulse"></span>
               ) : (
-                customerCount
+                summary.lowStockItemsCount
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
+          <div className="bg-red-100 p-3 rounded-full mr-4">
+            <FaCalendarAlt className="text-red-600 text-xl" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-600">Expired Items</h2>
+            <p className="text-2xl font-bold mt-1">
+              {loading.inventory ? (
+                <span className="inline-block h-6 w-12 bg-gray-200 rounded animate-pulse"></span>
+              ) : (
+                summary.expiredItemsCount
               )}
             </p>
           </div>
@@ -545,14 +631,14 @@ const Dashboard = () => {
                 />
               ) : (
                 <div className="h-full flex items-center justify-center text-gray-500">
-                  No sales data available
+                  No daily sales data available
                 </div>
               )}
             </div>
           </div>
 
-          {/* Monthly Sales Bar Chart */}
-          <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
+         {/* Monthly Sales Bar Chart */}
+         <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
             <h3 className="text-xl font-semibold mb-4">Monthly Sales Performance</h3>
             <div className="h-80">
               {loading.salesTrend ? (
@@ -570,7 +656,7 @@ const Dashboard = () => {
                 />
               ) : (
                 <div className="h-full flex items-center justify-center text-gray-500">
-                  No sales data available
+                  No monthly sales data available
                 </div>
               )}
             </div>
@@ -578,7 +664,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Recent Activity Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
         {/* Top Products */}
         <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
@@ -602,8 +687,20 @@ const Dashboard = () => {
             <div className="space-y-4">
               {topProducts.slice(0, 5).map((product, index) => (
                 <div key={index} className="flex justify-between items-center">
-                  <span className="font-medium">{product.name}</span>
-                  <span className="text-blue-600 font-semibold">{product.sales} sold</span>
+                  <div className="flex items-center">
+                    {product.productImage && (
+                      <img 
+                        src={product.productImage} 
+                        alt={product.productName}
+                        className="w-8 h-8 rounded-full mr-2 object-cover"
+                      />
+                    )}
+                    <span className="font-medium">{product.productName}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-blue-600 font-semibold block">{product.unitsSold} sold</span>
+                    <span className="text-gray-500 text-xs block">{formatKES(product.revenue)}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -612,42 +709,10 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* Low Stock Items */}
+        {/* Expiring and Expired Items */}
         <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Low Stock</h2>
-            <FaExclamationTriangle className="text-red-500" />
-          </div>
-          
-          {loading.lowStock ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4].map((item) => (
-                <div key={item} className="flex justify-between items-center">
-                  <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-4 w-1/4 bg-gray-200 rounded animate-pulse"></div>
-                </div>
-              ))}
-            </div>
-          ) : error.lowStock ? (
-            <div className="text-red-500">Error: {error.lowStock}</div>
-          ) : lowStockItems.length > 0 ? (
-            <div className="space-y-4">
-              {lowStockItems.slice(0, 5).map((item, index) => (
-                <div key={index} className="flex justify-between items-center">
-                  <span className="font-medium">{item.name}</span>
-                  <span className="text-red-500 font-semibold">Only {item.quantity} left</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-gray-500">No low stock items</div>
-          )}
-        </div>
-
-        {/* Expiring Items */}
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Expiring Soon</h2>
+            <h2 className="text-xl font-semibold">Expiring/Expired Items</h2>
             <FaCalendarAlt className="text-yellow-500" />
           </div>
           
@@ -662,17 +727,23 @@ const Dashboard = () => {
             </div>
           ) : error.expiringItems ? (
             <div className="text-red-500">Error: {error.expiringItems}</div>
-          ) : expiringItems.length > 0 ? (
+          ) : expiringAndExpiredItems.length > 0 ? (
             <div className="space-y-4">
-              {expiringItems.slice(0, 5).map((item, index) => (
+              {expiringAndExpiredItems.slice(0, 5).map((item, index) => (
                 <div key={index} className="flex justify-between items-center">
                   <span className="font-medium">{item.name}</span>
-                  <span className="text-yellow-600 font-semibold">Expires: {item.expiryDate}</span>
+                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                    item.status === 'expired' 
+                      ? 'bg-red-100 text-red-800' 
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {formatExpiryDate(item.expiryDate)}
+                  </span>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-gray-500">No items expiring soon</div>
+            <div className="text-gray-500">No items expiring soon or expired</div>
           )}
         </div>
       </div>
@@ -707,30 +778,33 @@ const Dashboard = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tax</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profit</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {recentSales.map((sale) => (
-                  <tr key={sale.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{sale.id}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(sale.sale_date)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        sale.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                        sale.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {sale.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(sale.subtotal)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(sale.discount_amount)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(sale.tax_amount)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">{formatKES(sale.total)}</td>
-                  </tr>
-                ))}
+                {recentSales.map((sale) => {
+                  const profit = (sale.total || 0) - (sale.cost_of_goods || 0) - (sale.discount_amount || 0);
+                  return (
+                    <tr key={sale.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{sale.id}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(sale.sale_date)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          sale.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                          sale.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {sale.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(sale.subtotal)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(sale.discount_amount)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(profit)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">{formatKES(sale.total)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -1,8 +1,8 @@
+// src/services/InventoryService.js
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8080/api/inventory';
+const API_BASE_URL = 'http://localhost:8080/api';
 
-// Create axios instance with default config
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
@@ -12,7 +12,7 @@ const apiClient = axios.create({
   }
 });
 
-// Add request interceptor for auth tokens
+// Add auth token interceptor if needed
 apiClient.interceptors.request.use(config => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -22,9 +22,19 @@ apiClient.interceptors.request.use(config => {
 });
 
 export const InventoryService = {
-  async getInventoryStatus(params = {}) {
+  // Main inventory endpoints
+  async getInventoryStatus(search, categoryId, brandId, lowStockOnly, expiredOnly, pageable) {
     try {
-      const response = await apiClient.get('', { params });
+      const params = {
+        ...pageable,
+        search: search || undefined,
+        categoryId: categoryId || undefined,
+        brandId: brandId || undefined,
+        lowStockOnly: lowStockOnly || undefined,
+        expiredOnly: expiredOnly || undefined
+      };
+      
+      const response = await apiClient.get('/inventory', { params });
       return response.data;
     } catch (error) {
       console.error('Error fetching inventory:', error);
@@ -34,7 +44,7 @@ export const InventoryService = {
 
   async adjustInventory(request) {
     try {
-      await apiClient.post('/adjust', request);
+      await apiClient.post('/inventory/adjust', request);
     } catch (error) {
       console.error('Error adjusting inventory:', error);
       throw error;
@@ -43,20 +53,88 @@ export const InventoryService = {
 
   async removeExpiredProducts() {
     try {
-      await apiClient.post('/remove-expired');
+      await apiClient.post('/inventory/remove-expired');
     } catch (error) {
       console.error('Error removing expired products:', error);
       throw error;
     }
   },
 
+  async getAdjustmentHistory(productId) {
+    try {
+      const response = await apiClient.get(`/inventory/adjustments/${productId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching adjustment history:', error);
+      throw error;
+    }
+  },
+
+  // Low stock endpoints
   async getLowStockSuggestions() {
     try {
-      const response = await apiClient.get('/low-stock-suggestions');
+      const response = await apiClient.get('/inventory/low-stock-suggestions');
       return response.data;
     } catch (error) {
       console.error('Error fetching low stock suggestions:', error);
       throw error;
     }
+  },
+
+  async getLowStockItems() {
+    try {
+      const response = await apiClient.get('/products/low-stock');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching low stock items:', error);
+      throw error;
+    }
+  },
+
+  // Expired products endpoints
+  async getExpiringProducts() {
+    try {
+      const response = await apiClient.get('/products/expiring');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching expiring products:', error);
+      throw error;
+    }
+  },
+
+  // Search endpoint
+  async searchProducts(query) {
+    try {
+      const response = await apiClient.get('/products/search', {
+        params: { query }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error searching products:', error);
+      throw error;
+    }
+  },
+
+  // Additional utility methods
+  async getInventoryValuation() {
+    try {
+      const response = await apiClient.get('/inventory/valuation');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching inventory valuation:', error);
+      throw error;
+    }
+  },
+
+  async getProductDetails(productId) {
+    try {
+      const response = await apiClient.get(`/products/${productId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching product details:', error);
+      throw error;
+    }
   }
 };
+
+export default InventoryService;

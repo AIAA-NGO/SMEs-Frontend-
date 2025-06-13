@@ -1,32 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Table, 
-  Card, 
-  Statistic, 
-  DatePicker, 
-  Button, 
-  Select, 
-  Input, 
-  Modal, 
-  Form,
-  message,
-  Tabs
+  Table, Card, Statistic, DatePicker, Button, Select, Input, 
+  Modal, Form, message, Tabs, Spin, Tag, Divider, Row, Col 
 } from 'antd';
 import { 
-  DownloadOutlined, 
-  PlusOutlined, 
-  SearchOutlined,
-  FileTextOutlined,
-  BarChartOutlined
+  DownloadOutlined, SearchOutlined,
+  FileTextOutlined, BarChartOutlined,
+  ShoppingCartOutlined, PercentageOutlined, FileDoneOutlined,
+  DollarOutlined, CalendarOutlined, UserOutlined, TagOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import { 
-  getSales, 
-  getSalesByDateRange, 
-  exportSalesToCSV, 
-  getDailySummary,
-  createSale
+  getSales, getSalesByDateRange, exportSalesToCSV, 
+  createSale, getSalesReport, getProfitLossReport, 
+  getProductPerformanceReport
 } from '../../services/salesService';
 
 dayjs.extend(customParseFormat);
@@ -35,11 +23,24 @@ const { RangePicker } = DatePicker;
 const { Option } = Select;
 const { TabPane } = Tabs;
 
+// Custom color palette
+const colors = {
+  primary: '#1890ff',
+  success: '#52c41a',
+  warning: '#faad14',
+  error: '#f5222d',
+  info: '#13c2c2',
+  purple: '#722ed1',
+  magenta: '#eb2f96',
+  background: '#f8f9fa',
+  cardHeader: '#f0f2f5'
+};
+
 const SalesReport = () => {
+  // State management
   const [sales, setSales] = useState([]);
   const [filteredSales, setFilteredSales] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [dailySummary, setDailySummary] = useState(null);
   const [dateRange, setDateRange] = useState([
     dayjs().startOf('month'),
     dayjs().endOf('day')
@@ -49,6 +50,18 @@ const SalesReport = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('transactions');
+  const [reportLoading, setReportLoading] = useState(false);
+  const [salesReportData, setSalesReportData] = useState([]);
+  const [profitLossData, setProfitLossData] = useState(null);
+  const [productPerformance, setProductPerformance] = useState([]);
+  const [todaySalesTotal, setTodaySalesTotal] = useState(0);
+  const [allTimeSalesTotal, setAllTimeSalesTotal] = useState(0);
+  const [filteredSalesTotal, setFilteredSalesTotal] = useState({
+    subtotal: 0,
+    tax: 0,
+    discount: 0,
+    total: 0
+  });
 
   // Format currency
   const formatCurrency = (amount) => {
@@ -58,41 +71,90 @@ const SalesReport = () => {
     }).format(amount || 0);
   };
 
-  // Fetch sales data
+  // Status colors
+  const statusColors = {
+    COMPLETED: colors.success,
+    PENDING: colors.warning,
+    CANCELLED: colors.error
+  };
+
+  // Calculate totals from sales data including subtotal, tax, discount
+  const calculateTotals = (salesData) => {
+    return salesData.reduce((totals, sale) => {
+      const subtotal = sale.subtotal || 0;
+      const tax = sale.taxAmount || 0;
+      const discount = sale.discountAmount || 0;
+      const total = subtotal + tax - discount;
+      
+      return {
+        subtotal: totals.subtotal + subtotal,
+        tax: totals.tax + tax,
+        discount: totals.discount + discount,
+        total: totals.total + total
+      };
+    }, { subtotal: 0, tax: 0, discount: 0, total: 0 });
+  };
+
+  // Fetch all sales data
   const fetchSalesData = async () => {
     setLoading(true);
     try {
       let data;
       if (dateRange[0] && dateRange[1]) {
-        data = await getSalesByDateRange(
-          dateRange[0].toDate(), 
-          dateRange[1].toDate()
-        );
+        data = await getSalesByDateRange(dateRange[0].toDate(), dateRange[1].toDate());
       } else {
         data = await getSales();
       }
+      
       setSales(data);
       setFilteredSales(data);
+      
+      // Calculate all totals
+      const allTimeTotals = calculateTotals(data);
+      setAllTimeSalesTotal(allTimeTotals.total);
+      
+      // Calculate today's total if viewing today's data
+      const today = dayjs().format('YYYY-MM-DD');
+      const todaySales = data.filter(sale => 
+        dayjs(sale.saleDate).format('YYYY-MM-DD') === today
+      );
+      const todayTotals = calculateTotals(todaySales);
+      setTodaySalesTotal(todayTotals.total);
+      
+      // Calculate filtered totals
+      const filteredTotals = calculateTotals(data);
+      setFilteredSalesTotal(filteredTotals);
+      
     } catch (error) {
       message.error('Failed to fetch sales data');
-      console.error('Error fetching sales:', error);
+      console.error('Error:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch daily summary
-  const fetchDailySummary = async () => {
+  // Fetch sales report data
+  const fetchSalesReport = async () => {
+    setReportLoading(true);
     try {
-      const summary = await getDailySummary(new Date());
-      setDailySummary(summary);
+      const [salesReport, profitLoss, productPerf] = await Promise.all([
+        getSalesReport(dateRange[0]?.toDate(), dateRange[1]?.toDate()),
+        getProfitLossReport(dateRange[0]?.toDate(), dateRange[1]?.toDate()),
+        getProductPerformanceReport(dateRange[0]?.toDate(), dateRange[1]?.toDate())
+      ]);
+      
+      setSalesReportData(salesReport);
+      setProfitLossData(profitLoss);
+      setProductPerformance(productPerf);
     } catch (error) {
-      console.error('Error fetching daily summary:', error);
-      message.error('Failed to load daily summary');
+      message.error('Failed to fetch sales report');
+      console.error('Error:', error);
+    } finally {
+      setReportLoading(false);
     }
   };
 
-  // Handle search
+  // Handle search and filters
   const handleSearch = () => {
     let result = [...sales];
     
@@ -109,56 +171,8 @@ const SalesReport = () => {
     }
     
     setFilteredSales(result);
+    setFilteredSalesTotal(calculateTotals(result));
   };
-
-  // Export to CSV
-  const handleExport = async () => {
-    try {
-      await exportSalesToCSV(filteredSales);
-      message.success('Export started successfully');
-    } catch (error) {
-      message.error('Failed to export data');
-      console.error('Export error:', error);
-    }
-  };
-
-  // Handle form submission
-  const handleSubmit = async (values) => {
-    try {
-      const saleData = {
-        customerId: values.customerId,
-        paymentMethod: values.paymentMethod,
-        items: values.items.map(itemId => ({ productId: itemId, quantity: 1 })),
-        discount: values.discount || 0,
-        notes: values.notes || ''
-      };
-      
-      await createSale(saleData);
-      message.success('Sale created successfully');
-      setIsModalVisible(false);
-      form.resetFields();
-      fetchSalesData();
-      fetchDailySummary(); // Refresh summary after new sale
-    } catch (error) {
-      message.error('Failed to create sale');
-      console.error('Error creating sale:', error);
-    }
-  };
-
-  // Calculate totals
-  const calculateTotals = () => {
-    return filteredSales.reduce(
-      (acc, sale) => {
-        if (sale.status === 'COMPLETED') acc.completed += sale.totalAmount || 0;
-        if (sale.status === 'CANCELLED') acc.cancelled += sale.totalAmount || 0;
-        acc.all += sale.totalAmount || 0;
-        return acc;
-      },
-      { completed: 0, cancelled: 0, all: 0 }
-    );
-  };
-
-  const totals = calculateTotals();
 
   // Columns for transactions table
   const transactionColumns = [
@@ -166,335 +180,294 @@ const SalesReport = () => {
       title: 'Sale ID',
       dataIndex: 'id',
       key: 'id',
-      render: (id) => `#${id}`
+      render: (id) => <span style={{ fontWeight: 600 }}>#{id}</span>,
+      sorter: (a, b) => a.id - b.id
     },
     {
       title: 'Date',
       dataIndex: 'saleDate',
       key: 'date',
-      render: (date) => dayjs(date).format('DD MMM YYYY HH:mm')
+      render: (date) => <span style={{ color: colors.primary }}>{dayjs(date).format('DD MMM YYYY HH:mm')}</span>,
+      sorter: (a, b) => new Date(a.saleDate) - new Date(b.saleDate)
     },
     {
       title: 'Customer',
       dataIndex: 'customerName',
       key: 'customer',
-      render: (name) => name || 'Walk-in'
+      render: (text) => <span style={{ color: colors.purple }}>{text}</span>
     },
     {
-      title: 'Items',
-      dataIndex: 'items',
-      key: 'items',
-      render: (items) => items?.length || 0
+      title: 'Subtotal',
+      dataIndex: 'subtotal',
+      key: 'subtotal',
+      align: 'right',
+      render: (amount) => <span style={{ fontWeight: 500 }}>{formatCurrency(amount)}</span>
+    },
+    {
+      title: 'Tax',
+      dataIndex: 'taxAmount',
+      key: 'tax',
+      align: 'right',
+      render: (amount) => <span style={{ color: colors.error }}>{formatCurrency(amount)}</span>
+    },
+    {
+      title: 'Discount',
+      dataIndex: 'discountAmount',
+      key: 'discount',
+      align: 'right',
+      render: (amount) => <span style={{ color: colors.success }}>{formatCurrency(amount)}</span>
     },
     {
       title: 'Total',
       dataIndex: 'totalAmount',
       key: 'total',
       align: 'right',
-      render: (amount) => formatCurrency(amount)
+      render: (amount) => <span style={{ fontWeight: 600, color: colors.primary }}>{formatCurrency(amount)}</span>,
+      sorter: (a, b) => (a.totalAmount || 0) - (b.totalAmount || 0)
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (status) => (
-        <span className={`px-2 py-1 rounded-full text-xs ${
-          status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-          status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-          'bg-red-100 text-red-800'
-        }`}>
-          {status}
-        </span>
-      )
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_, record) => (
-        <Button 
-          type="link" 
-          icon={<FileTextOutlined />}
-          onClick={() => window.open(`/api/sales/receipt/${record.id}`, '_blank')}
-        >
-          Receipt
-        </Button>
-      )
+      render: (status) => <Tag color={statusColors[status]} style={{ fontWeight: 500 }}>{status}</Tag>
     }
   ];
 
-  // Columns for detailed report
-  const reportColumns = [
+  // Product performance columns
+  const productColumns = [
     {
-      title: 'Sale ID',
-      dataIndex: 'id',
-      key: 'id',
-      render: (id) => `#${id}`
+      title: 'Product',
+      dataIndex: 'productName',
+      key: 'product',
+      render: (text) => <span style={{ color: colors.purple }}>{text}</span>
     },
     {
-      title: 'Date',
-      dataIndex: 'saleDate',
-      key: 'date',
-      render: (date) => dayjs(date).format('DD MMM YYYY')
-    },
-    {
-      title: 'Customer',
-      dataIndex: 'customerName',
-      key: 'customer',
-      render: (name) => name || 'Walk-in'
-    },
-    {
-      title: 'Items',
-      dataIndex: 'items',
-      key: 'items',
-      render: (items) => items?.length || 0
-    },
-    {
-      title: 'Total',
-      dataIndex: 'totalAmount',
-      key: 'total',
+      title: 'Quantity Sold',
+      dataIndex: 'quantitySold',
+      key: 'quantity',
       align: 'right',
-      render: (amount) => formatCurrency(amount)
+      render: (text) => <span style={{ fontWeight: 500 }}>{text}</span>
     },
     {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => (
-        <span className={`px-2 py-1 rounded-full text-xs ${
-          status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-          status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-          'bg-red-100 text-red-800'
-        }`}>
-          {status}
-        </span>
-      )
+      title: 'Subtotal',
+      dataIndex: 'subtotal',
+      key: 'subtotal',
+      align: 'right',
+      render: (amount) => <span style={{ fontWeight: 500 }}>{formatCurrency(amount)}</span>
+    },
+    {
+      title: 'Total Revenue',
+      dataIndex: 'totalRevenue',
+      key: 'revenue',
+      align: 'right',
+      render: (amount) => <span style={{ fontWeight: 600, color: colors.primary }}>{formatCurrency(amount)}</span>
     }
   ];
 
-  // Load data on component mount
+  // Load data on component mount and when date range changes
   useEffect(() => {
     fetchSalesData();
-    fetchDailySummary();
-  }, []);
+  }, [dateRange]);
 
   // Apply filters when they change
   useEffect(() => {
     handleSearch();
   }, [searchTerm, statusFilter, sales]);
 
-  // Fetch data when date range changes
+  // Fetch report data when tab changes
   useEffect(() => {
-    if (dateRange[0] && dateRange[1]) {
-      fetchSalesData();
+    if (activeTab === 'report') {
+      fetchSalesReport();
     }
-  }, [dateRange]);
+  }, [activeTab]);
 
   return (
-    <div className="p-6">
+    <div className="p-6" style={{ background: colors.background, minHeight: '100vh' }}>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Sales Management</h1>
-        <Button 
-          type="primary" 
-          icon={<PlusOutlined />}
-          onClick={() => setIsModalVisible(true)}
-        >
-          New Sale
-        </Button>
+        <h1 className="text-2xl font-bold" style={{ color: colors.primary }}>Sales Report</h1>
+        <div className="flex gap-4">
+          <Button 
+            type="primary" 
+            icon={<DownloadOutlined />}
+            onClick={() => exportSalesToCSV(filteredSales)}
+            style={{ 
+              background: colors.purple, 
+              borderColor: colors.purple,
+              fontWeight: 500
+            }}
+          >
+            Export Data
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-4 mb-6">
-        <RangePicker
-          value={dateRange}
-          onChange={setDateRange}
-          className="w-full md:w-auto"
-          onOk={fetchSalesData}
-        />
-        
-        <Input
-          placeholder="Search by customer or ID"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full md:w-64"
-          allowClear
-        />
-        
-        <Select
-          placeholder="Filter by status"
-          value={statusFilter}
-          onChange={setStatusFilter}
-          className="w-full md:w-48"
-          allowClear
-        >
-          <Option value="COMPLETED">Completed</Option>
-          <Option value="PENDING">Pending</Option>
-          <Option value="CANCELLED">Cancelled</Option>
-        </Select>
-        
-        <Button 
-          type="primary" 
-          icon={<SearchOutlined />}
-          onClick={fetchSalesData}
-        >
-          Search
-        </Button>
-      </div>
+      <Card 
+        className="mb-6" 
+        style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.09)' }}
+        bodyStyle={{ padding: 16 }}
+      >
+        <div className="flex flex-wrap gap-4">
+          <RangePicker
+            value={dateRange}
+            onChange={setDateRange}
+            className="w-full md:w-auto"
+            disabledDate={(current) => current && current > dayjs().endOf('day')}
+            style={{ borderRadius: 6 }}
+            suffixIcon={<CalendarOutlined style={{ color: colors.primary }} />}
+          />
+          
+          <Input
+            placeholder="Search by customer or ID"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full md:w-64"
+            prefix={<SearchOutlined style={{ color: colors.primary }} />}
+            style={{ borderRadius: 6 }}
+          />
+          
+          <Select
+            placeholder="Filter by status"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            className="w-full md:w-48"
+            allowClear
+            suffixIcon={<TagOutlined style={{ color: colors.primary }} />}
+            style={{ borderRadius: 6 }}
+          >
+            <Option value="COMPLETED">Completed</Option>
+            <Option value="PENDING">Pending</Option>
+            <Option value="CANCELLED">Cancelled</Option>
+          </Select>
+        </div>
+      </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card>
-          <Statistic
-            title="Total Sales"
-            value={formatCurrency(totals.all)}
-            valueStyle={{ color: '#3f8600' }}
-          />
-        </Card>
-        <Card>
-          <Statistic
-            title="Today's Sales"
-            value={dailySummary ? formatCurrency(dailySummary.totalSales) : 'Loading...'}
-          />
-        </Card>
-        <Card>
-          <Statistic
-            title="Transactions"
-            value={filteredSales.length}
-          />
-        </Card>
-      </div>
+      <Row gutter={16} className="mb-6">
+        <Col xs={24} sm={12} md={6}>
+          <Card 
+            bordered={false} 
+            style={{ borderRadius: 8, background: `linear-gradient(135deg, ${colors.info} 0%, ${colors.primary} 100%)` }}
+          >
+            <Statistic
+              title={<span style={{ color: 'white' }}>All Time Sales</span>}
+              value={formatCurrency(allTimeSalesTotal)}
+              valueStyle={{ color: 'white', fontWeight: 600 }}
+              prefix={<ShoppingCartOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card 
+            bordered={false} 
+            style={{ borderRadius: 8, background: `linear-gradient(135deg, ${colors.success} 0%, #a0d911 100%)` }}
+          >
+            <Statistic
+              title={<span style={{ color: 'white' }}>Today's Sales</span>}
+              value={formatCurrency(todaySalesTotal)}
+              valueStyle={{ color: 'white', fontWeight: 600 }}
+              prefix={<CalendarOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card 
+            bordered={false} 
+            style={{ borderRadius: 8, background: `linear-gradient(135deg, ${colors.warning} 0%, #fa8c16 100%)` }}
+          >
+            <Statistic
+              title={<span style={{ color: 'white' }}>Subtotal</span>}
+              value={formatCurrency(filteredSalesTotal.subtotal)}
+              valueStyle={{ color: 'white', fontWeight: 600 }}
+              prefix={<FileTextOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card 
+            bordered={false} 
+            style={{ borderRadius: 8, background: `linear-gradient(135deg, ${colors.error} 0%, #f5222d 100%)` }}
+          >
+            <Statistic
+              title={<span style={{ color: 'white' }}>Tax Collected</span>}
+              value={formatCurrency(filteredSalesTotal.tax)}
+              valueStyle={{ color: 'white', fontWeight: 600 }}
+              prefix={<PercentageOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />}
+            />
+          </Card>
+        </Col>
+      </Row>
 
       {/* Tabs */}
-      <Tabs activeKey={activeTab} onChange={setActiveTab}>
-        <TabPane
-          tab={
-            <span>
-              <FileTextOutlined /> Transactions
-            </span>
-          }
-          key="transactions"
-        >
-          <Table
-            columns={transactionColumns}
-            dataSource={filteredSales}
-            loading={loading}
-            rowKey="id"
-            scroll={{ x: true }}
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              pageSizeOptions: ['10', '20', '50']
-            }}
-          />
-        </TabPane>
-        
-        <TabPane
-          tab={
-            <span>
-              <BarChartOutlined /> Sales Report
-            </span>
-          }
-          key="report"
-        >
-          <div className="flex justify-end mb-4">
-            <Button 
-              type="primary" 
-              icon={<DownloadOutlined />}
-              onClick={handleExport}
-            >
-              Export Report
-            </Button>
-          </div>
-          
-          <Table
-            columns={reportColumns}
-            dataSource={filteredSales}
-            loading={loading}
-            rowKey="id"
-            scroll={{ x: true }}
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              pageSizeOptions: ['10', '20', '50']
-            }}
-          />
-        </TabPane>
-      </Tabs>
-
-      {/* New Sale Modal */}
-      <Modal
-        title="Create New Sale"
-        visible={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
-        footer={null}
-        width={800}
+      <Card 
+        style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.09)' }}
+        bodyStyle={{ padding: 0 }}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
+        <Tabs 
+          activeKey={activeTab} 
+          onChange={setActiveTab}
+          tabBarStyle={{ padding: '0 16px', margin: 0 }}
+          style={{ background: 'white' }}
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Form.Item
-              label="Customer"
-              name="customerId"
-              rules={[{ required: true, message: 'Please select a customer' }]}
-            >
-              <Select placeholder="Select customer">
-                <Option value={1}>John Doe</Option>
-                <Option value={2}>Jane Smith</Option>
-                <Option value={3}>Walk-in Customer</Option>
-              </Select>
-            </Form.Item>
-
-            <Form.Item
-              label="Payment Method"
-              name="paymentMethod"
-              rules={[{ required: true, message: 'Please select payment method' }]}
-            >
-              <Select placeholder="Select payment method">
-                <Option value="CASH">Cash</Option>
-                <Option value="MPESA">M-Pesa</Option>
-                <Option value="CARD">Credit Card</Option>
-              </Select>
-            </Form.Item>
-
-            <Form.Item
-              label="Items"
-              name="items"
-              rules={[{ required: true, message: 'Please add at least one item' }]}
-            >
-              <Select mode="multiple" placeholder="Select items">
-                <Option value={1}>Product 1</Option>
-                <Option value={2}>Product 2</Option>
-                <Option value={3}>Product 3</Option>
-              </Select>
-            </Form.Item>
-
-            <Form.Item
-              label="Discount (%)"
-              name="discount"
-            >
-              <Input type="number" min={0} max={100} />
-            </Form.Item>
-
-            <Form.Item
-              label="Notes"
-              name="notes"
-            >
-              <Input.TextArea rows={2} />
-            </Form.Item>
-          </div>
-
-          <div className="flex justify-end gap-4 mt-6">
-            <Button onClick={() => setIsModalVisible(false)}>
-              Cancel
-            </Button>
-            <Button type="primary" htmlType="submit">
-              Create Sale
-            </Button>
-          </div>
-        </Form>
-      </Modal>
+          <TabPane
+            tab={
+              <span style={{ fontWeight: 500 }}>
+                <FileTextOutlined style={{ color: colors.primary }} /> Transactions
+              </span>
+            }
+            key="transactions"
+          >
+            <Table
+              columns={transactionColumns}
+              dataSource={filteredSales}
+              loading={loading}
+              rowKey="id"
+              pagination={{ pageSize: 10 }}
+              style={{ padding: 16 }}
+              summary={() => (
+                <Table.Summary fixed>
+                  <Table.Summary.Row style={{ background: colors.cardHeader }}>
+                    <Table.Summary.Cell index={0} colSpan={3} align="right">
+                      <strong style={{ color: colors.primary }}>Totals:</strong>
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={1} align="right">
+                      <strong>{formatCurrency(filteredSalesTotal.subtotal)}</strong>
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={2} align="right">
+                      <strong style={{ color: colors.error }}>{formatCurrency(filteredSalesTotal.tax)}</strong>
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={3} align="right">
+                      <strong style={{ color: colors.success }}>{formatCurrency(filteredSalesTotal.discount)}</strong>
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={4} align="right">
+                      <strong style={{ color: colors.primary }}>{formatCurrency(filteredSalesTotal.total)}</strong>
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={5}></Table.Summary.Cell>
+                  </Table.Summary.Row>
+                </Table.Summary>
+              )}
+            />
+          </TabPane>
+          
+          <TabPane
+            tab={
+              <span style={{ fontWeight: 500 }}>
+                
+              </span>
+            }
+            key="report"
+          >
+            <Spin spinning={reportLoading}>
+              {profitLossData && (
+                <div style={{ padding: 16 }}>
+                  
+                
+                </div>
+              )}
+            </Spin>
+          </TabPane>
+        </Tabs>
+      </Card>
     </div>
   );
 };
