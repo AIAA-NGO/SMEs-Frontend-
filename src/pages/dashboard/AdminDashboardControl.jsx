@@ -40,6 +40,7 @@ const getAuthHeader = () => {
 };
 
 const Dashboard = () => {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState("");
   const [loading, setLoading] = useState({
     sales: true,
@@ -229,13 +230,26 @@ const Dashboard = () => {
     }
   };
 
+  // Check if user is logged in
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const storedName = localStorage.getItem('userName');
+    
+    if (token) {
+      setIsLoggedIn(true);
+      if (storedName) {
+        setUserName(storedName);
+      }
+    }
+  }, []);
+
   // Fetch data from backend API
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Get user name from localStorage
-        const storedName = localStorage.getItem("userName");
-        if (storedName) setUserName(storedName);
+        // Only fetch data if user is logged in
+        const token = localStorage.getItem('token');
+        if (!token) return;
 
         // First fetch inventory data which will be used for counts
         await fetchInventoryData();
@@ -494,12 +508,19 @@ const Dashboard = () => {
     <div className="p-4">
       {/* Top Bar with Greeting and Search */}
       <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-2xl font-bold">
-            {getTimeOfDay()}, {userName} 👋
-          </h1>
-          <p className="text-gray-600">Track your sales and performance here!</p>
-        </div>
+        {isLoggedIn ? (
+          <div>
+            <h1 className="text-2xl font-bold">
+              {getTimeOfDay()}, {userName} 👋
+            </h1>
+            <p className="text-gray-600">Track your sales and performance here!</p>
+          </div>
+        ) : (
+          <div>
+            <h1 className="text-2xl font-bold">Welcome to the Dashboard</h1>
+            <p className="text-gray-600">Please login to access your data</p>
+          </div>
+        )}
         <div className="flex items-center space-x-4">
           <div className="relative">
             <input
@@ -513,305 +534,314 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Summary Metrics Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-600">Sale SubTotal</h2>
-          <p className="text-3xl font-bold mt-2 text-blue-600">
-            {formatKES(summary.subtotal)}
-          </p>
-        </div>
-        
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-600">Sale Discount</h2>
-          <p className="text-3xl font-bold mt-2 text-red-500">
-            {summary.discount > 0 ? `-${formatKES(summary.discount)}` : formatKES(0)}
-          </p>
-        </div>
-        
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-600">Sale Total</h2>
-          <p className="text-3xl font-bold mt-2 text-green-600">
-            {formatKES(summary.total)}
-          </p>
-        </div>
-        
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-600">Sales Profit</h2>
-          <p className="text-3xl font-bold mt-2 text-purple-600">
-            {formatKES(summary.salesProfit)}
-          </p>
-        </div>
-      </div>
-
-      {/* Secondary Metrics Section */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
-          <div className="bg-blue-100 p-3 rounded-full mr-4">
-            <FiTrendingUp className="text-blue-600 text-xl" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-600">Total Sales</h2>
-            <p className="text-2xl font-bold mt-1">
-              {summary.totalSales}
-            </p>
-          </div>
-        </div>
-
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
-          <div className="bg-green-100 p-3 rounded-full mr-4">
-            <FaBoxes className="text-green-600 text-xl" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-600">Inventory Items</h2>
-            <p className="text-2xl font-bold mt-1">
-              {loading.inventory ? (
-                <span className="inline-block h-6 w-12 bg-gray-200 rounded animate-pulse"></span>
-              ) : (
-                summary.inventoryCount
-              )}
-            </p>
-          </div>
-        </div>
-
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
-          <div className="bg-yellow-100 p-3 rounded-full mr-4">
-            <FaExclamationTriangle className="text-yellow-600 text-xl" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-600">Low Stock Items</h2>
-            <p className="text-2xl font-bold mt-1">
-              {loading.inventory ? (
-                <span className="inline-block h-6 w-12 bg-gray-200 rounded animate-pulse"></span>
-              ) : (
-                summary.lowStockItemsCount
-              )}
-            </p>
-          </div>
-        </div>
-
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
-          <div className="bg-red-100 p-3 rounded-full mr-4">
-            <FaCalendarAlt className="text-red-600 text-xl" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-600">Expired Items</h2>
-            <p className="text-2xl font-bold mt-1">
-              {loading.inventory ? (
-                <span className="inline-block h-6 w-12 bg-gray-200 rounded animate-pulse"></span>
-              ) : (
-                summary.expiredItemsCount
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Sales Trends Section */}
-      <div className="mb-10">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Sales Trends</h2>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Daily Sales Line Chart */}
-          <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-            <h3 className="text-xl font-semibold mb-4">Daily Sales Trend</h3>
-            <div className="h-80">
-              {loading.salesTrend ? (
-                <div className="h-full flex items-center justify-center">
-                  <div className="animate-pulse text-gray-400">Loading daily sales data...</div>
-                </div>
-              ) : error.salesTrend ? (
-                <div className="h-full flex items-center justify-center text-red-500">
-                  Error: {error.salesTrend}
-                </div>
-              ) : salesTrend.daily.length > 0 ? (
-                <Line 
-                  data={dailyChartData}
-                  options={chartOptions}
-                />
-              ) : (
-                <div className="h-full flex items-center justify-center text-gray-500">
-                  No daily sales data available
-                </div>
-              )}
+      {isLoggedIn ? (
+        <>
+          {/* Summary Metrics Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+            <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-600">Sale SubTotal</h2>
+              <p className="text-3xl font-bold mt-2 text-blue-600">
+                {formatKES(summary.subtotal)}
+              </p>
+            </div>
+            
+            <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-600">Sale Discount</h2>
+              <p className="text-3xl font-bold mt-2 text-red-500">
+                {summary.discount > 0 ? `-${formatKES(summary.discount)}` : formatKES(0)}
+              </p>
+            </div>
+            
+            <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-600">Sale Total</h2>
+              <p className="text-3xl font-bold mt-2 text-green-600">
+                {formatKES(summary.total)}
+              </p>
+            </div>
+            
+            <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-600">Sales Profit</h2>
+              <p className="text-3xl font-bold mt-2 text-purple-600">
+                {formatKES(summary.salesProfit)}
+              </p>
             </div>
           </div>
 
-         {/* Monthly Sales Bar Chart */}
-         <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-            <h3 className="text-xl font-semibold mb-4">Monthly Sales Performance</h3>
-            <div className="h-80">
-              {loading.salesTrend ? (
-                <div className="h-full flex items-center justify-center">
-                  <div className="animate-pulse text-gray-400">Loading monthly sales data...</div>
-                </div>
-              ) : error.salesTrend ? (
-                <div className="h-full flex items-center justify-center text-red-500">
-                  Error: {error.salesTrend}
-                </div>
-              ) : salesTrend.monthly.length > 0 ? (
-                <Bar
-                  data={monthlyChartData}
-                  options={chartOptions}
-                />
-              ) : (
-                <div className="h-full flex items-center justify-center text-gray-500">
-                  No monthly sales data available
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
-        {/* Top Products */}
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Top Products</h2>
-            <FiTrendingUp className="text-blue-500" />
-          </div>
-          
-          {loading.topProducts ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4].map((item) => (
-                <div key={item} className="flex justify-between items-center">
-                  <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-4 w-1/4 bg-gray-200 rounded animate-pulse"></div>
-                </div>
-              ))}
-            </div>
-          ) : error.topProducts ? (
-            <div className="text-red-500">Error: {error.topProducts}</div>
-          ) : topProducts.length > 0 ? (
-            <div className="space-y-4">
-              {topProducts.slice(0, 5).map((product, index) => (
-                <div key={index} className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    {product.productImage && (
-                      <img 
-                        src={product.productImage} 
-                        alt={product.productName}
-                        className="w-8 h-8 rounded-full mr-2 object-cover"
-                      />
-                    )}
-                    <span className="font-medium">{product.productName}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-blue-600 font-semibold block">{product.unitsSold} sold</span>
-                    <span className="text-gray-500 text-xs block">{formatKES(product.revenue)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-gray-500">No products sold yet</div>
-          )}
-        </div>
-
-        {/* Expiring and Expired Items */}
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Expiring/Expired Items</h2>
-            <FaCalendarAlt className="text-yellow-500" />
-          </div>
-          
-          {loading.expiringItems ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4].map((item) => (
-                <div key={item} className="flex justify-between items-center">
-                  <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-4 w-1/4 bg-gray-200 rounded animate-pulse"></div>
-                </div>
-              ))}
-            </div>
-          ) : error.expiringItems ? (
-            <div className="text-red-500">Error: {error.expiringItems}</div>
-          ) : expiringAndExpiredItems.length > 0 ? (
-            <div className="space-y-4">
-              {expiringAndExpiredItems.slice(0, 5).map((item, index) => (
-                <div key={index} className="flex justify-between items-center">
-                  <span className="font-medium">{item.name}</span>
-                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                    item.status === 'expired' 
-                      ? 'bg-red-100 text-red-800' 
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {formatExpiryDate(item.expiryDate)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-gray-500">No items expiring soon or expired</div>
-          )}
-        </div>
-      </div>
-
-      {/* Recent Sales Section */}
-      <div className="mt-6 p-6 bg-white rounded-xl shadow-md border border-gray-200">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Recent Sales</h2>
-          <FaHistory className="text-gray-500" />
-        </div>
-        
-        {loading.recentSales ? (
-          <div className="space-y-4">
-            {[1, 2, 3, 4, 5].map((item) => (
-              <div key={item} className="grid grid-cols-4 gap-4">
-                <div className="h-4 bg-gray-200 rounded animate-pulse col-span-1"></div>
-                <div className="h-4 bg-gray-200 rounded animate-pulse col-span-1"></div>
-                <div className="h-4 bg-gray-200 rounded animate-pulse col-span-1"></div>
-                <div className="h-4 bg-gray-200 rounded animate-pulse col-span-1"></div>
+          {/* Secondary Metrics Section */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+            <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
+              <div className="bg-blue-100 p-3 rounded-full mr-4">
+                <FiTrendingUp className="text-blue-600 text-xl" />
               </div>
-            ))}
+              <div>
+                <h2 className="text-lg font-semibold text-gray-600">Total Sales</h2>
+                <p className="text-2xl font-bold mt-1">
+                  {summary.totalSales}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
+              <div className="bg-green-100 p-3 rounded-full mr-4">
+                <FaBoxes className="text-green-600 text-xl" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-600">Inventory Items</h2>
+                <p className="text-2xl font-bold mt-1">
+                  {loading.inventory ? (
+                    <span className="inline-block h-6 w-12 bg-gray-200 rounded animate-pulse"></span>
+                  ) : (
+                    summary.inventoryCount
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
+              <div className="bg-yellow-100 p-3 rounded-full mr-4">
+                <FaExclamationTriangle className="text-yellow-600 text-xl" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-600">Low Stock Items</h2>
+                <p className="text-2xl font-bold mt-1">
+                  {loading.inventory ? (
+                    <span className="inline-block h-6 w-12 bg-gray-200 rounded animate-pulse"></span>
+                  ) : (
+                    summary.lowStockItemsCount
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
+              <div className="bg-red-100 p-3 rounded-full mr-4">
+                <FaCalendarAlt className="text-red-600 text-xl" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-600">Expired Items</h2>
+                <p className="text-2xl font-bold mt-1">
+                  {loading.inventory ? (
+                    <span className="inline-block h-6 w-12 bg-gray-200 rounded animate-pulse"></span>
+                  ) : (
+                    summary.expiredItemsCount
+                  )}
+                </p>
+              </div>
+            </div>
           </div>
-        ) : error.recentSales ? (
-          <div className="text-red-500">Error loading recent sales: {error.recentSales}</div>
-        ) : recentSales.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profit</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {recentSales.map((sale) => {
-                  const profit = (sale.total || 0) - (sale.cost_of_goods || 0) - (sale.discount_amount || 0);
-                  return (
-                    <tr key={sale.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{sale.id}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(sale.sale_date)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          sale.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                          sale.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {sale.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(sale.subtotal)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(sale.discount_amount)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(profit)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">{formatKES(sale.total)}</td>
+
+          {/* Sales Trends Section */}
+          <div className="mb-10">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Sales Trends</h2>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Daily Sales Line Chart */}
+              <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
+                <h3 className="text-xl font-semibold mb-4">Daily Sales Trend</h3>
+                <div className="h-80">
+                  {loading.salesTrend ? (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="animate-pulse text-gray-400">Loading daily sales data...</div>
+                    </div>
+                  ) : error.salesTrend ? (
+                    <div className="h-full flex items-center justify-center text-red-500">
+                      Error: {error.salesTrend}
+                    </div>
+                  ) : salesTrend.daily.length > 0 ? (
+                    <Line 
+                      data={dailyChartData}
+                      options={chartOptions}
+                    />
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-gray-500">
+                      No daily sales data available
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Monthly Sales Bar Chart */}
+              <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
+                <h3 className="text-xl font-semibold mb-4">Monthly Sales Performance</h3>
+                <div className="h-80">
+                  {loading.salesTrend ? (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="animate-pulse text-gray-400">Loading monthly sales data...</div>
+                    </div>
+                  ) : error.salesTrend ? (
+                    <div className="h-full flex items-center justify-center text-red-500">
+                      Error: {error.salesTrend}
+                    </div>
+                  ) : salesTrend.monthly.length > 0 ? (
+                    <Bar
+                      data={monthlyChartData}
+                      options={chartOptions}
+                    />
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-gray-500">
+                      No monthly sales data available
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+            {/* Top Products */}
+            <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold">Top Products</h2>
+                <FiTrendingUp className="text-blue-500" />
+              </div>
+              
+              {loading.topProducts ? (
+                <div className="space-y-4">
+                  {[1, 2, 3, 4].map((item) => (
+                    <div key={item} className="flex justify-between items-center">
+                      <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-4 w-1/4 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : error.topProducts ? (
+                <div className="text-red-500">Error: {error.topProducts}</div>
+              ) : topProducts.length > 0 ? (
+                <div className="space-y-4">
+                  {topProducts.slice(0, 5).map((product, index) => (
+                    <div key={index} className="flex justify-between items-center">
+                      <div className="flex items-center">
+                        {product.productImage && (
+                          <img 
+                            src={product.productImage} 
+                            alt={product.productName}
+                            className="w-8 h-8 rounded-full mr-2 object-cover"
+                          />
+                        )}
+                        <span className="font-medium">{product.productName}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-blue-600 font-semibold block">{product.unitsSold} sold</span>
+                        <span className="text-gray-500 text-xs block">{formatKES(product.revenue)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-gray-500">No products sold yet</div>
+              )}
+            </div>
+
+            {/* Expiring and Expired Items */}
+            <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold">Expiring/Expired Items</h2>
+                <FaCalendarAlt className="text-yellow-500" />
+              </div>
+              
+              {loading.expiringItems ? (
+                <div className="space-y-4">
+                  {[1, 2, 3, 4].map((item) => (
+                    <div key={item} className="flex justify-between items-center">
+                      <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-4 w-1/4 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : error.expiringItems ? (
+                <div className="text-red-500">Error: {error.expiringItems}</div>
+              ) : expiringAndExpiredItems.length > 0 ? (
+                <div className="space-y-4">
+                  {expiringAndExpiredItems.slice(0, 5).map((item, index) => (
+                    <div key={index} className="flex justify-between items-center">
+                      <span className="font-medium">{item.name}</span>
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                        item.status === 'expired' 
+                          ? 'bg-red-100 text-red-800' 
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {formatExpiryDate(item.expiryDate)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-gray-500">No items expiring soon or expired</div>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Sales Section */}
+          <div className="mt-6 p-6 bg-white rounded-xl shadow-md border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Recent Sales</h2>
+              <FaHistory className="text-gray-500" />
+            </div>
+            
+            {loading.recentSales ? (
+              <div className="space-y-4">
+                {[1, 2, 3, 4, 5].map((item) => (
+                  <div key={item} className="grid grid-cols-4 gap-4">
+                    <div className="h-4 bg-gray-200 rounded animate-pulse col-span-1"></div>
+                    <div className="h-4 bg-gray-200 rounded animate-pulse col-span-1"></div>
+                    <div className="h-4 bg-gray-200 rounded animate-pulse col-span-1"></div>
+                    <div className="h-4 bg-gray-200 rounded animate-pulse col-span-1"></div>
+                  </div>
+                ))}
+              </div>
+            ) : error.recentSales ? (
+              <div className="text-red-500">Error loading recent sales: {error.recentSales}</div>
+            ) : recentSales.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profit</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {recentSales.map((sale) => {
+                      const profit = (sale.total || 0) - (sale.cost_of_goods || 0) - (sale.discount_amount || 0);
+                      return (
+                        <tr key={sale.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{sale.id}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(sale.sale_date)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              sale.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                              sale.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {sale.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(sale.subtotal)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(sale.discount_amount)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(profit)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">{formatKES(sale.total)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-gray-500">No recent sales found</div>
+            )}
           </div>
-        ) : (
-          <div className="text-gray-500">No recent sales found</div>
-        )}
-      </div>
+        </>
+      ) : (
+        <div className="text-center py-20">
+          <h2 className="text-2xl font-bold text-gray-700 mb-4">Please login to view dashboard</h2>
+          <p className="text-gray-500">You need to be authenticated to access this content.</p>
+        </div>
+      )}
     </div>
   );
 };

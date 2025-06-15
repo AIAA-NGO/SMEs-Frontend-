@@ -327,28 +327,31 @@ const Cart = () => {
                     </div>
                   )}
                 </div>
-                
-                {/* Order Totals */}
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Subtotal:</span>
-                    <span>Ksh {subtotal.toFixed(2)}</span>
-                  </div>
-                  {discountAmount > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Discount:</span>
-                      <span>-Ksh {discountAmount.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Tax (16%):</span>
-                    <span>Ksh {taxAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-lg pt-3 border-t">
-                    <span>Total:</span>
-                    <span>Ksh {total.toFixed(2)}</span>
-                  </div>
-                </div>
+{/* Order Totals */}
+<div className="space-y-3 mb-6">
+  <div className="flex justify-between">
+    <span className="text-gray-600">Subtotal:</span>
+    <span>Ksh {subtotal.toFixed(2)}</span>
+  </div>
+  
+  {/* Discount Line - Simple and clear like the receipt */}
+  {discountAmount > 0 && (
+    <div className="flex justify-between text-green-600">
+      <span>Discount:</span>
+      <span>- Ksh {discountAmount.toFixed(2)}</span>
+    </div>
+  )}
+  
+  <div className="flex justify-between">
+    <span className="text-gray-600">Tax (16%):</span>
+    <span>Ksh {taxAmount.toFixed(2)}</span>
+  </div>
+  
+  <div className="flex justify-between font-bold text-lg pt-3 border-t">
+    <span>Total:</span>
+    <span>Ksh {total.toFixed(2)}</span>
+  </div>
+</div>
                 
                 {checkoutError && (
                   <div className="text-red-500 text-sm mb-4">{checkoutError}</div>

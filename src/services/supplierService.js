@@ -29,16 +29,7 @@ export const addSupplier = async (supplier) => {
   const response = await fetch(`${API_BASE_URL}/suppliers`, {
     method: 'POST',
     headers: getAuthHeader(),
-    body: JSON.stringify({
-      companyName: supplier.companyName,
-      contactPerson: supplier.contactPerson,
-      email: supplier.email,
-      phone: supplier.phone,
-      address: supplier.address,
-      website: supplier.website,
-      rating: parseFloat(supplier.rating),
-      categoryIds: supplier.categoryIds
-    })
+    body: JSON.stringify(supplier)
   });
 
   if (!response.ok) {
@@ -49,23 +40,18 @@ export const addSupplier = async (supplier) => {
   return response.json();
 };
 
-
 export const updateSupplier = async (id, supplier) => {
   const response = await fetch(`${API_BASE_URL}/suppliers/${id}`, {
     method: 'PUT',
     headers: getAuthHeader(),
-    body: JSON.stringify({
-      company_name: supplier.name,
-      contact_person: supplier.contact_person,
-      email: supplier.email,
-      phone: supplier.phone,
-      address: supplier.address,
-    })
+    body: JSON.stringify(supplier)
   });
+
   if (!response.ok) {
     const err = await response.json();
     throw new Error(err.message || 'Failed to update supplier');
   }
+
   return response.json();
 };
 
@@ -74,6 +60,9 @@ export const deleteSupplier = async (id) => {
     method: 'DELETE',
     headers: getAuthHeader()
   });
-  if (!response.ok) throw new Error('Failed to delete supplier');
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.message || 'Failed to delete supplier');
+  }
   return true;
 };

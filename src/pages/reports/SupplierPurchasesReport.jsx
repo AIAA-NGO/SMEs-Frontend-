@@ -33,7 +33,7 @@ const SupplierPurchasesReport = () => {
           const supplier = suppliersData.find(s => s.id === purchase.supplierId);
           return {
             ...purchase,
-            supplierName: supplier ? supplier.companyName : 'Unknown Supplier',
+            supplierName: supplier ? supplier.companyName : '',
             supplierDetails: supplier || null
           };
         });

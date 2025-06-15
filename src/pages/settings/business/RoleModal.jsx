@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'; // Add this import
+import { useState, useEffect } from 'react';
 
 export default function RoleModal({ isOpen, onClose, role, onSave }) {
-  const [name, setName] = useState(role?.name || '');
+  const [name, setName] = useState('');
 
   useEffect(() => {
     setName(role?.name || '');
@@ -26,9 +26,7 @@ export default function RoleModal({ isOpen, onClose, role, onSave }) {
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              ×
             </button>
           </div>
 
@@ -37,14 +35,18 @@ export default function RoleModal({ isOpen, onClose, role, onSave }) {
               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">
                 Role Name
               </label>
-              <input
+              <select
                 id="name"
-                type="text"
                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-              />
+              >
+                <option value="">Select a role</option>
+                <option value="ADMIN">ADMIN</option>
+                <option value="MANAGER">MANAGER</option>
+                <option value="CASHIER">CASHIER</option>
+              </select>
             </div>
 
             <div className="flex justify-end space-x-3">

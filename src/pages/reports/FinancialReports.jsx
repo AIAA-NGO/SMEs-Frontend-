@@ -8,6 +8,7 @@ import {
 } from '../../services/salesService';
 import { format, subDays } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { message } from 'antd';
 
 const FinancialReports = () => {
   const [activeTab, setActiveTab] = useState('profitLoss');
@@ -23,13 +24,15 @@ const FinancialReports = () => {
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
-  // Function to fetch all report data
+  useEffect(() => {
+    fetchData();
+  }, [startDate, endDate]);
+
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch all data in parallel
       const [salesReportData, productData, profitLossData, sales] = await Promise.all([
         getSalesReport(startDate, endDate),
         getProductPerformanceReport(startDate, endDate),
@@ -37,14 +40,15 @@ const FinancialReports = () => {
         getSalesByDateRange(startDate, endDate)
       ]);
 
-      // Process product performance data to include profit calculations
       const processedProductData = productData.map(product => {
-        const profit = product.totalRevenue - (product.unitCost * product.quantitySold);
-        const profitMargin = product.totalRevenue > 0 ? (profit / product.totalRevenue) * 100 : 0;
+        const costOfGoodsSold = product.unitCost * product.quantitySold;
+        const grossProfit = product.totalRevenue - costOfGoodsSold;
+        const profitMargin = product.totalRevenue > 0 ? (grossProfit / product.totalRevenue) * 100 : 0;
         return {
           ...product,
-          totalProfit: profit,
-          profitMargin: profitMargin
+          costOfGoodsSold,
+          grossProfit,
+          profitMargin
         };
       });
 
@@ -61,39 +65,74 @@ const FinancialReports = () => {
     }
   };
 
-  // Fetch data when component mounts or date range changes
-  useEffect(() => {
-    fetchData();
-    
-    // Set up interval for real-time updates (every 5 minutes)
-    const intervalId = setInterval(fetchData, 5 * 60 * 1000);
-    
-    // Clean up interval on component unmount
-    return () => clearInterval(intervalId);
-  }, [startDate, endDate]);
-
-  // Manual refresh function
-  const handleRefresh = () => {
-    fetchData();
-  };
-
-  const handleExport = async (format = 'CSV') => {
+  const handleExport = async (exportFormat = 'CSV') => {
     try {
-      const blob = await exportSalesReport(startDate, endDate, format);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `sales_report_${format(startDate, 'yyyyMMdd')}_to_${format(endDate, 'yyyyMMdd')}.${format.toLowerCase()}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      setLoading(true);
+      
+      const formattedStartDate = format(startDate, 'yyyy-MM-dd');
+      const formattedEndDate = format(endDate, 'yyyy-MM-dd');
+
+      let exportData = {
+        startDate: formattedStartDate,
+        endDate: formattedEndDate,
+        reportType: activeTab.toUpperCase(),
+        format: exportFormat
+      };
+
+      switch(activeTab) {
+        case 'profitLoss':
+          exportData.data = {
+            ...profitLoss,
+            startDate: formattedStartDate,
+            endDate: formattedEndDate
+          };
+          break;
+        case 'productPerformance':
+          exportData.data = productPerformance.map(item => ({
+            productId: item.productId,
+            productName: item.productName,
+            quantitySold: item.quantitySold,
+            unitCost: item.unitCost,
+            unitPrice: item.unitPrice,
+            totalRevenue: item.totalRevenue,
+            costOfGoodsSold: item.costOfGoodsSold,
+            grossProfit: item.grossProfit,
+            profitMargin: item.profitMargin
+          }));
+          break;
+        case 'salesReport':
+          exportData.data = salesData.map(item => ({
+            saleId: item.id,
+            date: item.saleDate,
+            customer: item.customerName,
+            items: item.items.length,
+            subtotal: item.subtotal,
+            discount: item.discount,
+            totalAmount: item.totalAmount,
+            status: item.status
+          }));
+          break;
+      }
+
+      const response = await exportSalesReport(exportData);
+      
+      // Create a download link for the blob
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `financial_report_${formattedStartDate}_to_${formattedEndDate}.${exportFormat.toLowerCase()}`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      
+      message.success(`Report exported successfully as ${exportFormat}`);
     } catch (err) {
       console.error('Export failed:', err);
-      setError('Export failed: ' + (err.message || 'Unknown error'));
+      message.error('Export failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
     }
   };
-
   const formatCurrency = (value) => {
     if (isNaN(value) || value === null || value === undefined) return 'KSH 0.00';
     return new Intl.NumberFormat('en-KE', {
@@ -104,68 +143,63 @@ const FinancialReports = () => {
     }).format(value);
   };
 
+  const calculateFinancialMetrics = () => {
+    if (!productPerformance.length) return null;
+
+    const totalRevenue = productPerformance.reduce((sum, product) => sum + (product.totalRevenue || 0), 0);
+    const totalCOGS = productPerformance.reduce((sum, product) => sum + (product.costOfGoodsSold || 0), 0);
+    const grossProfit = totalRevenue - totalCOGS;
+    const operatingExpenses = profitLoss?.operatingExpenses || 0;
+    const operatingProfit = grossProfit - operatingExpenses;
+    const taxes = profitLoss?.taxes || 0;
+    const netProfit = operatingProfit - taxes;
+
+    return {
+      totalRevenue,
+      totalCOGS,
+      grossProfit,
+      grossProfitMargin: totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0,
+      operatingExpenses,
+      operatingProfit,
+      operatingProfitMargin: totalRevenue > 0 ? (operatingProfit / totalRevenue) * 100 : 0,
+      taxes,
+      netProfit,
+      netProfitMargin: totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
+    };
+  };
+
   const renderProfitLossReport = () => {
-    if (!profitLoss) return null;
+    const metrics = calculateFinancialMetrics();
+    if (!metrics) return null;
 
     return (
       <div className="space-y-6">
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold mb-4">Profit & Loss Summary</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-blue-50 p-4 rounded-lg">
               <h4 className="font-medium text-blue-800">Revenue</h4>
-              <p className="text-2xl font-bold text-blue-900">{formatCurrency(profitLoss.totalRevenue)}</p>
-              {profitLoss.revenueChange !== undefined && (
-                <p className="text-sm text-blue-600">
-                  {profitLoss.revenueChange >= 0 ? '↑' : '↓'} {Math.abs(profitLoss.revenueChange || 0)}% from previous period
-                </p>
-              )}
+              <p className="text-2xl font-bold text-blue-900">{formatCurrency(metrics.totalRevenue)}</p>
             </div>
             <div className="bg-green-50 p-4 rounded-lg">
-              <h4 className="font-medium text-green-800">Net Profit</h4>
-              <p className="text-2xl font-bold text-green-900">{formatCurrency(profitLoss.netProfit)}</p>
-              {profitLoss.profitMargin !== undefined && (
-                <p className="text-sm text-green-600">
-                  {profitLoss.profitMargin || 0}% profit margin
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Cost Breakdown</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-red-50 p-4 rounded-lg">
-              <h4 className="font-medium text-red-800">Cost of Goods Sold</h4>
-              <p className="text-xl font-bold text-red-900">{formatCurrency(profitLoss.costOfGoodsSold)}</p>
-              <p className="text-sm text-red-600">
-                Based on {profitLoss.totalUnitsSold || 0} units sold
-              </p>
-            </div>
-            <div className="bg-orange-50 p-4 rounded-lg">
-              <h4 className="font-medium text-orange-800">Gross Profit</h4>
-              <p className="text-xl font-bold text-orange-900">
-                {formatCurrency(profitLoss.totalRevenue - profitLoss.costOfGoodsSold)}
-              </p>
-              <p className="text-sm text-orange-600">
-                Gross Margin: {profitLoss.grossMargin || 0}%
+              <h4 className="font-medium text-green-800">Gross Profit</h4>
+              <p className="text-2xl font-bold text-green-900">{formatCurrency(metrics.grossProfit)}</p>
+              <p className="text-sm text-green-600">
+                {metrics.grossProfitMargin.toFixed(2)}% margin
               </p>
             </div>
             <div className="bg-purple-50 p-4 rounded-lg">
-              <h4 className="font-medium text-purple-800">Operating Profit</h4>
-              <p className="text-xl font-bold text-purple-900">
-                {formatCurrency(profitLoss.netProfit + profitLoss.taxes)}
-              </p>
+              <h4 className="font-medium text-purple-800">Net Profit</h4>
+              <p className="text-2xl font-bold text-purple-900">{formatCurrency(metrics.netProfit)}</p>
               <p className="text-sm text-purple-600">
-                Operating Margin: {profitLoss.operatingMargin || 0}%
+                {metrics.netProfitMargin.toFixed(2)}% margin
               </p>
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Revenue vs Cost Trend</h3>
+          <h3 className="text-lg font-semibold mb-4">Revenue Breakdown</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
@@ -182,10 +216,37 @@ const FinancialReports = () => {
                 <YAxis />
                 <Tooltip formatter={(value) => formatCurrency(value)} />
                 <Legend />
+                <Bar dataKey="totalSales" name="Total Sales" fill="#8884d8" />
                 <Bar dataKey="totalRevenue" name="Revenue" fill="#82ca9d" />
-                <Bar dataKey="totalCost" name="Cost" fill="#ff6b6b" />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4">Cost Breakdown</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-red-50 p-4 rounded-lg">
+              <h4 className="font-medium text-red-800">Cost of Goods Sold</h4>
+              <p className="text-xl font-bold text-red-900">{formatCurrency(metrics.totalCOGS)}</p>
+              <p className="text-sm text-red-600">
+                {(metrics.totalRevenue > 0 ? (metrics.totalCOGS / metrics.totalRevenue * 100) : 0).toFixed(2)}% of revenue
+              </p>
+            </div>
+            <div className="bg-orange-50 p-4 rounded-lg">
+              <h4 className="font-medium text-orange-800">Operating Expenses</h4>
+              <p className="text-xl font-bold text-orange-900">{formatCurrency(metrics.operatingExpenses)}</p>
+              <p className="text-sm text-orange-600">
+                {(metrics.totalRevenue > 0 ? (metrics.operatingExpenses / metrics.totalRevenue * 100) : 0).toFixed(2)}% of revenue
+              </p>
+            </div>
+            <div className="bg-yellow-50 p-4 rounded-lg">
+              <h4 className="font-medium text-yellow-800">Operating Profit</h4>
+              <p className="text-xl font-bold text-yellow-900">{formatCurrency(metrics.operatingProfit)}</p>
+              <p className="text-sm text-yellow-600">
+                {metrics.operatingProfitMargin.toFixed(2)}% margin
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -202,7 +263,7 @@ const FinancialReports = () => {
     return (
       <div className="space-y-6">
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Top Performing Products (By Profit)</h3>
+          <h3 className="text-lg font-semibold mb-4">Top Performing Products</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
@@ -221,32 +282,34 @@ const FinancialReports = () => {
                 <Tooltip formatter={(value) => formatCurrency(value)} />
                 <Legend />
                 <Bar dataKey="totalRevenue" name="Revenue" fill="#8884d8" />
-                <Bar dataKey="totalProfit" name="Profit" fill="#82ca9d" />
+                <Bar dataKey="grossProfit" name="Gross Profit" fill="#82ca9d" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Product Profit Margins</h3>
+          <h3 className="text-lg font-semibold mb-4">Revenue by Product</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={topProducts}
-                margin={{
-                  top: 20,
-                  right: 30,
-                  left: 20,
-                  bottom: 5,
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="productName" />
-                <YAxis />
-                <Tooltip formatter={(value) => `${value}%`} />
-                <Legend />
-                <Bar dataKey="profitMargin" name="Profit Margin (%)" fill="#FFBB28" />
-              </BarChart>
+              <PieChart>
+                <Pie
+                  data={topProducts}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="totalRevenue"
+                  nameKey="productName"
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                >
+                  {topProducts.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => formatCurrency(value)} />
+              </PieChart>
             </ResponsiveContainer>
           </div>
         </div>
@@ -260,9 +323,9 @@ const FinancialReports = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units Sold</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profit</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">COGS</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gross Profit</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Margin</th>
                 </tr>
               </thead>
@@ -275,13 +338,13 @@ const FinancialReports = () => {
                       {formatCurrency(product.unitCost || 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatCurrency(product.unitPrice || 0)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatCurrency(product.totalRevenue || 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatCurrency(product.totalProfit || 0)}
+                      {formatCurrency(product.costOfGoodsSold || 0)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatCurrency(product.grossProfit || 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -303,13 +366,17 @@ const FinancialReports = () => {
   const renderSalesReport = () => {
     if (salesData.length === 0) return null;
 
-    // Calculate sales metrics
-    const totalSales = salesData.length;
-    const completedSales = salesData.filter(s => s.status === 'COMPLETED').length;
-    const pendingSales = salesData.filter(s => s.status === 'PENDING').length;
-    const cancelledSales = salesData.filter(s => s.status === 'CANCELLED').length;
-    const totalRevenue = salesData.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
-    const avgSaleValue = totalSales > 0 ? totalRevenue / totalSales : 0;
+    const statusCounts = salesData.reduce((acc, sale) => {
+      if (sale.status) {
+        acc[sale.status] = (acc[sale.status] || 0) + 1;
+      }
+      return acc;
+    }, {});
+
+    const statusData = Object.entries(statusCounts).map(([status, count]) => ({
+      status,
+      count,
+    }));
 
     return (
       <div className="space-y-6">
@@ -318,43 +385,52 @@ const FinancialReports = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-blue-50 p-4 rounded-lg">
               <h4 className="font-medium text-blue-800">Total Sales</h4>
-              <p className="text-2xl font-bold text-blue-900">{totalSales}</p>
+              <p className="text-2xl font-bold text-blue-900">{salesData.length}</p>
             </div>
             <div className="bg-green-50 p-4 rounded-lg">
               <h4 className="font-medium text-green-800">Completed</h4>
-              <p className="text-2xl font-bold text-green-900">{completedSales}</p>
-              <p className="text-sm text-green-600">
-                {(totalSales > 0 ? (completedSales / totalSales) * 100 : 0).toFixed(1)}% completion rate
+              <p className="text-2xl font-bold text-green-900">
+                {salesData.filter(s => s.status === 'COMPLETED').length}
               </p>
             </div>
             <div className="bg-yellow-50 p-4 rounded-lg">
               <h4 className="font-medium text-yellow-800">Pending</h4>
-              <p className="text-2xl font-bold text-yellow-900">{pendingSales}</p>
+              <p className="text-2xl font-bold text-yellow-900">
+                {salesData.filter(s => s.status === 'PENDING').length}
+              </p>
             </div>
             <div className="bg-red-50 p-4 rounded-lg">
               <h4 className="font-medium text-red-800">Cancelled</h4>
-              <p className="text-2xl font-bold text-red-900">{cancelledSales}</p>
+              <p className="text-2xl font-bold text-red-900">
+                {salesData.filter(s => s.status === 'CANCELLED').length}
+              </p>
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Sales Performance</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-purple-50 p-4 rounded-lg">
-              <h4 className="font-medium text-purple-800">Total Revenue</h4>
-              <p className="text-2xl font-bold text-purple-900">{formatCurrency(totalRevenue)}</p>
-            </div>
-            <div className="bg-teal-50 p-4 rounded-lg">
-              <h4 className="font-medium text-teal-800">Average Sale Value</h4>
-              <p className="text-2xl font-bold text-teal-900">{formatCurrency(avgSaleValue)}</p>
-            </div>
-            <div className="bg-indigo-50 p-4 rounded-lg">
-              <h4 className="font-medium text-indigo-800">Items Sold</h4>
-              <p className="text-2xl font-bold text-indigo-900">
-                {salesData.reduce((sum, sale) => sum + (sale.items?.length || 0), 0)}
-              </p>
-            </div>
+          <h3 className="text-lg font-semibold mb-4">Sales by Status</h3>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={statusData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="count"
+                  nameKey="status"
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                >
+                  {statusData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
@@ -416,36 +492,27 @@ const FinancialReports = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">Financial Reports</h1>
-          {lastUpdated && (
-            <p className="text-sm text-gray-500 mt-1">
-              Last updated: {format(lastUpdated, 'MMM d, yyyy h:mm a')}
-            </p>
-          )}
-        </div>
+        <h1 className="text-3xl font-bold text-gray-800">Financial Reports</h1>
         <div className="flex space-x-4">
-          <button
-            onClick={handleRefresh}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors flex items-center"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-            </svg>
-            Refresh
-          </button>
           <button
             onClick={() => handleExport('CSV')}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            disabled={loading}
           >
-            Export CSV
+            {loading ? 'Exporting...' : 'Export CSV'}
           </button>
           <button
             onClick={() => handleExport('PDF')}
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+            disabled={loading}
           >
-            Export PDF
+            {loading ? 'Exporting...' : 'Export PDF'}
           </button>
+          {lastUpdated && (
+            <div className="text-sm text-gray-500 self-center">
+              Last updated: {format(lastUpdated, 'MMM d, yyyy HH:mm')}
+            </div>
+          )}
         </div>
       </div>
 
@@ -478,8 +545,9 @@ const FinancialReports = () => {
           <button
             onClick={fetchData}
             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors self-end md:self-auto"
+            disabled={loading}
           >
-            Apply Filters
+            {loading ? 'Loading...' : 'Apply Filters'}
           </button>
         </div>
       </div>

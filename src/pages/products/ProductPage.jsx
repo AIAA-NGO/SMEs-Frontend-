@@ -49,9 +49,8 @@ const ProductPage = () => {
     supplierId: '',
     imageFile: null
   });
-  const navigate = useNavigate();   
-const location = useLocation();   
-
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     let isMounted = true;
@@ -221,23 +220,64 @@ const location = useLocation();
     }
   };
 
-  const handleUpdateProduct = async () => {
+  const handleUpdateProduct = async (e) => {
+    e.preventDefault();
     try {
       setIsLoading(true);
-      const updatedProduct = await updateProduct(selectedProduct.id, editFormData);
       
+      // Prepare FormData for the update
+      const formData = new FormData();
+      formData.append('name', editFormData.name);
+      formData.append('sku', editFormData.sku);
+      formData.append('barcode', editFormData.barcode);
+      formData.append('description', editFormData.description);
+      formData.append('price', editFormData.price);
+      formData.append('costPrice', editFormData.costPrice);
+      formData.append('quantityInStock', editFormData.quantityInStock);
+      formData.append('lowStockThreshold', editFormData.lowStockThreshold);
+      if (editFormData.expiryDate) {
+        formData.append('expiryDate', editFormData.expiryDate);
+      }
+      formData.append('categoryId', editFormData.categoryId);
+      formData.append('brandId', editFormData.brandId);
+      formData.append('unitId', editFormData.unitId);
+      formData.append('supplierId', editFormData.supplierId);
+      if (editFormData.imageFile) {
+        formData.append('imageFile', editFormData.imageFile);
+      }
+
+      const updatedProduct = await updateProduct(selectedProduct.id, formData);
+      
+      // Update the products list
       setProducts(prev => prev.map(p => 
-        p.id === selectedProduct.id ? { ...p, ...updatedProduct } : p
+        p.id === selectedProduct.id ? { 
+          ...p, 
+          ...updatedProduct,
+          imageUrl: updatedProduct.imageUrl || p.imageUrl,
+          categoryName: relationships.categories.find(c => c.id === updatedProduct.categoryId)?.name || p.categoryName,
+          brandName: relationships.brands.find(b => b.id === updatedProduct.brandId)?.name || p.brandName,
+          unitName: relationships.units.find(u => u.id === updatedProduct.unitId)?.name || p.unitName,
+          supplierName: relationships.suppliers.find(s => s.id === updatedProduct.supplierId)?.name || p.supplierName
+        } : p
       ));
+      
       setFilteredProducts(prev => prev.map(p => 
-        p.id === selectedProduct.id ? { ...p, ...updatedProduct } : p
+        p.id === selectedProduct.id ? { 
+          ...p, 
+          ...updatedProduct,
+          imageUrl: updatedProduct.imageUrl || p.imageUrl,
+          categoryName: relationships.categories.find(c => c.id === updatedProduct.categoryId)?.name || p.categoryName,
+          brandName: relationships.brands.find(b => b.id === updatedProduct.brandId)?.name || p.brandName,
+          unitName: relationships.units.find(u => u.id === updatedProduct.unitId)?.name || p.unitName,
+          supplierName: relationships.suppliers.find(s => s.id === updatedProduct.supplierId)?.name || p.supplierName
+        } : p
       ));
       
       setSuccess('Product updated successfully');
       setViewMode(null);
     } catch (error) {
       console.error('Update error:', error);
-      setError('Failed to update product. Please try again.');
+      setError(error.response?.data?.message || 'Failed to update product. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -524,10 +564,7 @@ const location = useLocation();
                 </button>
               </div>
 
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                handleUpdateProduct();
-              }}>
+              <form onSubmit={handleUpdateProduct}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="col-span-1">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>

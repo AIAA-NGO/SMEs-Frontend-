@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { createDiscount } from '../../services/discountService';
 import { getAllProducts } from '../../services/productServices';
 
-const DiscountForm = ({ onDiscountCreated }) => {
+const DiscountForm = () => {
   const [discount, setDiscount] = useState({
     code: '',
     percentage: 10.0,
@@ -55,9 +54,8 @@ const DiscountForm = ({ onDiscountCreated }) => {
     setSuccess('');
     
     try {
-      const createdDiscount = await createDiscount(discount);
-      setSuccess('Discount created successfully!');
-      onDiscountCreated(createdDiscount);
+      await createDiscount(discount);
+      setSuccess('Discount created and applied successfully!');
       
       // Reset form
       setDiscount({
@@ -74,10 +72,6 @@ const DiscountForm = ({ onDiscountCreated }) => {
       setLoading(false);
     }
   };
-
-  // Format the current date for datetime-local inputs
-  const now = new Date();
-  const currentDateTime = now.toISOString().slice(0, 16);
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md">

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createCustomer, updateCustomer } from '../../services/customerService';
 
-export default function CustomerForm({ customer }) {
+export default function CustomerForm({ customer, onSuccess, onCancel }) {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
@@ -88,35 +88,36 @@ export default function CustomerForm({ customer }) {
       }
 
       if (response.status >= 200 && response.status < 300) {
-        navigate('/customers', { 
-          state: { 
-            success: true,
-            message: customer?.id ? 'Customer updated successfully!' : 'Customer created successfully!'
-          } 
-        });
+        const successMessage = customer?.id 
+          ? 'Customer updated successfully!' 
+          : 'Customer created successfully!';
+        
+        // Call the onSuccess callback from parent
+        if (onSuccess) {
+          onSuccess(successMessage);
+        } else {
+          // Fallback navigation if onSuccess isn't provided
+          navigate('/customers', { 
+            state: { 
+              success: true,
+              message: successMessage
+            } 
+          });
+        }
       } else if (response.status === 409) {
-        navigate('/customers', { 
-          state: { 
-            success: false,
-            message: 'Customer already exists!'
-          } 
-        });
+        setError('Customer already exists!');
+        setIsLoading(false);
       } else {
         throw new Error(response.data?.message || 'Failed to save customer');
       }
     } catch (error) {
       if (error.response?.status === 409) {
-        navigate('/customers', { 
-          state: { 
-            success: false,
-            message: 'Customer already exists!'
-          } 
-        });
+        setError('Customer already exists!');
       } else {
         console.error('Save failed:', error);
         setError(error.response?.data?.message || error.message || 'Failed to save customer. Please try again.');
-        setIsLoading(false);
       }
+      setIsLoading(false);
     }
   };
 
@@ -211,7 +212,7 @@ export default function CustomerForm({ customer }) {
         <div className="mt-6 flex justify-end gap-2">
           <button
             type="button"
-            onClick={() => navigate('/customers')}
+            onClick={onCancel || (() => navigate('/customers'))}
             className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
             disabled={isLoading}
           >
