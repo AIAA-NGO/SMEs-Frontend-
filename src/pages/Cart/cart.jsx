@@ -30,6 +30,8 @@ const Cart = () => {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [customerError, setCustomerError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [mpesaStatus, setMpesaStatus] = useState(null);
+  const [mpesaLoading, setMpesaLoading] = useState(false);
 
   // Fetch customers on component mount
   useEffect(() => {
@@ -78,12 +80,108 @@ const Cart = () => {
       imageUrl: item.imageUrl,
       stock: item.stock,
       sku: item.sku,
-      discount: item.discount // Include discount if it exists
+      discount: item.discount
     }));
   };
 
   const handleRemoveItem = (id) => {
     dispatch(removeFromCart(id));
+  };
+
+  const initiateMpesaPayment = async () => {
+    try {
+      setMpesaLoading(true);
+      setMpesaStatus('Initiating M-Pesa payment...');
+      
+      // Validate phone number format (add your country's validation)
+      const formattedPhone = formatPhoneNumber(mpesaNumber);
+      if (!formattedPhone) {
+        throw new Error('Invalid phone number format');
+      }
+
+      const mpesaRequest = {
+        amount: Math.round(total), // M-Pesa requires whole numbers
+        phoneNumber: formattedPhone,
+        accountReference: `POS-${Date.now()}`,
+        transactionDesc: `Purchase for customer ${selectedCustomer}`
+      };
+
+      const response = await fetch('http://localhost:8080/api/mpesa/stkpush/initiate', {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: JSON.stringify(mpesaRequest)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'M-Pesa payment initiation failed');
+      }
+
+      const mpesaResponse = await response.json();
+      setMpesaStatus('Payment initiated. Please check your phone to complete payment...');
+      
+      // Poll for payment status (simplified version)
+      return await checkPaymentStatus(mpesaResponse.CheckoutRequestID);
+      
+    } catch (error) {
+      console.error("M-Pesa payment error:", error);
+      setMpesaStatus(`Payment failed: ${error.message}`);
+      setMpesaLoading(false);
+      throw error;
+    }
+  };
+
+  const checkPaymentStatus = async (checkoutRequestId) => {
+    // In a real app, you might implement WebSockets or more sophisticated polling
+    // This is a simplified version that checks a few times
+    for (let i = 0; i < 10; i++) {
+      try {
+        const response = await fetch(`http://localhost:8080/api/mpesa/status/${checkoutRequestId}`, {
+          headers: getAuthHeader()
+        });
+
+        if (response.ok) {
+          const statusData = await response.json();
+          if (statusData.status === 'COMPLETED') {
+            setMpesaStatus('Payment completed successfully!');
+            setMpesaLoading(false);
+            return true;
+          } else if (statusData.status === 'FAILED') {
+            setMpesaStatus('Payment failed. Please try again.');
+            setMpesaLoading(false);
+            return false;
+          }
+        }
+        
+        // Wait before checking again
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      } catch (error) {
+        console.error("Error checking payment status:", error);
+      }
+    }
+    
+    setMpesaStatus('Payment verification timed out. Please confirm payment.');
+    setMpesaLoading(false);
+    return false;
+  };
+
+  const formatPhoneNumber = (phone) => {
+    // Format phone number to 2547XXXXXXXX
+    if (!phone) return null;
+    
+    // Remove all non-digit characters
+    const digits = phone.replace(/\D/g, '');
+    
+    // Convert to Safaricom format (254...)
+    if (digits.startsWith('0')) {
+      return `254${digits.substring(1)}`;
+    } else if (digits.startsWith('7') && digits.length === 9) {
+      return `254${digits}`;
+    } else if (digits.startsWith('254') && digits.length === 12) {
+      return digits;
+    }
+    
+    return null;
   };
 
   const handleCheckout = async () => {
@@ -106,17 +204,27 @@ const Cart = () => {
       setIsCheckingOut(true);
       setCheckoutError(null);
       
+      // For M-Pesa payments, first process payment
+      if (paymentMethod === 'MPESA') {
+        const paymentSuccess = await initiateMpesaPayment();
+        if (!paymentSuccess) {
+          throw new Error('M-Pesa payment failed');
+        }
+      }
+
+      // Proceed with sale creation after successful payment (or for non-M-Pesa)
       const checkoutData = {
         customerId: selectedCustomer,
         paymentMethod: paymentMethod,
         mpesaNumber: paymentMethod === 'MPESA' ? mpesaNumber : undefined,
+        mpesaTransactionId: paymentMethod === 'MPESA' ? mpesaStatus.includes('completed') ? 'MPESA-' + Date.now() : undefined : undefined,
         items: cartItems.map(item => ({
           productId: item.id,
           quantity: item.quantity,
           price: item.price,
           name: item.name,
           sku: item.sku,
-          discount: item.discount || 0 // Include discount if it exists
+          discount: item.discount || 0
         }))
       };
 
@@ -140,6 +248,7 @@ const Cart = () => {
       setCheckoutError(err.message || 'Checkout failed. Please try again.');
     } finally {
       setIsCheckingOut(false);
+      setMpesaLoading(false);
     }
   };
 
@@ -321,37 +430,46 @@ const Cart = () => {
                         type="tel"
                         value={mpesaNumber}
                         onChange={(e) => setMpesaNumber(e.target.value)}
-                        placeholder="Enter M-Pesa phone number"
+                        placeholder="Enter M-Pesa phone number (e.g., 07XXXXXXXX)"
                         className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       />
+                      {mpesaStatus && (
+                        <div className={`mt-2 text-sm p-2 rounded ${
+                          mpesaStatus.includes('failed') ? 'bg-red-100 text-red-700' : 
+                          mpesaStatus.includes('completed') ? 'bg-green-100 text-green-700' :
+                          'bg-blue-100 text-blue-700'
+                        }`}>
+                          {mpesaStatus}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-{/* Order Totals */}
-<div className="space-y-3 mb-6">
-  <div className="flex justify-between">
-    <span className="text-gray-600">Subtotal:</span>
-    <span>Ksh {subtotal.toFixed(2)}</span>
-  </div>
-  
-  {/* Discount Line - Simple and clear like the receipt */}
-  {discountAmount > 0 && (
-    <div className="flex justify-between text-green-600">
-      <span>Discount:</span>
-      <span>- Ksh {discountAmount.toFixed(2)}</span>
-    </div>
-  )}
-  
-  <div className="flex justify-between">
-    <span className="text-gray-600">Tax (16%):</span>
-    <span>Ksh {taxAmount.toFixed(2)}</span>
-  </div>
-  
-  <div className="flex justify-between font-bold text-lg pt-3 border-t">
-    <span>Total:</span>
-    <span>Ksh {total.toFixed(2)}</span>
-  </div>
-</div>
+
+                {/* Order Totals */}
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Subtotal:</span>
+                    <span>Ksh {subtotal.toFixed(2)}</span>
+                  </div>
+                  
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount:</span>
+                      <span>Ksh {discountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Tax:</span>
+                    <span>Ksh {taxAmount.toFixed(2)}</span>
+                  </div>
+                  
+                  <div className="flex justify-between font-bold text-lg pt-3 border-t">
+                    <span>Total:</span>
+                    <span>Ksh {total.toFixed(2)}</span>
+                  </div>
+                </div>
                 
                 {checkoutError && (
                   <div className="text-red-500 text-sm mb-4">{checkoutError}</div>
@@ -366,14 +484,15 @@ const Cart = () => {
                 
                 <button
                   onClick={handleCheckout}
-                  disabled={isCheckingOut}
+                  disabled={isCheckingOut || mpesaLoading}
                   className={`w-full py-3 px-4 rounded-md font-medium transition duration-150 ease-in-out ${
-                    isCheckingOut
+                    isCheckingOut || mpesaLoading
                       ? 'bg-gray-300 cursor-not-allowed'
                       : 'bg-green-600 hover:bg-green-700 text-white'
                   }`}
                 >
-                  {isCheckingOut ? 'Processing...' : 'Complete Sale'}
+                  {mpesaLoading ? 'Processing M-Pesa...' : 
+                   isCheckingOut ? 'Completing Sale...' : 'Complete Sale'}
                 </button>
               </div>
             </div>

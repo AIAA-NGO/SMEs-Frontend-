@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { addToCart, updateCartItem } from '../../features/cartSlice';
+import { addToCart } from '../../features/cartSlice';
 import { getAllProducts, getCategories, getProductImage } from '../../services/productServices';
 import { FiShoppingCart, FiRefreshCw, FiAlertCircle, FiSearch, FiPlus, FiMinus } from 'react-icons/fi';
 import { BsCartPlus, BsStarFill, BsStarHalf, BsStar } from 'react-icons/bs';
@@ -322,7 +322,6 @@ export default function PosPage() {
       const processedProducts = prodData.map(product => ({
         ...product,
         hasImage: product.imageData !== null,
-        // Ensure price is properly formatted
         price: Number(product.price),
         costPrice: product.costPrice ? Number(product.costPrice) : null
       }));
@@ -353,12 +352,15 @@ export default function PosPage() {
       if (existingItem.quantity + quantity > productStock) {
         return;
       }
-      dispatch(updateCartItem({
+      dispatch(addToCart({
         id: product.id,
-        quantity: existingItem.quantity + quantity,
-        // Ensure we update all necessary fields
         name: product.name,
-        price: product.price
+        price: product.price,
+        quantity: quantity,
+        imageUrl: product.hasImage ? `/api/products/${product.id}/image` : null,
+        stock: product.quantity_in_stock,
+        sku: product.sku || '',
+        barcode: product.barcode || ''
       }));
     } else {
       dispatch(addToCart({

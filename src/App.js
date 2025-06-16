@@ -32,6 +32,7 @@ import PurchaseDetails from './pages/Purchase/PurchaseDetails';
 import BusinessProfile from './pages/settings/business/BusinessProfile';
 import CurrencySettings from './pages/settings/business/CurrencySettings';
 import Roles from './pages/settings/business/Roles';
+import CreateRole from './pages/settings/business/CreateRole';
 import RolesPermissions from './pages/settings/business/RolesPermissions';
 import InventoryPage from './pages/inventory/InventoryPage';
 import EditPurchase from './pages/Purchase/EditPurchase';
@@ -88,10 +89,11 @@ function App() {
                 <Route path="/reports/financial" element={<DashboardLayout><FinancialReports /></DashboardLayout>} />
                 <Route path="/reports/suppliers" element={<DashboardLayout><SupplierPurchasesReport /></DashboardLayout>} />
  
-                <Route path="/settings/business/profile" element={<BusinessProfile />} />
-                <Route path="/settings/business/currency" element={<CurrencySettings />} />
-                <Route path="/settings/business/roles" element={<Roles />} />
-                <Route path="/settings/business/roles-permissions" element={<RolesPermissions />} />
+                <Route path="/settings/business/profile" element={<DashboardLayout><BusinessProfile /></DashboardLayout>} />
+                <Route path="/settings/business/currency" element={<DashboardLayout><CurrencySettings /></DashboardLayout>} />
+                <Route path="/settings/business/roles" element={<DashboardLayout><Roles /></DashboardLayout>} />
+                <Route path="/roles/create" element={<DashboardLayout><CreateRole /></DashboardLayout>} />
+                <Route path="/settings/business/roles-permissions" element={<DashboardLayout><RolesPermissions /></DashboardLayout>} />
               </Routes>
             </div>
             

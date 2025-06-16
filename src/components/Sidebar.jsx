@@ -1,4 +1,3 @@
-// src/components/Sidebar.jsx
 import {
   Home,
   Boxes,
@@ -12,11 +11,12 @@ import {
   Settings,
   CreditCard,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  PackageCheck,
+  ListChecks
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
-
 
 export default function Sidebar({
   isMobileOpen,
@@ -38,63 +38,88 @@ export default function Sidebar({
   return (
     <aside className={`
       fixed top-0 left-0 h-full z-50
-      bg-gray-900 text-white shadow-lg
+      bg-gradient-to-b from-gray-800 to-gray-900 text-gray-100 shadow-xl
       overflow-y-auto transition-all duration-300 ease-in-out
       transform ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
       w-64 ${isMinimized ? 'md:w-20' : 'md:w-64'}
     `}>
       {/* Logo & Collapse Button */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-800">
+      <div className="flex items-center justify-between p-4 border-b border-gray-700">
         <div className="flex items-center gap-3">
-       
-          {!isMinimized && <span className="text-lg font-semibold select-none"></span>}
+          {!isMinimized && (
+            <span className="text-xl font-bold select-none bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-blue-600">
+              InventoryPro
+            </span>
+          )}
         </div>
         <button
           onClick={onToggleMinimize}
-          className="hidden md:inline-flex p-1 rounded hover:bg-gray-700 transition"
+          className="hidden md:inline-flex p-1.5 rounded-lg hover:bg-gray-700 transition-all"
           aria-label={isMinimized ? 'Expand Sidebar' : 'Collapse Sidebar'}
         >
-          {isMinimized ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          {isMinimized ? (
+            <ChevronRight size={20} className="text-gray-300" />
+          ) : (
+            <ChevronLeft size={20} className="text-gray-300" />
+          )}
         </button>
       </div>
 
       {/* Nav Links */}
-      <nav className="flex flex-col gap-1 px-1 mt-2 select-none">
+      <nav className="flex flex-col gap-1 p-2 mt-2 select-none">
         {/* Home */}
         <Link
           to="/"
           onClick={onLinkClick}
-          className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-800 transition
-            ${isActive('/') ? 'bg-gray-800 font-bold' : ''}
-            ${isMinimized ? 'justify-center' : ''}`}
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+            ${isActive('/') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+            ${isMinimized ? 'justify-center px-2' : ''}`}
           title={isMinimized ? 'Home' : undefined}
         >
-          <Home size={18} />
-          {!isMinimized && 'Home'}
+          <Home size={20} className={`${isActive('/') ? 'text-blue-400' : 'text-gray-300'}`} />
+          {!isMinimized && <span className="font-medium">Home</span>}
         </Link>
 
         {/* Manage Product */}
         <div className="relative">
           <button
             onClick={() => setProductsOpen(!productsOpen)}
-            className={`flex items-center justify-between w-full px-3 py-2 rounded-md hover:bg-gray-800 transition
-              ${isActive('/products') || isActive('/categories') || isActive('/brands') ? 'bg-gray-800 font-bold' : ''}
-              ${isMinimized ? 'justify-center' : ''}`}
+            className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition-all
+              ${isActive('/products') || isActive('/categories') || isActive('/brands') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+              ${isMinimized ? 'justify-center px-2' : ''}`}
             title={isMinimized ? 'Manage Product' : undefined}
           >
             <div className="flex items-center gap-3">
-              <Boxes size={18} />
-              {!isMinimized && 'Manage Product'}
+              <Boxes size={20} className={`${isActive('/products') || isActive('/categories') || isActive('/brands') ? 'text-blue-400' : 'text-gray-300'}`} />
+              {!isMinimized && <span className="font-medium">Manage Product</span>}
             </div>
-            {!isMinimized && <ChevronDown size={16} className={`transition-transform ${productsOpen ? 'rotate-180' : ''}`} />}
+            {!isMinimized && (
+              <ChevronDown 
+                size={16} 
+                className={`transition-transform ${productsOpen ? 'rotate-180' : ''} text-gray-400`}
+              />
+            )}
           </button>
           {productsOpen && !isMinimized && (
-            <div className="ml-8 mt-2 flex flex-col gap-2 text-xs">
-              <Link to="/products" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/products' ? 'font-semibold' : ''}`}>Product List</Link>
-              <Link to="/products/create" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/products/create' ? 'font-semibold' : ''}`}>Create Product</Link>
-              <Link to="/categories" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/categories' ? 'font-semibold' : ''}`}>Categories</Link>
-              <Link to="/brands" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/brands' ? 'font-semibold' : ''}`}>Brands</Link>
-              <Link to="/Unit" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/Unit' ? 'font-semibold' : ''}`}>Units</Link>
+            <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
+              {[
+                { path: '/products', label: 'Product List', icon: <Boxes size={14} /> },
+                { path: '/products/create', label: 'Create Product', icon: <Boxes size={14} /> },
+                { path: '/categories', label: 'Categories', icon: <Boxes size={14} /> },
+                { path: '/brands', label: 'Brands', icon: <Boxes size={14} /> },
+                { path: '/Unit', label: 'Units', icon: <Boxes size={14} /> }
+              ].map((item) => (
+                <Link 
+                  key={item.path}
+                  to={item.path} 
+                  onClick={onLinkClick} 
+                  className={`flex items-center gap-2 py-2 px-3 rounded-md text-sm transition-colors
+                    ${location.pathname === item.path ? 'text-blue-400 font-medium bg-blue-900/20' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/30'}`}
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              ))}
             </div>
           )}
         </div>
@@ -103,41 +128,53 @@ export default function Sidebar({
         <Link
           to="/pos"
           onClick={onLinkClick}
-          className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-800 transition
-            ${isActive('/pos') ? 'bg-gray-800 font-bold' : ''}
-            ${isMinimized ? 'justify-center' : ''}`}
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+            ${isActive('/pos') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+            ${isMinimized ? 'justify-center px-2' : ''}`}
           title={isMinimized ? 'POS' : undefined}
         >
-          <CreditCard size={18} />
-          {!isMinimized && 'POS'}
+          <CreditCard size={20} className={`${isActive('/pos') ? 'text-blue-400' : 'text-gray-300'}`} />
+          {!isMinimized && <span className="font-medium">POS</span>}
         </Link>
 
         {/* Purchases Dropdown */}
         <div className="relative">
           <button
             onClick={() => setPurchasesOpen(!purchasesOpen)}
-            className={`flex items-center justify-between w-full px-3 py-2 rounded-md hover:bg-gray-800 transition
-              ${isActive('/purchases') ? 'bg-gray-800 font-bold' : ''}
-              ${isMinimized ? 'justify-center' : ''}`}
+            className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition-all
+              ${isActive('/purchases') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+              ${isMinimized ? 'justify-center px-2' : ''}`}
             title={isMinimized ? 'Purchases' : undefined}
           >
             <div className="flex items-center gap-3">
-              <ShoppingCart size={18} />
-              {!isMinimized && 'Purchases'}
+              <ShoppingCart size={20} className={`${isActive('/purchases') ? 'text-blue-400' : 'text-gray-300'}`} />
+              {!isMinimized && <span className="font-medium">Purchases</span>}
             </div>
-            {!isMinimized && <ChevronDown size={16} className={`transition-transform ${purchasesOpen ? 'rotate-180' : ''}`} />}
+            {!isMinimized && (
+              <ChevronDown 
+                size={16} 
+                className={`transition-transform ${purchasesOpen ? 'rotate-180' : ''} text-gray-400`}
+              />
+            )}
           </button>
           {purchasesOpen && !isMinimized && (
-            <div className="ml-8 mt-2 flex flex-col gap-2 text-xs">
-              <Link to="/purchases/create" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/purchases/create' ? 'font-semibold' : ''}`}>Create Purchase</Link>
-            
-              <Link
-  to="/purchases"
-  onClick={onLinkClick}
-  className={`hover:underline ${location.pathname === '/purchases' ? 'font-semibold text-blue-600' : ''}`}
->
-  Purchase Details
-</Link>
+            <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
+              {[
+                { path: '/purchases/create', label: 'Create Purchase', icon: <ShoppingCart size={14} /> },
+                { path: '/purchases', label: 'Purchase List', icon: <ListChecks size={14} /> },
+                { path: '/purchases/receive', label: 'Receive Purchases', icon: <PackageCheck size={14} /> }
+              ].map((item) => (
+                <Link 
+                  key={item.path}
+                  to={item.path} 
+                  onClick={onLinkClick} 
+                  className={`flex items-center gap-2 py-2 px-3 rounded-md text-sm transition-colors
+                    ${location.pathname === item.path ? 'text-blue-400 font-medium bg-blue-900/20' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/30'}`}
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              ))}
             </div>
           )}
         </div>
@@ -146,209 +183,194 @@ export default function Sidebar({
         <Link
           to="/customers"
           onClick={onLinkClick}
-          className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-800 transition
-            ${isActive('/customers') ? 'bg-gray-800 font-bold' : ''}
-            ${isMinimized ? 'justify-center' : ''}`}
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+            ${isActive('/customers') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+            ${isMinimized ? 'justify-center px-2' : ''}`}
           title={isMinimized ? 'Customers' : undefined}
         >
-          <Users size={18} />
-          {!isMinimized && 'Customers'}
+          <Users size={20} className={`${isActive('/customers') ? 'text-blue-400' : 'text-gray-300'}`} />
+          {!isMinimized && <span className="font-medium">Customers</span>}
         </Link>
 
         {/* Suppliers */}
         <Link
           to="/suppliers"
           onClick={onLinkClick}
-          className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-800 transition
-            ${isActive('/suppliers') ? 'bg-gray-800 font-bold' : ''}
-            ${isMinimized ? 'justify-center' : ''}`}
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+            ${isActive('/suppliers') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+            ${isMinimized ? 'justify-center px-2' : ''}`}
           title={isMinimized ? 'Suppliers' : undefined}
         >
-          <Users size={18} />
-          {!isMinimized && 'Suppliers'}
+          <Users size={20} className={`${isActive('/suppliers') ? 'text-blue-400' : 'text-gray-300'}`} />
+          {!isMinimized && <span className="font-medium">Suppliers</span>}
         </Link>
+
         {/* Inventory */}
-<Link
-  to="/inventory"
-  onClick={onLinkClick}
-  className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-800 transition
-    ${isActive('/inventory') ? 'bg-gray-800 font-bold' : ''}
-    ${isMinimized ? 'justify-center' : ''}`}
-  title={isMinimized ? 'Inventory' : undefined}
->
-  <FileText size={18} />
-  {!isMinimized && 'Inventory'}
-</Link>
+        <Link
+          to="/inventory"
+          onClick={onLinkClick}
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+            ${isActive('/inventory') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+            ${isMinimized ? 'justify-center px-2' : ''}`}
+          title={isMinimized ? 'Inventory' : undefined}
+        >
+          <FileText size={20} className={`${isActive('/inventory') ? 'text-blue-400' : 'text-gray-300'}`} />
+          {!isMinimized && <span className="font-medium">Inventory</span>}
+        </Link>
 
-       {/* Apply Discount */}
-<Link
-  to="/apply-discount"
-  onClick={onLinkClick}
-  className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-800 transition
-    ${isActive('/apply-discount') ? 'bg-gray-800 font-bold' : ''}
-    ${isMinimized ? 'justify-center' : ''}`}
-  title={isMinimized ? 'Apply Discount' : undefined}
->
-  <DollarSign size={18} />
-  {!isMinimized && 'Apply Discount'}
-</Link>
-
-
+        {/* Apply Discount */}
+        <Link
+          to="/apply-discount"
+          onClick={onLinkClick}
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+            ${isActive('/apply-discount') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+            ${isMinimized ? 'justify-center px-2' : ''}`}
+          title={isMinimized ? 'Apply Discount' : undefined}
+        >
+          <DollarSign size={20} className={`${isActive('/apply-discount') ? 'text-blue-400' : 'text-gray-300'}`} />
+          {!isMinimized && <span className="font-medium">Apply Discount</span>}
+        </Link>
 
         {/* Users */}
         <Link
           to="/users"
           onClick={onLinkClick}
-          className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-800 transition
-            ${isActive('/users') ? 'bg-gray-800 font-bold' : ''}
-            ${isMinimized ? 'justify-center' : ''}`}
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+            ${isActive('/users') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+            ${isMinimized ? 'justify-center px-2' : ''}`}
           title={isMinimized ? 'Users' : undefined}
         >
-          <Users size={18} />
-          {!isMinimized && 'Users'}
+          <Users size={20} className={`${isActive('/users') ? 'text-blue-400' : 'text-gray-300'}`} />
+          {!isMinimized && <span className="font-medium">Users</span>}
         </Link>
 
         {/* Sales Dropdown */}
         <div className="relative">
           <button
             onClick={() => setSalesOpen(!salesOpen)}
-            className={`flex items-center justify-between w-full px-3 py-2 rounded-md hover:bg-gray-800 transition
-              ${isActive('/sales') ? 'bg-gray-800 font-bold' : ''}
-              ${isMinimized ? 'justify-center' : ''}`}
+            className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition-all
+              ${isActive('/sales') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+              ${isMinimized ? 'justify-center px-2' : ''}`}
             title={isMinimized ? 'Sales' : undefined}
           >
             <div className="flex items-center gap-3">
-              <ClipboardList size={18} />
-              {!isMinimized && 'Sales'}
+              <ClipboardList size={20} className={`${isActive('/sales') ? 'text-blue-400' : 'text-gray-300'}`} />
+              {!isMinimized && <span className="font-medium">Sales</span>}
             </div>
-            {!isMinimized && <ChevronDown size={16} className={`transition-transform ${salesOpen ? 'rotate-180' : ''}`} />}
+            {!isMinimized && (
+              <ChevronDown 
+                size={16} 
+                className={`transition-transform ${salesOpen ? 'rotate-180' : ''} text-gray-400`}
+              />
+            )}
           </button>
           {salesOpen && !isMinimized && (
-            <div className="ml-8 mt-2 flex flex-col gap-2 text-xs">
-              <Link to="/sales" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/sales' ? 'font-semibold' : ''}`}>Sales List</Link>
-              <Link to="/sales/returns" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/sales/returns' ? 'font-semibold' : ''}`}>Sales Returns</Link>
+            <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
+              {[
+                { path: '/sales', label: 'Sales List', icon: <ClipboardList size={14} /> },
+                { path: '/sales/returns', label: 'Sales Returns', icon: <ClipboardList size={14} /> }
+              ].map((item) => (
+                <Link 
+                  key={item.path}
+                  to={item.path} 
+                  onClick={onLinkClick} 
+                  className={`flex items-center gap-2 py-2 px-3 rounded-md text-sm transition-colors
+                    ${location.pathname === item.path ? 'text-blue-400 font-medium bg-blue-900/20' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/30'}`}
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              ))}
             </div>
           )}
         </div>
 
-      {/* Reports Dropdown */}
-<div className="relative">
-      <button
-        onClick={() => setReportsOpen(!reportsOpen)}
-        className={`flex items-center justify-between w-full px-3 py-2 rounded-md hover:bg-gray-800 transition
-          ${isActive('/reports') ? 'bg-gray-800 font-bold' : ''}
-          ${isMinimized ? 'justify-center' : ''}`}
-        title={isMinimized ? 'Reports' : undefined}
-      >
-        <div className="flex items-center gap-3">
-          <FileBarChart2 size={18} />
-          {!isMinimized && 'Reports'}
+        {/* Reports Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setReportsOpen(!reportsOpen)}
+            className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition-all
+              ${isActive('/reports') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+              ${isMinimized ? 'justify-center px-2' : ''}`}
+            title={isMinimized ? 'Reports' : undefined}
+          >
+            <div className="flex items-center gap-3">
+              <FileBarChart2 size={20} className={`${isActive('/reports') ? 'text-blue-400' : 'text-gray-300'}`} />
+              {!isMinimized && <span className="font-medium">Reports</span>}
+            </div>
+            {!isMinimized && (
+              <ChevronDown 
+                size={16} 
+                className={`transition-transform ${reportsOpen ? 'rotate-180' : ''} text-gray-400`}
+              />
+            )}
+          </button>
+          {reportsOpen && !isMinimized && (
+            <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
+              {[
+                { path: '/reports/sales', label: 'Sales Report', icon: <FileBarChart2 size={14} /> },
+                { path: '/reports/products', label: 'Product Performance', icon: <FileBarChart2 size={14} /> },
+                { path: '/reports/inventory', label: 'Inventory Valuation', icon: <FileBarChart2 size={14} /> },
+                { path: '/reports/financial', label: 'Financial Reports', icon: <FileBarChart2 size={14} /> },
+                { path: '/reports/suppliers', label: 'Supplier Purchases', icon: <FileBarChart2 size={14} /> }
+              ].map((item) => (
+                <Link 
+                  key={item.path}
+                  to={item.path} 
+                  onClick={() => {
+                    onLinkClick();
+                    setReportsOpen(false);
+                  }}
+                  className={`flex items-center gap-2 py-2 px-3 rounded-md text-sm transition-colors
+                    ${isActive(item.path) ? 'text-blue-400 font-medium bg-blue-900/20' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/30'}`}
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
-        {!isMinimized && (
-          <ChevronDown 
-            size={16} 
-            className={`transition-transform ${reportsOpen ? 'rotate-180' : ''}`}
-
-          />
-        )}
-      </button>
-      
-      {reportsOpen && !isMinimized && (
-        <div className="ml-8 mt-2 flex flex-col gap-2 text-xs">
-          {/* Sales Report Link */}
-          <Link 
-            to="/reports/sales" 
-            onClick={() => {
-              onLinkClick();
-              setReportsOpen(false);
-            }}
-            className={`hover:underline pl-2 ${
-              isActive('/reports/sales') ? 'font-semibold text-blue-400' : ''
-            }`}
-          >
-            Sales Report
-          </Link>
-          
-          {/* Product Performance Link */}
-          <Link 
-            to="/reports/products" 
-            onClick={() => {
-              onLinkClick();
-              setReportsOpen(false);
-            }}
-            className={`hover:underline pl-2 ${
-              isActive('/reports/products') ? 'font-semibold text-blue-400' : ''
-            }`}
-          >
-            Product Performance
-          </Link>
-          
-          {/* Inventory Valuation Link */}
-          <Link 
-            to="/reports/inventory" 
-            onClick={() => {
-              onLinkClick();
-              setReportsOpen(false);
-            }}
-            className={`hover:underline pl-2 ${
-              isActive('/reports/inventory') ? 'font-semibold text-blue-400' : ''
-            }`}
-          >
-            Inventory Valuation
-          </Link>
-          
-          {/* Financial Reports Link */}
-          <Link 
-            to="/reports/financial" 
-            onClick={() => {
-              onLinkClick();
-              setReportsOpen(false);
-            }}
-            className={`hover:underline pl-2 ${
-              isActive('/reports/financial') ? 'font-semibold text-blue-400' : ''
-            }`}
-          >
-            Financial Reports
-          </Link>
-          
-          {/* Supplier Purchases Link */}
-          <Link 
-            to="/reports/suppliers" 
-            onClick={() => {
-              onLinkClick();
-              setReportsOpen(false);
-            }}
-            className={`hover:underline pl-2 ${
-              isActive('/reports/suppliers') ? 'font-semibold text-blue-400' : ''
-            }`}
-          >
-            Supplier Purchases
-          </Link>
-        </div>
-      )}
-    </div>
 
         {/* Settings Dropdown */}
         <div className="relative">
           <button
             onClick={() => setSettingsOpen(!settingsOpen)}
-            className={`flex items-center justify-between w-full px-3 py-2 rounded-md hover:bg-gray-800 transition
-              ${isActive('/settings/business') ? 'bg-gray-800 font-bold' : ''}
-              ${isMinimized ? 'justify-center' : ''}`}
+            className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition-all
+              ${isActive('/settings/business') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+              ${isMinimized ? 'justify-center px-2' : ''}`}
             title={isMinimized ? 'Settings' : undefined}
           >
             <div className="flex items-center gap-3">
-              <Settings size={18} />
-              {!isMinimized && 'Settings'}
+              <Settings size={20} className={`${isActive('/settings/business') ? 'text-blue-400' : 'text-gray-300'}`} />
+              {!isMinimized && <span className="font-medium">Settings</span>}
             </div>
-            {!isMinimized && <ChevronDown size={16} className={`transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />}
+            {!isMinimized && (
+              <ChevronDown 
+                size={16} 
+                className={`transition-transform ${settingsOpen ? 'rotate-180' : ''} text-gray-400`}
+              />
+            )}
           </button>
           {settingsOpen && !isMinimized && (
-            <div className="ml-8 mt-2 flex flex-col gap-2 text-xs">
-              <Link to="/settings/business/profile" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/settings/business/profile' ? 'font-semibold' : ''}`}>Business Profile</Link>
-              <Link to="/settings/business/currency" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/settings/business/currency' ? 'font-semibold' : ''}`}>Currency Settings</Link>
-              <Link to="/settings/business/roles" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/settings/business/roles' ? 'font-semibold' : ''}`}>Roles</Link>
-              <Link to="/settings/business/roles-permissions" onClick={onLinkClick} className={`hover:underline ${location.pathname === '/settings/business/roles-permissions' ? 'font-semibold' : ''}`}>Roles & Permissions</Link>
+            <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
+              {[
+                { path: '/settings/business/profile', label: 'Business Profile', icon: <Settings size={14} /> },
+                { path: '/settings/business/currency', label: 'Currency Settings', icon: <Settings size={14} /> },
+                { path: '/settings/business/roles', label: 'Roles', icon: <Settings size={14} /> },
+                { path: '/settings/business/roles-permissions', label: 'Roles & Permissions', icon: <Settings size={14} /> }
+              ].map((item) => (
+                <Link 
+                  key={item.path}
+                  to={item.path} 
+                  onClick={onLinkClick} 
+                  className={`flex items-center gap-2 py-2 px-3 rounded-md text-sm transition-colors
+                    ${location.pathname === item.path ? 'text-blue-400 font-medium bg-blue-900/20' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/30'}`}
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              ))}
             </div>
           )}
         </div>

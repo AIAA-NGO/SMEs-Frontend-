@@ -60,6 +60,16 @@ export const fetchPermissions = async () => {
   }
 };
 
+export const fetchRolePermissions = async (roleId) => {
+  try {
+    const response = await api.get(`/roles/${roleId}/permissions`);
+    return response.data;
+  } catch (error) {
+    console.error('Role permissions fetch error:', error.response?.data || error.message);
+    throw new Error('Failed to load role permissions');
+  }
+};
+
 export const createRole = async (roleData) => {
   try {
     const response = await api.post('/roles', roleData);
