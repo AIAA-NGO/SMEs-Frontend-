@@ -4,14 +4,17 @@ import { Link } from 'react-router-dom';
 import { 
   removeFromCart, 
   updateCartItem,
-  clearCart,
-  applyDiscount
+  clearCart
 } from '../../features/cartSlice';
 import { printReceipt } from '../../components/utils/printUtils';
 import { FaMoneyBillWave, FaCreditCard, FaMobileAlt, FaUniversity } from 'react-icons/fa';
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');
+  if (!token) {
+    console.error('No token found in localStorage');
+    return {};
+  }
   return {
     'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json'
@@ -20,10 +23,12 @@ const getAuthHeader = () => {
 
 const Cart = () => {
   const dispatch = useDispatch();
-  const cartItems = useSelector(state => state.cart.items);
-  const { subtotal, discountAmount, taxAmount, total } = useSelector(state => state.cart);
+  const cartItems = useSelector(state => state.cart?.items || []);
+  const cartSummary = useSelector(state => state.cart || {});
+  const { subtotal = 0, discountAmount = 0, taxAmount = 0, total = 0 } = cartSummary;
+
   const [customers, setCustomers] = useState([]);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [mpesaNumber, setMpesaNumber] = useState('');
   const [checkoutError, setCheckoutError] = useState(null);
@@ -32,6 +37,22 @@ const Cart = () => {
   const [loading, setLoading] = useState(true);
   const [mpesaStatus, setMpesaStatus] = useState(null);
   const [mpesaLoading, setMpesaLoading] = useState(false);
+  const [checkoutRequestId, setCheckoutRequestId] = useState(null);
+  const [mpesaReceiptNumber, setMpesaReceiptNumber] = useState(null);
+  const [pollingInterval, setPollingInterval] = useState(null);
+  const [lastStatusCheck, setLastStatusCheck] = useState(null);
+
+  // Get the selected customer object from the customers array
+  const selectedCustomer = customers.find(c => c.id === selectedCustomerId) || null;
+
+  // Cleanup polling interval on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]);
 
   // Fetch customers on component mount
   useEffect(() => {
@@ -40,17 +61,17 @@ const Cart = () => {
         setLoading(true);
         setCustomerError(null);
         
-        const customersResponse = await fetch('http://localhost:8080/api/customers', {
+        const response = await fetch('http://localhost:8080/api/customers', {
           headers: getAuthHeader()
         });
 
-        if (!customersResponse.ok) {
+        if (!response?.ok) {
           throw new Error('Failed to fetch customers');
         }
 
-        const customersData = await customersResponse.json();
-        setCustomers(Array.isArray(customersData?.data) ? customersData.data : 
-                   Array.isArray(customersData) ? customersData : []);
+        const data = await response.json();
+        setCustomers(Array.isArray(data?.data) ? data.data : 
+                   Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Failed to fetch customers:", error);
         setCustomerError('Failed to load customers. Please try again.');
@@ -64,28 +85,149 @@ const Cart = () => {
   }, []);
 
   const handleQuantityChange = (id, newQuantity) => {
-    if (newQuantity < 1) {
+    if (isNaN(newQuantity)) return;
+    
+    const parsedQuantity = parseInt(newQuantity, 10);
+    if (parsedQuantity < 1) {
       handleRemoveItem(id);
       return;
     }
     
-    const item = cartItems.find(item => item.id === id);
+    const item = cartItems.find(item => item?.id === id);
     if (!item) return;
     
     dispatch(updateCartItem({ 
       id,
-      quantity: newQuantity,
-      name: item.name,
-      price: item.price,
-      imageUrl: item.imageUrl,
-      stock: item.stock,
-      sku: item.sku,
-      discount: item.discount
+      quantity: parsedQuantity,
+      name: item.name || '',
+      price: item.price || 0,
+      imageUrl: item.imageUrl || '',
+      stock: item.stock || 0,
+      sku: item.sku || '',
+      discount: item.discount || 0
     }));
   };
 
   const handleRemoveItem = (id) => {
+    if (!id) return;
     dispatch(removeFromCart(id));
+  };
+
+  const formatPhoneNumber = (phone) => {
+    if (!phone) return null;
+    
+    const digits = phone.replace(/\D/g, '');
+    if (digits.startsWith('0')) return `254${digits.substring(1)}`;
+    if (digits.startsWith('7') && digits.length === 9) return `254${digits}`;
+    if (digits.startsWith('254') && digits.length === 12) return digits;
+    return null;
+  };
+
+  const checkTransactionExists = async (requestId) => {
+    if (!requestId) return false;
+    
+    try {
+      const response = await fetch(
+        `http://localhost:8080/mpesa/transactions/${requestId}`,
+        { headers: getAuthHeader() }
+      );
+      return response?.ok;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const checkPaymentStatus = async (requestId) => {
+    try {
+      const response = await fetch(
+        `http://localhost:8080/mpesa/transaction-status/${requestId}`,
+        { headers: getAuthHeader() }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to check payment status');
+      }
+
+      const statusData = await response.json();
+      return statusData?.status || 'PENDING';
+    } catch (error) {
+      console.error("Status check error:", error);
+      return 'UNKNOWN';
+    }
+  };
+
+  const handlePaymentFallback = async (requestId) => {
+    if (!requestId) return false;
+    
+    setMpesaStatus('Verifying payment manually...');
+    
+    // Check if transaction exists at all
+    try {
+      const exists = await checkTransactionExists(requestId);
+      if (!exists) {
+        setMpesaStatus('Payment not found in system');
+        return false;
+      }
+    } catch (error) {
+      console.error("Transaction check error:", error);
+    }
+    
+    // Prompt for manual confirmation
+    const confirmed = window.confirm(
+      "Payment status unclear. Did you receive an M-Pesa confirmation?\n\n" +
+      "Click OK if payment was successful, Cancel if it failed."
+    );
+    
+    if (confirmed) {
+      setMpesaStatus('Payment confirmed manually');
+      return true;
+    }
+    
+    setMpesaStatus('Payment not confirmed');
+    return false;
+  };
+
+  const verifyMpesaPayment = async (requestId) => {
+    if (!requestId) {
+      throw new Error('Missing request ID for payment verification');
+    }
+
+    // First immediate check
+    let status = await checkPaymentStatus(requestId);
+    setLastStatusCheck(new Date().toLocaleTimeString());
+    
+    if (status === 'COMPLETED') return true;
+    if (status === 'FAILED') return false;
+
+    // Set up polling if still pending
+    return new Promise((resolve) => {
+      const interval = setInterval(async () => {
+        try {
+          const currentStatus = await checkPaymentStatus(requestId);
+          setLastStatusCheck(new Date().toLocaleTimeString());
+          
+          if (currentStatus === 'COMPLETED') {
+            clearInterval(interval);
+            resolve(true);
+          } else if (currentStatus === 'FAILED') {
+            clearInterval(interval);
+            resolve(false);
+          }
+          
+          // Timeout after 2 minutes (24 checks at 5s interval)
+          if (Date.now() - startTime > 120000) {
+            clearInterval(interval);
+            const manualConfirmed = await handlePaymentFallback(requestId);
+            resolve(manualConfirmed);
+          }
+        } catch (error) {
+          console.error("Polling error:", error);
+        }
+      }, 5000);
+      
+      setPollingInterval(interval);
+      const startTime = Date.now();
+    });
   };
 
   const initiateMpesaPayment = async () => {
@@ -93,35 +235,43 @@ const Cart = () => {
       setMpesaLoading(true);
       setMpesaStatus('Initiating M-Pesa payment...');
       
-      // Validate phone number format (add your country's validation)
       const formattedPhone = formatPhoneNumber(mpesaNumber);
       if (!formattedPhone) {
-        throw new Error('Invalid phone number format');
+        throw new Error('Invalid phone number format. Use 07XXXXXXXX or 2547XXXXXXXX');
+      }
+
+      const amount = Math.round(total || 0);
+      if (amount <= 0) {
+        throw new Error('Invalid payment amount');
       }
 
       const mpesaRequest = {
-        amount: Math.round(total), // M-Pesa requires whole numbers
+        amount,
         phoneNumber: formattedPhone,
-        accountReference: `POS-${Date.now()}`,
-        transactionDesc: `Purchase for customer ${selectedCustomer}`
+        accountReference: `INV-${Date.now()}`,
+        transactionDesc: `Payment for ${selectedCustomer?.name || 'guest'}`
       };
 
-      const response = await fetch('http://localhost:8080/api/mpesa/stkpush/initiate', {
+      const response = await fetch('http://localhost:8080/mpesa/stkpush/initiate', {
         method: 'POST',
         headers: getAuthHeader(),
         body: JSON.stringify(mpesaRequest)
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'M-Pesa payment initiation failed');
+      if (!response?.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.message || 'M-Pesa payment initiation failed');
       }
 
       const mpesaResponse = await response.json();
+      if (!mpesaResponse?.CheckoutRequestID) {
+        throw new Error('Invalid M-Pesa response: Missing CheckoutRequestID');
+      }
+
+      setCheckoutRequestId(mpesaResponse.CheckoutRequestID);
       setMpesaStatus('Payment initiated. Please check your phone to complete payment...');
       
-      // Poll for payment status (simplified version)
-      return await checkPaymentStatus(mpesaResponse.CheckoutRequestID);
+      return await verifyMpesaPayment(mpesaResponse.CheckoutRequestID);
       
     } catch (error) {
       console.error("M-Pesa payment error:", error);
@@ -131,66 +281,20 @@ const Cart = () => {
     }
   };
 
-  const checkPaymentStatus = async (checkoutRequestId) => {
-    // In a real app, you might implement WebSockets or more sophisticated polling
-    // This is a simplified version that checks a few times
-    for (let i = 0; i < 10; i++) {
-      try {
-        const response = await fetch(`http://localhost:8080/api/mpesa/status/${checkoutRequestId}`, {
-          headers: getAuthHeader()
-        });
-
-        if (response.ok) {
-          const statusData = await response.json();
-          if (statusData.status === 'COMPLETED') {
-            setMpesaStatus('Payment completed successfully!');
-            setMpesaLoading(false);
-            return true;
-          } else if (statusData.status === 'FAILED') {
-            setMpesaStatus('Payment failed. Please try again.');
-            setMpesaLoading(false);
-            return false;
-          }
-        }
-        
-        // Wait before checking again
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      } catch (error) {
-        console.error("Error checking payment status:", error);
-      }
+  const resetPaymentState = () => {
+    setMpesaStatus(null);
+    setMpesaNumber('');
+    setPaymentMethod('CASH');
+    setMpesaReceiptNumber(null);
+    setCheckoutRequestId(null);
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
     }
-    
-    setMpesaStatus('Payment verification timed out. Please confirm payment.');
-    setMpesaLoading(false);
-    return false;
-  };
-
-  const formatPhoneNumber = (phone) => {
-    // Format phone number to 2547XXXXXXXX
-    if (!phone) return null;
-    
-    // Remove all non-digit characters
-    const digits = phone.replace(/\D/g, '');
-    
-    // Convert to Safaricom format (254...)
-    if (digits.startsWith('0')) {
-      return `254${digits.substring(1)}`;
-    } else if (digits.startsWith('7') && digits.length === 9) {
-      return `254${digits}`;
-    } else if (digits.startsWith('254') && digits.length === 12) {
-      return digits;
-    }
-    
-    return null;
   };
 
   const handleCheckout = async () => {
-    if (!selectedCustomer) {
-      alert('Please select a customer');
-      return;
-    }
-
-    if (cartItems.length === 0) {
+    if (!cartItems?.length) {
       alert('Cart is empty');
       return;
     }
@@ -204,51 +308,81 @@ const Cart = () => {
       setIsCheckingOut(true);
       setCheckoutError(null);
       
-      // For M-Pesa payments, first process payment
+      let paymentSuccess = true;
       if (paymentMethod === 'MPESA') {
-        const paymentSuccess = await initiateMpesaPayment();
-        if (!paymentSuccess) {
-          throw new Error('M-Pesa payment failed');
+        try {
+          paymentSuccess = await initiateMpesaPayment();
+          if (!paymentSuccess) {
+            throw new Error('Payment not confirmed');
+          }
+        } catch (error) {
+          // Special handling for when backend doesn't properly update status
+          const fallbackSuccess = await handlePaymentFallback(checkoutRequestId);
+          if (!fallbackSuccess) {
+            throw error;
+          }
+          paymentSuccess = true;
         }
       }
 
-      // Proceed with sale creation after successful payment (or for non-M-Pesa)
-      const checkoutData = {
-        customerId: selectedCustomer,
-        paymentMethod: paymentMethod,
-        mpesaNumber: paymentMethod === 'MPESA' ? mpesaNumber : undefined,
-        mpesaTransactionId: paymentMethod === 'MPESA' ? mpesaStatus.includes('completed') ? 'MPESA-' + Date.now() : undefined : undefined,
+      // Prepare sale data with null checks
+      const saleData = {
+        customerId: selectedCustomer?.id || null,
+        paymentMethod: paymentMethod || 'CASH',
+        mpesaNumber: paymentMethod === 'MPESA' ? formatPhoneNumber(mpesaNumber) : null,
+        mpesaTransactionId: paymentMethod === 'MPESA' ? checkoutRequestId : null,
+        mpesaReceiptNumber: paymentMethod === 'MPESA' ? mpesaReceiptNumber : null,
         items: cartItems.map(item => ({
-          productId: item.id,
-          quantity: item.quantity,
-          price: item.price,
-          name: item.name,
-          sku: item.sku,
-          discount: item.discount || 0
+          productId: item?.id || '',
+          quantity: item?.quantity || 0,
+          price: item?.price || 0,
+          discount: item?.discount || 0
         }))
       };
 
       const response = await fetch('http://localhost:8080/api/sales', {
         method: 'POST',
         headers: getAuthHeader(),
-        body: JSON.stringify(checkoutData)
+        body: JSON.stringify(saleData)
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Checkout failed');
+      if (!response?.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.message || 'Checkout failed');
       }
 
       const sale = await response.json();
-      await printReceipt(sale);
+      
+      // Safe receipt printing
+      try {
+        if (sale?.id) {
+          await printReceipt(sale);
+        } else {
+          console.warn('Invalid sale data for printing');
+        }
+      } catch (printError) {
+        console.error("Failed to print receipt:", printError);
+      }
+      
+      // Clear cart only after successful sale creation
       dispatch(clearCart());
-      alert('Sale completed successfully!');
+      
+      // Show transaction summary
+      alert(
+        `Order #${sale?.id || 'N/A'} completed successfully!\n\n` +
+        `Payment Method: ${paymentMethod}\n` +
+        `${paymentMethod === 'MPESA' ? 'M-Pesa Receipt: ' + (mpesaReceiptNumber || 'N/A') : ''}\n` +
+        `Total Amount: Ksh ${(total || 0).toFixed(2)}`
+      );
+      
+      // Reset payment state
+      resetPaymentState();
+      
     } catch (err) {
       console.error("Checkout failed:", err);
-      setCheckoutError(err.message || 'Checkout failed. Please try again.');
+      setCheckoutError(err?.message || 'Checkout failed. Please try again.');
     } finally {
       setIsCheckingOut(false);
-      setMpesaLoading(false);
     }
   };
 
@@ -264,11 +398,11 @@ const Cart = () => {
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Your Shopping Cart</h1>
       
-      {cartItems.length === 0 ? (
+      {!cartItems?.length ? (
         <div className="text-center py-12">
           <h2 className="text-2xl font-medium mb-4">Your cart is empty</h2>
           <Link 
-            to="/pos" 
+            to="/products" 
             className="inline-block bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition duration-150 ease-in-out"
           >
             Continue Shopping
@@ -288,21 +422,21 @@ const Cart = () => {
                   Select Customer
                 </label>
                 <select
-                  value={selectedCustomer || ''}
-                  onChange={(e) => setSelectedCustomer(e.target.value ? Number(e.target.value) : null)}
+                  value={selectedCustomerId}
+                  onChange={(e) => setSelectedCustomerId(e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="">Select Customer</option>
+                  <option value="">Guest Customer</option>
                   {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name} ({customer.phone || 'No phone'})
+                    <option key={customer?.id} value={customer?.id}>
+                      {customer?.name || 'Unknown'} ({customer?.phone || 'No phone'})
                     </option>
                   ))}
                 </select>
               </div>
               <div className="flex items-end">
                 <Link
-                  to="/customers"
+                  to="/customers/new"
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-md text-center transition duration-150 ease-in-out"
                 >
                   + Add New Customer
@@ -318,52 +452,59 @@ const Cart = () => {
               <div className="bg-white rounded-lg shadow overflow-hidden">
                 <div className="divide-y divide-gray-200">
                   {cartItems.map((item) => (
-                    <div key={item.id} className="p-4 flex">
-                      {item.imageUrl && (
+                    <div key={item?.id} className="p-4 flex">
+                      {item?.imageUrl && (
                         <div className="flex-shrink-0">
                           <img 
                             src={item.imageUrl} 
-                            alt={item.name}
+                            alt={item?.name || 'Product'}
                             className="h-20 w-20 object-cover rounded"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = '/placeholder-product.png';
+                            }}
                           />
                         </div>
                       )}
                       <div className="ml-4 flex-1 flex flex-col">
                         <div className="flex justify-between">
                           <h3 className="text-lg font-medium">
-                            {item.name || 'Product'}
+                            {item?.name || 'Product'}
                           </h3>
                           <p className="ml-4 font-bold">
-                            Ksh {((item.price - (item.discount || 0)) * item.quantity).toFixed(2)}
+                            Ksh {(
+                              ((item?.price || 0) - (item?.discount || 0)) * 
+                              (item?.quantity || 0)
+                            ).toFixed(2)}
                           </p>
                         </div>
                         <div className="flex items-center">
                           <p className="text-gray-600">
-                            Unit Price: Ksh {item.price ? item.price.toFixed(2) : '0.00'}
+                            Unit Price: Ksh {(item?.price || 0).toFixed(2)}
                           </p>
-                          {item.discount > 0 && (
+                          {(item?.discount || 0) > 0 && (
                             <span className="ml-2 text-green-600">
-                              (Discount: Ksh {item.discount.toFixed(2)})
+                              (Discount: Ksh {(item?.discount || 0).toFixed(2)})
                             </span>
                           )}
                         </div>
-                        {item.sku && (
+                        {item?.sku && (
                           <p className="text-gray-500 text-xs">SKU: {item.sku}</p>
                         )}
                         
                         <div className="flex-1 flex items-end justify-between mt-2">
                           <div className="flex items-center">
                             <button
-                              onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
+                              onClick={() => handleQuantityChange(item?.id, (item?.quantity || 0) - 1)}
                               className="px-3 py-1 border rounded-l-md bg-gray-100 hover:bg-gray-200"
                             >
                               -
                             </button>
                             <span className="px-4 py-1 border-t border-b text-center">
-                              {item.quantity}
+                              {item?.quantity || 0}
                             </span>
                             <button
-                              onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                              onClick={() => handleQuantityChange(item?.id, (item?.quantity || 0) + 1)}
                               className="px-3 py-1 border rounded-r-md bg-gray-100 hover:bg-gray-200"
                             >
                               +
@@ -371,7 +512,7 @@ const Cart = () => {
                           </div>
                           
                           <button
-                            onClick={() => handleRemoveItem(item.id)}
+                            onClick={() => handleRemoveItem(item?.id)}
                             className="text-red-500 hover:text-red-700"
                           >
                             Remove
@@ -430,16 +571,19 @@ const Cart = () => {
                         type="tel"
                         value={mpesaNumber}
                         onChange={(e) => setMpesaNumber(e.target.value)}
-                        placeholder="Enter M-Pesa phone number (e.g., 07XXXXXXXX)"
+                        placeholder="Enter M-Pesa phone (07XXXXXXXX)"
                         className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       />
                       {mpesaStatus && (
                         <div className={`mt-2 text-sm p-2 rounded ${
-                          mpesaStatus.includes('failed') ? 'bg-red-100 text-red-700' : 
-                          mpesaStatus.includes('completed') ? 'bg-green-100 text-green-700' :
+                          mpesaStatus.includes('failed') || mpesaStatus.includes('Error') ? 'bg-red-100 text-red-700' : 
+                          mpesaStatus.includes('completed') || mpesaStatus.includes('confirmed') ? 'bg-green-100 text-green-700' :
                           'bg-blue-100 text-blue-700'
                         }`}>
                           {mpesaStatus}
+                          {lastStatusCheck && (
+                            <div className="text-xs mt-1">Last checked: {lastStatusCheck}</div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -453,7 +597,7 @@ const Cart = () => {
                     <span>Ksh {subtotal.toFixed(2)}</span>
                   </div>
                   
-                  {discountAmount > 0 && (
+                  {(discountAmount || 0) > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Discount:</span>
                       <span>Ksh {discountAmount.toFixed(2)}</span>
@@ -472,7 +616,20 @@ const Cart = () => {
                 </div>
                 
                 {checkoutError && (
-                  <div className="text-red-500 text-sm mb-4">{checkoutError}</div>
+                  <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm text-red-700">
+                          {checkoutError}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 )}
                 
                 <button
