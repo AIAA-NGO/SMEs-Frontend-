@@ -71,7 +71,9 @@ export const createDiscount = async (discountData) => {
   return await api.post('api/discounts', discountData);
 };
 
-
+export const getAllDiscounts = async () => {
+  return await api.get('api/discounts');
+};
 
 export const getActiveDiscounts = async () => {
   return await api.get('api/discounts/active');
