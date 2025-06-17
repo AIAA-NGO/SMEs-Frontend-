@@ -142,7 +142,7 @@ const Dashboard = () => {
       subtotal,
       discount,
       total,
-      salesProfit: profitData.totalProfit, // Use profit data from backend
+      salesProfit: profitData.totalProfit,
       totalSales,
       inventoryCount: summary.inventoryCount,
       customerCount: summary.customerCount,
@@ -241,7 +241,6 @@ const Dashboard = () => {
       setLoading(prev => ({ ...prev, profit: true }));
       setError(prev => ({ ...prev, profit: null }));
       
-      // Get data for the last 30 days to match ProductPerformanceReport
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(endDate.getDate() - 30);
@@ -259,7 +258,6 @@ const Dashboard = () => {
       
       const data = await response.json();
       
-      // Calculate profit exactly like in ProductPerformanceReport
       let totalProfit = 0;
       let totalRevenue = 0;
       let totalCost = 0;
@@ -285,7 +283,6 @@ const Dashboard = () => {
         profitMargin
       });
       
-      // Update summary with the new profit data
       setSummary(prev => ({
         ...prev,
         salesProfit: totalProfit
@@ -343,7 +340,6 @@ const Dashboard = () => {
       const data = await response.json();
       setSales(data);
       
-      // Process sales data for charts
       const dailySales = processDailySales(data);
       const monthlySales = processMonthlySales(data);
       
@@ -354,7 +350,6 @@ const Dashboard = () => {
         monthlyLabels: monthlySales.months
       });
       
-      // Calculate profit for each sale to display in recent sales
       const salesWithProfit = data.map(sale => {
         let saleProfit = 0;
         let saleCost = 0;
@@ -365,7 +360,6 @@ const Dashboard = () => {
             const costPrice = item.costPrice || 0;
             const quantity = item.quantity || 0;
             
-            // Profit for this item is (unit price - cost price) * quantity
             saleProfit += (unitPrice - costPrice) * quantity;
             saleCost += costPrice * quantity;
           });
@@ -376,7 +370,6 @@ const Dashboard = () => {
       
       setRecentSales(salesWithProfit.slice(0, 5));
       
-      // Update summary with sales data (profit will be updated separately)
       setSummary(prev => ({
         ...calculateSummary(data),
         inventoryCount: prev.inventoryCount,
@@ -513,7 +506,7 @@ const Dashboard = () => {
         await fetchInventoryData();
         await Promise.all([
           fetchSales(),
-          fetchProfitData(), // Fetch profit data first to ensure it's available
+          fetchProfitData(),
           fetchTopProducts(),
           fetchLowStockItems(),
           fetchExpiringAndExpiredItems(),
@@ -527,7 +520,6 @@ const Dashboard = () => {
 
     fetchDashboardData();
 
-    // Refresh data every 5 minutes
     const interval = setInterval(fetchDashboardData, 300000);
     return () => clearInterval(interval);
   }, []);
@@ -652,21 +644,21 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="p-4">
-      {/* Top Bar with Greeting and Search */}
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-4 md:p-6">
+      {/* Top Bar with Greeting and Search - Responsive */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
         <div>
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-xl md:text-2xl font-bold">
             {getTimeOfDay()}, {userName} 👋
           </h1>
-          <p className="text-gray-600">Track your sales and performance here!</p>
+          <p className="text-gray-600 text-sm md:text-base">Track your sales and performance here!</p>
         </div>
-        <div className="flex items-center space-x-4">
-          <div className="relative">
+        <div className="flex items-center w-full md:w-auto gap-3">
+          <div className="relative flex-grow md:flex-grow-0">
             <input
               type="text"
               placeholder="Search..."
-              className="pl-10 pr-4 py-2 border rounded-lg shadow-sm focus:outline-none"
+              className="pl-10 pr-4 py-2 border rounded-lg shadow-sm focus:outline-none w-full md:w-64"
             />
             <FaSearch className="absolute left-3 top-2.5 text-gray-500" />
           </div>
@@ -674,68 +666,67 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Summary Metrics Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-600">Sale SubTotal</h2>
-          <p className="text-3xl font-bold mt-2 text-blue-600">
+      {/* Summary Metrics Section - Responsive Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-10">
+        <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200">
+          <h2 className="text-base md:text-lg font-semibold text-gray-600">Sale SubTotal</h2>
+          <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2 text-blue-600">
             {formatKES(summary.subtotal)}
           </p>
         </div>
         
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-600">Sale Discount</h2>
-          <p className="text-3xl font-bold mt-2 text-red-500">
+        <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200">
+          <h2 className="text-base md:text-lg font-semibold text-gray-600">Sale Discount</h2>
+          <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2 text-red-500">
             {formatKES(summary.discount)}
           </p>
           {!loading.discounts && activeDiscounts.length > 0 && (
-            <p className="text-sm mt-1 text-gray-500">
+            <p className="text-xs md:text-sm mt-1 text-gray-500">
               {activeDiscounts.length} active discount{activeDiscounts.length !== 1 ? 's' : ''}
             </p>
           )}
         </div>
         
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-600">Sale Total</h2>
-          <p className="text-3xl font-bold mt-2 text-green-600">
+        <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200">
+          <h2 className="text-base md:text-lg font-semibold text-gray-600">Sale Total</h2>
+          <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2 text-green-600">
             {formatKES(summary.total)}
           </p>
         </div>
         
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-  <h2 className="text-lg font-semibold text-gray-600">Sales Profit</h2>
-  <p className="text-3xl font-bold mt-2 text-purple-600">
-    {loading.profit ? (
-      <span className="inline-block h-8 w-24 bg-gray-200 rounded animate-pulse"></span>
-    ) : (
-      formatKES(profitData.totalProfit)
-    )}
-  </p>
-
-         </div>
+        <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200">
+          <h2 className="text-base md:text-lg font-semibold text-gray-600">Sales Profit</h2>
+          <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2 text-purple-600">
+            {loading.profit ? (
+              <span className="inline-block h-8 w-24 bg-gray-200 rounded animate-pulse"></span>
+            ) : (
+              formatKES(profitData.totalProfit)
+            )}
+          </p>
+        </div>
       </div>
 
-      {/* Secondary Metrics Section */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
-          <div className="bg-blue-100 p-3 rounded-full mr-4">
-            <FiTrendingUp className="text-blue-600 text-xl" />
+      {/* Secondary Metrics Section - Responsive Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-10">
+        <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
+          <div className="bg-blue-100 p-2 md:p-3 rounded-full mr-3 md:mr-4">
+            <FiTrendingUp className="text-blue-600 text-lg md:text-xl" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-600">Total Sales</h2>
-            <p className="text-2xl font-bold mt-1">
+            <h2 className="text-base md:text-lg font-semibold text-gray-600">Total Sales</h2>
+            <p className="text-xl md:text-2xl font-bold mt-1">
               {summary.totalSales}
             </p>
           </div>
         </div>
 
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
-          <div className="bg-green-100 p-3 rounded-full mr-4">
-            <FaBoxes className="text-green-600 text-xl" />
+        <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
+          <div className="bg-green-100 p-2 md:p-3 rounded-full mr-3 md:mr-4">
+            <FaBoxes className="text-green-600 text-lg md:text-xl" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-600">Inventory Items</h2>
-            <p className="text-2xl font-bold mt-1">
+            <h2 className="text-base md:text-lg font-semibold text-gray-600">Inventory Items</h2>
+            <p className="text-xl md:text-2xl font-bold mt-1">
               {loading.inventory ? (
                 <span className="inline-block h-6 w-12 bg-gray-200 rounded animate-pulse"></span>
               ) : (
@@ -745,13 +736,13 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
-          <div className="bg-yellow-100 p-3 rounded-full mr-4">
-            <FaExclamationTriangle className="text-yellow-600 text-xl" />
+        <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
+          <div className="bg-yellow-100 p-2 md:p-3 rounded-full mr-3 md:mr-4">
+            <FaExclamationTriangle className="text-yellow-600 text-lg md:text-xl" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-600">Low Stock Items</h2>
-            <p className="text-2xl font-bold mt-1">
+            <h2 className="text-base md:text-lg font-semibold text-gray-600">Low Stock Items</h2>
+            <p className="text-xl md:text-2xl font-bold mt-1">
               {loading.inventory ? (
                 <span className="inline-block h-6 w-12 bg-gray-200 rounded animate-pulse"></span>
               ) : (
@@ -761,13 +752,13 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
-          <div className="bg-red-100 p-3 rounded-full mr-4">
-            <FaCalendarAlt className="text-red-600 text-xl" />
+        <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200 flex items-center">
+          <div className="bg-red-100 p-2 md:p-3 rounded-full mr-3 md:mr-4">
+            <FaCalendarAlt className="text-red-600 text-lg md:text-xl" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-600">Expired Items</h2>
-            <p className="text-2xl font-bold mt-1">
+            <h2 className="text-base md:text-lg font-semibold text-gray-600">Expired Items</h2>
+            <p className="text-xl md:text-2xl font-bold mt-1">
               {loading.inventory ? (
                 <span className="inline-block h-6 w-12 bg-gray-200 rounded animate-pulse"></span>
               ) : (
@@ -778,15 +769,15 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Sales Trends Section */}
-      <div className="mb-10">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Sales Trends</h2>
+      {/* Sales Trends Section - Responsive */}
+      <div className="mb-6 md:mb-10">
+        <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4 md:mb-6">Sales Trends</h2>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
           {/* Daily Sales Line Chart */}
-          <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-            <h3 className="text-xl font-semibold mb-4">Daily Sales Trend</h3>
-            <div className="h-80">
+          <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200">
+            <h3 className="text-lg md:text-xl font-semibold mb-3 md:mb-4">Daily Sales Trend</h3>
+            <div className="h-64 md:h-80">
               {loading.salesTrend ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="animate-pulse text-gray-400">Loading daily sales data...</div>
@@ -809,9 +800,9 @@ const Dashboard = () => {
           </div>
 
           {/* Monthly Sales Bar Chart */}
-          <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-            <h3 className="text-xl font-semibold mb-4">Monthly Sales Performance</h3>
-            <div className="h-80">
+          <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200">
+            <h3 className="text-lg md:text-xl font-semibold mb-3 md:mb-4">Monthly Sales Performance</h3>
+            <div className="h-64 md:h-80">
               {loading.salesTrend ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="animate-pulse text-gray-400">Loading monthly sales data...</div>
@@ -835,16 +826,17 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+      {/* Bottom Section - Responsive Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-10">
         {/* Active Discounts */}
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Active Discounts</h2>
+        <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200">
+          <div className="flex items-center justify-between mb-3 md:mb-4">
+            <h2 className="text-lg md:text-xl font-semibold">Active Discounts</h2>
             <FaTag className="text-purple-500" />
           </div>
           
           {loading.discounts ? (
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {[1, 2, 3].map((item) => (
                 <div key={item} className="flex justify-between items-center">
                   <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
@@ -855,15 +847,15 @@ const Dashboard = () => {
           ) : error.discounts ? (
             <div className="text-red-500">Error: {error.discounts}</div>
           ) : activeDiscounts.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {activeDiscounts.slice(0, 5).map((discount, index) => (
                 <div key={index} className="flex justify-between items-center">
                   <div>
-                    <p className="font-medium">{discount.code || discount.name || 'Discount'}</p>
-                    <p className="text-sm text-gray-500">{discount.description || 'No description'}</p>
+                    <p className="font-medium text-sm md:text-base">{discount.code || discount.name || 'Discount'}</p>
+                    <p className="text-xs md:text-sm text-gray-500">{discount.description || 'No description'}</p>
                   </div>
                   <div className="text-right">
-                    <span className="text-purple-600 font-semibold block">
+                    <span className="text-purple-600 font-semibold block text-sm md:text-base">
                       {discount.percentage || discount.value || 0}% off
                     </span>
                     <span className="text-gray-500 text-xs block">
@@ -879,14 +871,14 @@ const Dashboard = () => {
         </div>
 
         {/* Top Products */}
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Top Products</h2>
+        <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200">
+          <div className="flex items-center justify-between mb-3 md:mb-4">
+            <h2 className="text-lg md:text-xl font-semibold">Top Products</h2>
             <FiTrendingUp className="text-blue-500" />
           </div>
           
           {loading.topProducts ? (
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {[1, 2, 3, 4].map((item) => (
                 <div key={item} className="flex justify-between items-center">
                   <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
@@ -897,7 +889,7 @@ const Dashboard = () => {
           ) : error.topProducts ? (
             <div className="text-red-500">Error: {error.topProducts}</div>
           ) : topProducts.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {topProducts.slice(0, 5).map((product, index) => (
                 <div key={index} className="flex justify-between items-center">
                   <div className="flex items-center">
@@ -908,10 +900,10 @@ const Dashboard = () => {
                         className="w-8 h-8 rounded-full mr-2 object-cover"
                       />
                     )}
-                    <span className="font-medium">{product.productName}</span>
+                    <span className="font-medium text-sm md:text-base">{product.productName}</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-blue-600 font-semibold block">{product.unitsSold} sold</span>
+                    <span className="text-blue-600 font-semibold block text-sm md:text-base">{product.unitsSold} sold</span>
                     <span className="text-gray-500 text-xs block">{formatKES(product.revenue)}</span>
                   </div>
                 </div>
@@ -923,14 +915,14 @@ const Dashboard = () => {
         </div>
 
         {/* Low Stock Items */}
-        <div className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Low Stock Items</h2>
+        <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200">
+          <div className="flex items-center justify-between mb-3 md:mb-4">
+            <h2 className="text-lg md:text-xl font-semibold">Low Stock Items</h2>
             <FaExclamationTriangle className="text-red-500" />
           </div>
           
           {loading.lowStock ? (
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {[1, 2, 3, 4].map((item) => (
                 <div key={item} className="flex justify-between items-center">
                   <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
@@ -941,10 +933,10 @@ const Dashboard = () => {
           ) : error.lowStock ? (
             <div className="text-red-500">Error: {error.lowStock}</div>
           ) : lowStockItems.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {lowStockItems.slice(0, 5).map((item, index) => (
                 <div key={index} className="flex justify-between items-center">
-                  <span className="font-medium">{item.productName || item.name || 'Unknown Product'}</span>
+                  <span className="font-medium text-sm md:text-base">{item.productName || item.name || 'Unknown Product'}</span>
                   <span className="text-red-600 font-semibold">
                     {item.quantityInStock || item.quantity_in_stock || 0} left
                   </span>
@@ -957,17 +949,17 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Recent Sales Section */}
-      <div className="mt-6 p-6 bg-white rounded-xl shadow-md border border-gray-200">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Recent Sales</h2>
+      {/* Recent Sales Section - Responsive */}
+      <div className="mt-4 md:mt-6 p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200">
+        <div className="flex items-center justify-between mb-3 md:mb-4">
+          <h2 className="text-lg md:text-xl font-semibold">Recent Sales</h2>
           <FaHistory className="text-gray-500" />
         </div>
         
         {loading.recentSales ? (
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4">
             {[1, 2, 3, 4, 5].map((item) => (
-              <div key={item} className="grid grid-cols-4 gap-4">
+              <div key={item} className="grid grid-cols-4 gap-3 md:gap-4">
                 <div className="h-4 bg-gray-200 rounded animate-pulse col-span-1"></div>
                 <div className="h-4 bg-gray-200 rounded animate-pulse col-span-1"></div>
                 <div className="h-4 bg-gray-200 rounded animate-pulse col-span-1"></div>
@@ -982,21 +974,21 @@ const Dashboard = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profit</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                  <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                  <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
+                  <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
+                  <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profit</th>
+                  <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {recentSales.map((sale) => (
                   <tr key={sale.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{sale.id}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(sale.saleDate || sale.createdAt)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm font-medium text-gray-900">#{sale.id}</td>
+                    <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-500">{formatDate(sale.saleDate || sale.createdAt)}</td>
+                    <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-500">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         sale.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
                         sale.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
@@ -1005,12 +997,12 @@ const Dashboard = () => {
                         {sale.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(sale.subtotal)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatKES(sale.discountAmount)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-500">{formatKES(sale.subtotal)}</td>
+                    <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-500">{formatKES(sale.discountAmount)}</td>
+                    <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-500">
                       {formatKES(sale.profit || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">{formatKES(sale.total)}</td>
+                    <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold text-green-600">{formatKES(sale.total)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -133,6 +133,7 @@ const FinancialReports = () => {
       setLoading(false);
     }
   };
+
   const formatCurrency = (value) => {
     if (isNaN(value) || value === null || value === undefined) return 'KSH 0.00';
     return new Intl.NumberFormat('en-KE', {
@@ -174,33 +175,33 @@ const FinancialReports = () => {
 
     return (
       <div className="space-y-6">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <h3 className="text-lg font-semibold mb-4">Profit & Loss Summary</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-blue-50 p-4 rounded-lg">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
               <h4 className="font-medium text-blue-800">Revenue</h4>
-              <p className="text-2xl font-bold text-blue-900">{formatCurrency(metrics.totalRevenue)}</p>
+              <p className="text-xl sm:text-2xl font-bold text-blue-900">{formatCurrency(metrics.totalRevenue)}</p>
             </div>
-            <div className="bg-green-50 p-4 rounded-lg">
+            <div className="bg-green-50 p-3 sm:p-4 rounded-lg">
               <h4 className="font-medium text-green-800">Gross Profit</h4>
-              <p className="text-2xl font-bold text-green-900">{formatCurrency(metrics.grossProfit)}</p>
-              <p className="text-sm text-green-600">
+              <p className="text-xl sm:text-2xl font-bold text-green-900">{formatCurrency(metrics.grossProfit)}</p>
+              <p className="text-xs sm:text-sm text-green-600">
                 {metrics.grossProfitMargin.toFixed(2)}% margin
               </p>
             </div>
-            <div className="bg-purple-50 p-4 rounded-lg">
+            <div className="bg-purple-50 p-3 sm:p-4 rounded-lg">
               <h4 className="font-medium text-purple-800">Net Profit</h4>
-              <p className="text-2xl font-bold text-purple-900">{formatCurrency(metrics.netProfit)}</p>
-              <p className="text-sm text-purple-600">
+              <p className="text-xl sm:text-2xl font-bold text-purple-900">{formatCurrency(metrics.netProfit)}</p>
+              <p className="text-xs sm:text-sm text-purple-600">
                 {metrics.netProfitMargin.toFixed(2)}% margin
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <h3 className="text-lg font-semibold mb-4">Revenue Breakdown</h3>
-          <div className="h-80">
+          <div className="h-64 sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={salesReport}
@@ -223,27 +224,27 @@ const FinancialReports = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <h3 className="text-lg font-semibold mb-4">Cost Breakdown</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-red-50 p-4 rounded-lg">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <div className="bg-red-50 p-3 sm:p-4 rounded-lg">
               <h4 className="font-medium text-red-800">Cost of Goods Sold</h4>
-              <p className="text-xl font-bold text-red-900">{formatCurrency(metrics.totalCOGS)}</p>
-              <p className="text-sm text-red-600">
+              <p className="text-lg sm:text-xl font-bold text-red-900">{formatCurrency(metrics.totalCOGS)}</p>
+              <p className="text-xs sm:text-sm text-red-600">
                 {(metrics.totalRevenue > 0 ? (metrics.totalCOGS / metrics.totalRevenue * 100) : 0).toFixed(2)}% of revenue
               </p>
             </div>
-            <div className="bg-orange-50 p-4 rounded-lg">
+            <div className="bg-orange-50 p-3 sm:p-4 rounded-lg">
               <h4 className="font-medium text-orange-800">Operating Expenses</h4>
-              <p className="text-xl font-bold text-orange-900">{formatCurrency(metrics.operatingExpenses)}</p>
-              <p className="text-sm text-orange-600">
+              <p className="text-lg sm:text-xl font-bold text-orange-900">{formatCurrency(metrics.operatingExpenses)}</p>
+              <p className="text-xs sm:text-sm text-orange-600">
                 {(metrics.totalRevenue > 0 ? (metrics.operatingExpenses / metrics.totalRevenue * 100) : 0).toFixed(2)}% of revenue
               </p>
             </div>
-            <div className="bg-yellow-50 p-4 rounded-lg">
+            <div className="bg-yellow-50 p-3 sm:p-4 rounded-lg">
               <h4 className="font-medium text-yellow-800">Operating Profit</h4>
-              <p className="text-xl font-bold text-yellow-900">{formatCurrency(metrics.operatingProfit)}</p>
-              <p className="text-sm text-yellow-600">
+              <p className="text-lg sm:text-xl font-bold text-yellow-900">{formatCurrency(metrics.operatingProfit)}</p>
+              <p className="text-xs sm:text-sm text-yellow-600">
                 {metrics.operatingProfitMargin.toFixed(2)}% margin
               </p>
             </div>
@@ -262,9 +263,9 @@ const FinancialReports = () => {
 
     return (
       <div className="space-y-6">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <h3 className="text-lg font-semibold mb-4">Top Performing Products</h3>
-          <div className="h-80">
+          <div className="h-64 sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={topProducts}
@@ -288,9 +289,9 @@ const FinancialReports = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <h3 className="text-lg font-semibold mb-4">Revenue by Product</h3>
-          <div className="h-80">
+          <div className="h-64 sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -314,39 +315,39 @@ const FinancialReports = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <h3 className="text-lg font-semibold mb-4">Product Performance Details</h3>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units Sold</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">COGS</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gross Profit</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Margin</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units Sold</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">COGS</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gross Profit</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Margin</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {productPerformance.map((product) => (
                   <tr key={product.productId}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{product.productName}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.quantitySold || 0}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium text-gray-900">{product.productName}</td>
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">{product.quantitySold || 0}</td>
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatCurrency(product.unitCost || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatCurrency(product.totalRevenue || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatCurrency(product.costOfGoodsSold || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatCurrency(product.grossProfit || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         (product.profitMargin || 0) >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                       }`}>
@@ -380,37 +381,37 @@ const FinancialReports = () => {
 
     return (
       <div className="space-y-6">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <h3 className="text-lg font-semibold mb-4">Sales Overview</h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-blue-50 p-4 rounded-lg">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
               <h4 className="font-medium text-blue-800">Total Sales</h4>
-              <p className="text-2xl font-bold text-blue-900">{salesData.length}</p>
+              <p className="text-xl sm:text-2xl font-bold text-blue-900">{salesData.length}</p>
             </div>
-            <div className="bg-green-50 p-4 rounded-lg">
+            <div className="bg-green-50 p-3 sm:p-4 rounded-lg">
               <h4 className="font-medium text-green-800">Completed</h4>
-              <p className="text-2xl font-bold text-green-900">
+              <p className="text-xl sm:text-2xl font-bold text-green-900">
                 {salesData.filter(s => s.status === 'COMPLETED').length}
               </p>
             </div>
-            <div className="bg-yellow-50 p-4 rounded-lg">
+            <div className="bg-yellow-50 p-3 sm:p-4 rounded-lg">
               <h4 className="font-medium text-yellow-800">Pending</h4>
-              <p className="text-2xl font-bold text-yellow-900">
+              <p className="text-xl sm:text-2xl font-bold text-yellow-900">
                 {salesData.filter(s => s.status === 'PENDING').length}
               </p>
             </div>
-            <div className="bg-red-50 p-4 rounded-lg">
+            <div className="bg-red-50 p-3 sm:p-4 rounded-lg">
               <h4 className="font-medium text-red-800">Cancelled</h4>
-              <p className="text-2xl font-bold text-red-900">
+              <p className="text-xl sm:text-2xl font-bold text-red-900">
                 {salesData.filter(s => s.status === 'CANCELLED').length}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <h3 className="text-lg font-semibold mb-4">Sales by Status</h3>
-          <div className="h-80">
+          <div className="h-64 sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -434,40 +435,40 @@ const FinancialReports = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <h3 className="text-lg font-semibold mb-4">Recent Sales</h3>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Paid</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Paid</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {salesData.slice(0, 10).map((sale) => (
                   <tr key={sale.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                       {sale.saleDate ? format(new Date(sale.saleDate), 'MMM d, yyyy') : 'N/A'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {sale.customerName || 'N/A'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatCurrency(sale.subtotal || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatCurrency(sale.discount || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatCurrency(sale.totalAmount || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         sale.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
                         sale.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
@@ -476,7 +477,7 @@ const FinancialReports = () => {
                         {sale.status || 'UNKNOWN'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                       {sale.items ? sale.items.length : 0}
                     </td>
                   </tr>
@@ -490,36 +491,38 @@ const FinancialReports = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Financial Reports</h1>
-        <div className="flex space-x-4">
-          <button
-            onClick={() => handleExport('CSV')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            disabled={loading}
-          >
-            {loading ? 'Exporting...' : 'Export CSV'}
-          </button>
-          <button
-            onClick={() => handleExport('PDF')}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-            disabled={loading}
-          >
-            {loading ? 'Exporting...' : 'Export PDF'}
-          </button>
+    <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-8 gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Financial Reports</h1>
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 w-full sm:w-auto">
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button
+              onClick={() => handleExport('CSV')}
+              className="px-3 py-1 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm sm:text-base w-full sm:w-auto"
+              disabled={loading}
+            >
+              {loading ? 'Exporting...' : 'Export CSV'}
+            </button>
+            <button
+              onClick={() => handleExport('PDF')}
+              className="px-3 py-1 sm:px-4 sm:py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm sm:text-base w-full sm:w-auto"
+              disabled={loading}
+            >
+              {loading ? 'Exporting...' : 'Export PDF'}
+            </button>
+          </div>
           {lastUpdated && (
-            <div className="text-sm text-gray-500 self-center">
+            <div className="text-xs sm:text-sm text-gray-500 text-right sm:text-left w-full sm:w-auto">
               Last updated: {format(lastUpdated, 'MMM d, yyyy HH:mm')}
             </div>
           )}
         </div>
       </div>
 
-      <div className="mb-6 bg-white rounded-lg shadow p-4">
-        <div className="flex flex-col md:flex-row md:items-center md:space-x-6 space-y-4 md:space-y-0">
-          <div>
-            <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+      <div className="mb-4 sm:mb-6 bg-white rounded-lg shadow p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-3 sm:space-y-0">
+          <div className="w-full sm:w-auto">
+            <label htmlFor="startDate" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
               Start Date
             </label>
             <input
@@ -527,11 +530,11 @@ const FinancialReports = () => {
               id="startDate"
               value={format(startDate, 'yyyy-MM-dd')}
               onChange={(e) => setStartDate(new Date(e.target.value))}
-              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 rounded-md px-2 py-1 sm:px-3 sm:py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
             />
           </div>
-          <div>
-            <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="w-full sm:w-auto">
+            <label htmlFor="endDate" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
               End Date
             </label>
             <input
@@ -539,12 +542,12 @@ const FinancialReports = () => {
               id="endDate"
               value={format(endDate, 'yyyy-MM-dd')}
               onChange={(e) => setEndDate(new Date(e.target.value))}
-              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 rounded-md px-2 py-1 sm:px-3 sm:py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
             />
           </div>
           <button
             onClick={fetchData}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors self-end md:self-auto"
+            className="px-3 py-1 sm:px-4 sm:py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-xs sm:text-sm mt-2 sm:mt-0"
             disabled={loading}
           >
             {loading ? 'Loading...' : 'Apply Filters'}
@@ -552,11 +555,11 @@ const FinancialReports = () => {
         </div>
       </div>
 
-      <div className="mb-6">
-        <nav className="flex space-x-4" aria-label="Tabs">
+      <div className="mb-4 sm:mb-6">
+        <nav className="flex space-x-2 sm:space-x-4 overflow-x-auto pb-2" aria-label="Tabs">
           <button
             onClick={() => setActiveTab('profitLoss')}
-            className={`px-3 py-2 text-sm font-medium rounded-md ${
+            className={`px-2 py-1 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium rounded-md whitespace-nowrap ${
               activeTab === 'profitLoss'
                 ? 'bg-blue-100 text-blue-700'
                 : 'text-gray-500 hover:text-gray-700'
@@ -566,7 +569,7 @@ const FinancialReports = () => {
           </button>
           <button
             onClick={() => setActiveTab('productPerformance')}
-            className={`px-3 py-2 text-sm font-medium rounded-md ${
+            className={`px-2 py-1 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium rounded-md whitespace-nowrap ${
               activeTab === 'productPerformance'
                 ? 'bg-blue-100 text-blue-700'
                 : 'text-gray-500 hover:text-gray-700'
@@ -576,7 +579,7 @@ const FinancialReports = () => {
           </button>
           <button
             onClick={() => setActiveTab('salesReport')}
-            className={`px-3 py-2 text-sm font-medium rounded-md ${
+            className={`px-2 py-1 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium rounded-md whitespace-nowrap ${
               activeTab === 'salesReport'
                 ? 'bg-blue-100 text-blue-700'
                 : 'text-gray-500 hover:text-gray-700'
@@ -594,7 +597,7 @@ const FinancialReports = () => {
       )}
 
       {error && (
-        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 sm:mb-6" role="alert">
           <p>{error}</p>
         </div>
       )}

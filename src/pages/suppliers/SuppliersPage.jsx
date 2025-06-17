@@ -1,15 +1,30 @@
-import React, { useEffect, useState } from 'react';
-import { addSupplier, getSuppliers, updateSupplier, deleteSupplier } from '../../services/supplierService';
+import React, { useEffect, useState, useRef } from 'react';
+import { CSVLink } from 'react-csv';
+import * as XLSX from 'xlsx';
+import { useReactToPrint } from 'react-to-print';
+import { 
+  addSupplier, 
+  getSuppliers, 
+  updateSupplier, 
+  deleteSupplier 
+} from '../../services/supplierService';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const SuppliersPage = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showForm, setShowForm] = useState(false);
   const [success, setSuccess] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [showForm, setShowForm] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const componentRef = useRef();
 
-  // Form state with proper initial values
+  // Form state
   const [formData, setFormData] = useState({
     companyName: '',
     contactPerson: '',
@@ -21,9 +36,7 @@ const SuppliersPage = () => {
     categoryIds: []
   });
 
-  const [categories, setCategories] = useState([]);
-
-  // Fetch categories for form select
+  // Fetch categories
   const fetchCategories = async () => {
     try {
       const res = await fetch('http://localhost:8080/api/categories', {
@@ -38,8 +51,8 @@ const SuppliersPage = () => {
     }
   };
 
-  // Fetch suppliers list
-  const loadSuppliers = async () => {
+  // Fetch suppliers
+  const fetchSuppliers = async () => {
     setLoading(true);
     setError('');
     try {
@@ -54,7 +67,7 @@ const SuppliersPage = () => {
 
   useEffect(() => {
     fetchCategories();
-    loadSuppliers();
+    fetchSuppliers();
   }, []);
 
   // Form handlers
@@ -66,6 +79,20 @@ const SuppliersPage = () => {
   const handleCategoryChange = (e) => {
     const selected = Array.from(e.target.selectedOptions, opt => parseInt(opt.value));
     setFormData(prev => ({ ...prev, categoryIds: selected }));
+  };
+
+  const resetForm = () => {
+    setFormData({
+      companyName: '',
+      contactPerson: '',
+      email: '',
+      phone: '',
+      address: '',
+      website: '',
+      rating: '',
+      categoryIds: []
+    });
+    setEditingSupplier(null);
   };
 
   const handleSubmit = async (e) => {
@@ -94,24 +121,10 @@ const SuppliersPage = () => {
       
       resetForm();
       setShowForm(false);
-      loadSuppliers();
+      fetchSuppliers();
     } catch (err) {
       setError(err.message || 'Failed to save supplier');
     }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      companyName: '',
-      contactPerson: '',
-      email: '',
-      phone: '',
-      address: '',
-      website: '',
-      rating: '',
-      categoryIds: []
-    });
-    setEditingSupplier(null);
   };
 
   // Edit supplier
@@ -136,10 +149,57 @@ const SuppliersPage = () => {
       try {
         await deleteSupplier(id);
         setSuccess('Supplier deleted successfully!');
-        loadSuppliers();
+        fetchSuppliers();
       } catch (err) {
         setError('Failed to delete supplier');
       }
+    }
+  };
+
+  // Print handler
+  const handlePrint = useReactToPrint({
+    content: () => componentRef.current,
+    pageStyle: `
+      @page { size: auto; margin: 10mm; }
+      @media print {
+        body { -webkit-print-color-adjust: exact; }
+        button, form, .no-print { display: none !important; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        th { background-color: #f2f2f2; }
+      }
+    `,
+    documentTitle: 'Suppliers Report'
+  });
+
+  // Excel download
+  const handleExcelDownload = () => {
+    const worksheet = XLSX.utils.json_to_sheet(filteredSuppliers.map(supplier => ({
+      'Company Name': supplier.companyName,
+      'Contact Person': supplier.contactPerson,
+      'Email': supplier.email || 'N/A',
+      'Phone': supplier.phone || 'N/A',
+      'Address': supplier.address || 'N/A',
+      'Website': supplier.website || 'N/A',
+      'Rating': supplier.rating || 'N/A',
+      'Categories': supplier.categories?.map(c => c.name).join(', ') || 'N/A',
+      'Created At': formatDate(supplier.createdAt),
+      'Updated At': formatDate(supplier.updatedAt)
+    })));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Suppliers");
+    XLSX.writeFile(workbook, "suppliers.xlsx");
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleString();
+    } catch (e) {
+      console.error('Error formatting date:', e);
+      return 'Invalid Date';
     }
   };
 
@@ -180,270 +240,270 @@ const SuppliersPage = () => {
     );
   };
 
-  // Format website URL
-  const formatWebsiteUrl = (url) => {
-    if (!url) return null;
-    return url.startsWith('http') ? url : `https://${url}`;
-  };
-
-  // Format date
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-  };
-
-  // Print suppliers list
-  const handlePrint = () => {
-    // Clone the table element
-    const printTable = document.getElementById('suppliers-table').cloneNode(true);
+  // Filter suppliers
+  const filteredSuppliers = suppliers.filter(supplier => {
+    // Filter by search term
+    const matchesSearch = 
+      supplier.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (supplier.contactPerson && supplier.contactPerson.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (supplier.email && supplier.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (supplier.phone && supplier.phone.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    // Remove the Actions column
-    const rows = printTable.querySelectorAll('tr');
-    rows.forEach(row => {
-      const cells = row.querySelectorAll('th, td');
-      if (cells.length > 0) {
-        // Remove the last cell (Actions column)
-        row.removeChild(cells[cells.length - 1]);
+    // Filter by date range if dates are selected
+    if (!startDate && !endDate) return matchesSearch;
+    
+    const createdAt = supplier.createdAt;
+    if (!createdAt) return matchesSearch;
+    
+    try {
+      const supplierDate = new Date(createdAt);
+      if (isNaN(supplierDate.getTime())) return matchesSearch;
+      
+      const start = startDate ? new Date(startDate.setHours(0, 0, 0, 0)) : null;
+      const end = endDate ? new Date(endDate.setHours(23, 59, 59, 999)) : null;
+      
+      if (start && end) {
+        return matchesSearch && supplierDate >= start && supplierDate <= end;
+      } else if (start) {
+        return matchesSearch && supplierDate >= start;
+      } else if (end) {
+        return matchesSearch && supplierDate <= end;
       }
-    });
-
-    // Create print window
-    const win = window.open('', '', 'width=1000,height=700');
-    win.document.write(`
-      <html>
-        <head>
-          <title>Suppliers List</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #ddd; }
-            th { background-color: #f5f5f5; font-weight: bold; }
-            .rating { display: flex; align-items: center; }
-            .category-tag { display: inline-block; background-color: #e0e0e0; padding: 2px 8px; 
-                           border-radius: 12px; font-size: 12px; margin-right: 4px; margin-bottom: 4px; }
-            h1 { color: #333; margin-bottom: 20px; }
-            .print-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
-            .print-date { color: #666; }
-          </style>
-        </head>
-        <body>
-          <div class="print-header">
-            <h1>Suppliers List</h1>
-            <div class="print-date">Printed on ${new Date().toLocaleString()}</div>
-          </div>
-          ${printTable.outerHTML}
-        </body>
-      </html>
-    `);
-    win.document.close();
-    win.focus();
-    setTimeout(() => {
-      win.print();
-      win.close();
-    }, 500);
-  };
-
-  // Download CSV
-  const handleDownload = () => {
-    if (!suppliers.length) return;
+    } catch (e) {
+      console.error('Error filtering by date:', e);
+      return matchesSearch;
+    }
     
-    const headers = ['Company Name', 'Contact Person', 'Email', 'Phone', 'Address', 
-                    'Website', 'Rating', 'Categories', 'Created At', 'Updated At'];
-    
-    const rows = suppliers.map(s => [
-      `"${s.companyName || ''}"`,
-      `"${s.contactPerson || ''}"`,
-      `"${s.email || ''}"`,
-      `"${s.phone || ''}"`,
-      `"${s.address || ''}"`,
-      `"${s.website || ''}"`,
-      s.rating || '',
-      `"${s.categories?.map(c => c.name).join(', ') || ''}"`,
-      `"${formatDate(s.createdAt)}"`,
-      `"${formatDate(s.updatedAt)}"`
-    ]);
+    return matchesSearch;
+  });
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `suppliers_${new Date().toISOString().slice(0,10)}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const clearDateFilters = () => {
+    setStartDate(null);
+    setEndDate(null);
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-        <h1 className="text-2xl font-semibold text-gray-800 mb-4 sm:mb-0">Suppliers Management</h1>
-        <div className="flex space-x-2">
-          <button
-            onClick={handlePrint}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-          >
-            Print List
-          </button>
-          <button
-            onClick={handleDownload}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-          >
-            Export CSV
-          </button>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowForm(true);
-            }}
-            className="px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-          >
-            Add Supplier
-          </button>
+    <div className="p-4 md:p-6 bg-white rounded-lg shadow">
+      <div className="no-print">
+        {/* Header with Export Buttons */}
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-800">Suppliers Management</h1>
+          
+          <div className="flex flex-wrap gap-2">
+            <button 
+              onClick={handlePrint}
+              className="px-3 py-2 md:px-4 md:py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 text-sm md:text-base"
+            >
+              Print
+            </button>
+            <CSVLink 
+              data={filteredSuppliers.map(supplier => ({
+                'Company Name': supplier.companyName,
+                'Contact Person': supplier.contactPerson,
+                'Email': supplier.email || 'N/A',
+                'Phone': supplier.phone || 'N/A',
+                'Address': supplier.address || 'N/A',
+                'Website': supplier.website || 'N/A',
+                'Rating': supplier.rating || 'N/A',
+                'Categories': supplier.categories?.map(c => c.name).join(', ') || 'N/A',
+                'Created At': formatDate(supplier.createdAt),
+                'Updated At': formatDate(supplier.updatedAt)
+              }))} 
+              filename={"suppliers.csv"}
+              className="px-3 py-2 md:px-4 md:py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 text-sm md:text-base"
+            >
+              Download CSV
+            </CSVLink>
+            <button 
+              onClick={handleExcelDownload}
+              className="px-3 py-2 md:px-4 md:py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 text-sm md:text-base"
+            >
+              Download Excel
+            </button>
+            <button
+              onClick={() => {
+                resetForm();
+                setShowForm(true);
+              }}
+              className="px-3 py-2 md:px-4 md:py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md text-white text-sm md:text-base"
+            >
+              Add Supplier
+            </button>
+          </div>
         </div>
+
+        {/* Search and Date Filter Section */}
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search suppliers..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full p-2 pl-10 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            />
+            <div className="absolute left-3 top-2.5 text-gray-400">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+              </svg>
+            </div>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-2 items-center">
+            <div className="flex items-center gap-2 w-full">
+              <DatePicker
+                selected={startDate}
+                onChange={date => setStartDate(date)}
+                selectsStart
+                startDate={startDate}
+                endDate={endDate}
+                placeholderText="Start Date"
+                className="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 w-full sm:w-auto"
+              />
+              <span className="text-gray-500">to</span>
+              <DatePicker
+                selected={endDate}
+                onChange={date => setEndDate(date)}
+                selectsEnd
+                startDate={startDate}
+                endDate={endDate}
+                minDate={startDate}
+                placeholderText="End Date"
+                className="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 w-full sm:w-auto"
+              />
+            </div>
+            {(startDate || endDate) && (
+              <button 
+                onClick={clearDateFilters}
+                className="text-sm text-indigo-600 hover:text-indigo-800 w-full sm:w-auto text-center sm:text-left"
+              >
+                Clear Dates
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Status messages */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
+            {error}
+          </div>
+        )}
+        
+        {success && (
+          <div className="mb-4 p-3 bg-green-100 text-green-700 rounded">
+            {success}
+          </div>
+        )}
       </div>
 
-      {/* Status messages */}
-      {error && (
-        <div className="mb-6 p-4 rounded-md bg-red-50 border-l-4 border-red-400">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {success && (
-        <div className="mb-6 p-4 rounded-md bg-green-50 border-l-4 border-green-400">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-green-700">{success}</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Print-only header */}
+      <div className="hidden print:block mb-4">
+        <h1 className="text-2xl font-bold text-center mb-2">Suppliers Report</h1>
+        {startDate || endDate ? (
+          <p className="text-center text-sm">
+            {startDate && `From: ${startDate.toLocaleDateString()}`}
+            {startDate && endDate && ' to '}
+            {endDate && `To: ${endDate.toLocaleDateString()}`}
+          </p>
+        ) : null}
+        <p className="text-center text-sm">
+          Generated on: {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+        </p>
+      </div>
 
-      {/* Main content */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-        {loading ? (
-          <div className="flex justify-center items-center p-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table id="suppliers-table" className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+      {/* Suppliers Table */}
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <div ref={componentRef}>
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Email</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Phone</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Rating</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Categories</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-print">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {loading && filteredSuppliers.length === 0 ? (
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact Person</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Website</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categories</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated At</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <td colSpan="7" className="px-4 py-4 text-center text-gray-500">
+                    Loading suppliers...
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {suppliers.length > 0 ? (
-                  suppliers.map((supplier) => (
-                    <tr key={supplier.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{supplier.companyName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{supplier.contactPerson}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {supplier.email ? (
-                          <a href={`mailto:${supplier.email}`} className="text-indigo-600 hover:text-indigo-900">
-                            {supplier.email}
-                          </a>
-                        ) : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {supplier.phone ? (
-                          <a href={`tel:${supplier.phone}`} className="text-gray-600 hover:text-gray-900">
-                            {supplier.phone}
-                          </a>
-                        ) : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{supplier.address || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {supplier.website ? (
-                          <a 
-                            href={formatWebsiteUrl(supplier.website)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-indigo-600 hover:text-indigo-900 hover:underline"
-                          >
-                            {supplier.website}
-                          </a>
-                        ) : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+              ) : filteredSuppliers.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="px-4 py-4 text-center text-gray-500">
+                    {searchTerm || startDate || endDate 
+                      ? 'No suppliers match your search criteria' 
+                      : 'No suppliers found'}
+                  </td>
+                </tr>
+              ) : (
+                filteredSuppliers.map((supplier) => (
+                  <tr key={supplier.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{supplier.companyName}</div>
+                      <div className="text-xs text-gray-500 sm:hidden">{supplier.email}</div>
+                      <div className="text-xs text-gray-500 sm:hidden mt-1">
                         {renderRating(supplier.rating)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        <div className="flex flex-wrap">
-                          {supplier.categories?.length > 0 ? (
-                            supplier.categories.map(category => (
-                              <span key={category.id} className="category-tag mr-1 mb-1">
-                                {category.name}
-                              </span>
-                            ))
-                          ) : '-'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(supplier.createdAt)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(supplier.updatedAt)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{supplier.contactPerson}</div>
+                      <div className="text-xs text-gray-500 md:hidden">{supplier.phone}</div>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-500 hidden sm:table-cell">
+                      {supplier.email ? (
+                        <a href={`mailto:${supplier.email}`} className="text-indigo-600 hover:text-indigo-900">
+                          {supplier.email}
+                        </a>
+                      ) : 'N/A'}
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-500 hidden md:table-cell">
+                      {supplier.phone || 'N/A'}
+                    </td>
+                    <td className="px-4 py-4 hidden lg:table-cell">
+                      {renderRating(supplier.rating)}
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-500 hidden lg:table-cell">
+                      <div className="flex flex-wrap">
+                        {supplier.categories?.length > 0 ? (
+                          supplier.categories.map(category => (
+                            <span key={category.id} className="bg-gray-100 rounded-full px-2 py-1 text-xs mr-1 mb-1">
+                              {category.name}
+                            </span>
+                          ))
+                        ) : 'N/A'}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium no-print">
+                      <div className="flex space-x-2 sm:space-x-4">
                         <button
                           onClick={() => handleEdit(supplier)}
-                          className="text-indigo-600 hover:text-indigo-900 mr-3"
+                          className="text-indigo-600 hover:text-indigo-900"
+                          disabled={loading}
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handleDelete(supplier.id)}
                           className="text-red-600 hover:text-red-900"
+                          disabled={loading}
                         >
                           Delete
                         </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="11" className="px-6 py-4 text-center text-sm text-gray-500">
-                      No suppliers found. Click "Add Supplier" to create one.
+                      </div>
                     </td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Add/Edit Supplier Modal */}

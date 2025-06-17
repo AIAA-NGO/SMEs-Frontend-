@@ -4,17 +4,14 @@ import { Link } from 'react-router-dom';
 import { 
   removeFromCart, 
   updateCartItem,
-  clearCart
+  clearCart,
+  applyDiscount
 } from '../../features/cartSlice';
 import { printReceipt } from '../../components/utils/printUtils';
 import { FaMoneyBillWave, FaCreditCard, FaMobileAlt, FaUniversity } from 'react-icons/fa';
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');
-  if (!token) {
-    console.error('No token found in localStorage');
-    return {};
-  }
   return {
     'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json'
@@ -23,12 +20,10 @@ const getAuthHeader = () => {
 
 const Cart = () => {
   const dispatch = useDispatch();
-  const cartItems = useSelector(state => state.cart?.items || []);
-  const cartSummary = useSelector(state => state.cart || {});
-  const { subtotal = 0, discountAmount = 0, taxAmount = 0, total = 0 } = cartSummary;
-
+  const cartItems = useSelector(state => state.cart.items);
+  const { subtotal, discountAmount, taxAmount, total } = useSelector(state => state.cart);
   const [customers, setCustomers] = useState([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [mpesaNumber, setMpesaNumber] = useState('');
   const [checkoutError, setCheckoutError] = useState(null);
@@ -41,9 +36,6 @@ const Cart = () => {
   const [mpesaReceiptNumber, setMpesaReceiptNumber] = useState(null);
   const [pollingInterval, setPollingInterval] = useState(null);
   const [lastStatusCheck, setLastStatusCheck] = useState(null);
-
-  // Get the selected customer object from the customers array
-  const selectedCustomer = customers.find(c => c.id === selectedCustomerId) || null;
 
   // Cleanup polling interval on unmount
   useEffect(() => {
@@ -61,17 +53,17 @@ const Cart = () => {
         setLoading(true);
         setCustomerError(null);
         
-        const response = await fetch('http://localhost:8080/api/customers', {
+        const customersResponse = await fetch('http://localhost:8080/api/customers', {
           headers: getAuthHeader()
         });
 
-        if (!response?.ok) {
+        if (!customersResponse.ok) {
           throw new Error('Failed to fetch customers');
         }
 
-        const data = await response.json();
-        setCustomers(Array.isArray(data?.data) ? data.data : 
-                   Array.isArray(data) ? data : []);
+        const customersData = await customersResponse.json();
+        setCustomers(Array.isArray(customersData?.data) ? customersData.data : 
+                   Array.isArray(customersData) ? customersData : []);
       } catch (error) {
         console.error("Failed to fetch customers:", error);
         setCustomerError('Failed to load customers. Please try again.');
@@ -85,31 +77,27 @@ const Cart = () => {
   }, []);
 
   const handleQuantityChange = (id, newQuantity) => {
-    if (isNaN(newQuantity)) return;
-    
-    const parsedQuantity = parseInt(newQuantity, 10);
-    if (parsedQuantity < 1) {
+    if (newQuantity < 1) {
       handleRemoveItem(id);
       return;
     }
     
-    const item = cartItems.find(item => item?.id === id);
+    const item = cartItems.find(item => item.id === id);
     if (!item) return;
     
     dispatch(updateCartItem({ 
       id,
-      quantity: parsedQuantity,
-      name: item.name || '',
-      price: item.price || 0,
-      imageUrl: item.imageUrl || '',
-      stock: item.stock || 0,
-      sku: item.sku || '',
-      discount: item.discount || 0
+      quantity: newQuantity,
+      name: item.name,
+      price: item.price,
+      imageUrl: item.imageUrl,
+      stock: item.stock,
+      sku: item.sku,
+      discount: item.discount // Include discount if it exists
     }));
   };
 
   const handleRemoveItem = (id) => {
-    if (!id) return;
     dispatch(removeFromCart(id));
   };
 
@@ -123,24 +111,10 @@ const Cart = () => {
     return null;
   };
 
-  const checkTransactionExists = async (requestId) => {
-    if (!requestId) return false;
-    
-    try {
-      const response = await fetch(
-        `http://localhost:8080/mpesa/transactions/${requestId}`,
-        { headers: getAuthHeader() }
-      );
-      return response?.ok;
-    } catch (error) {
-      return false;
-    }
-  };
-
   const checkPaymentStatus = async (requestId) => {
     try {
       const response = await fetch(
-        `http://localhost:8080/mpesa/transaction-status/${requestId}`,
+        `http://localhost:8080/mpesa/payment-status?checkout_id=${requestId}`,
         { headers: getAuthHeader() }
       );
 
@@ -154,37 +128,6 @@ const Cart = () => {
       console.error("Status check error:", error);
       return 'UNKNOWN';
     }
-  };
-
-  const handlePaymentFallback = async (requestId) => {
-    if (!requestId) return false;
-    
-    setMpesaStatus('Verifying payment manually...');
-    
-    // Check if transaction exists at all
-    try {
-      const exists = await checkTransactionExists(requestId);
-      if (!exists) {
-        setMpesaStatus('Payment not found in system');
-        return false;
-      }
-    } catch (error) {
-      console.error("Transaction check error:", error);
-    }
-    
-    // Prompt for manual confirmation
-    const confirmed = window.confirm(
-      "Payment status unclear. Did you receive an M-Pesa confirmation?\n\n" +
-      "Click OK if payment was successful, Cancel if it failed."
-    );
-    
-    if (confirmed) {
-      setMpesaStatus('Payment confirmed manually');
-      return true;
-    }
-    
-    setMpesaStatus('Payment not confirmed');
-    return false;
   };
 
   const verifyMpesaPayment = async (requestId) => {
@@ -205,6 +148,7 @@ const Cart = () => {
         try {
           const currentStatus = await checkPaymentStatus(requestId);
           setLastStatusCheck(new Date().toLocaleTimeString());
+          setMpesaStatus(`Payment status: ${currentStatus}. Waiting for confirmation...`);
           
           if (currentStatus === 'COMPLETED') {
             clearInterval(interval);
@@ -217,8 +161,8 @@ const Cart = () => {
           // Timeout after 2 minutes (24 checks at 5s interval)
           if (Date.now() - startTime > 120000) {
             clearInterval(interval);
-            const manualConfirmed = await handlePaymentFallback(requestId);
-            resolve(manualConfirmed);
+            setMpesaStatus('Payment verification timeout. Please check your M-Pesa messages.');
+            resolve(false);
           }
         } catch (error) {
           console.error("Polling error:", error);
@@ -258,7 +202,7 @@ const Cart = () => {
         body: JSON.stringify(mpesaRequest)
       });
 
-      if (!response?.ok) {
+      if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData?.message || 'M-Pesa payment initiation failed');
       }
@@ -271,13 +215,22 @@ const Cart = () => {
       setCheckoutRequestId(mpesaResponse.CheckoutRequestID);
       setMpesaStatus('Payment initiated. Please check your phone to complete payment...');
       
-      return await verifyMpesaPayment(mpesaResponse.CheckoutRequestID);
+      // Verify payment status
+      const paymentVerified = await verifyMpesaPayment(mpesaResponse.CheckoutRequestID);
       
+      if (paymentVerified) {
+        setMpesaStatus('Payment confirmed successfully!');
+        return true;
+      } else {
+        throw new Error('Payment not confirmed. Please check your M-Pesa messages.');
+      }
     } catch (error) {
       console.error("M-Pesa payment error:", error);
       setMpesaStatus(`Payment failed: ${error.message}`);
       setMpesaLoading(false);
       throw error;
+    } finally {
+      setMpesaLoading(false);
     }
   };
 
@@ -294,7 +247,12 @@ const Cart = () => {
   };
 
   const handleCheckout = async () => {
-    if (!cartItems?.length) {
+    if (!selectedCustomer) {
+      alert('Please select a customer');
+      return;
+    }
+
+    if (cartItems.length === 0) {
       alert('Cart is empty');
       return;
     }
@@ -309,51 +267,45 @@ const Cart = () => {
       setCheckoutError(null);
       
       let paymentSuccess = true;
+      let mpesaTransactionId = null;
+      
       if (paymentMethod === 'MPESA') {
-        try {
-          paymentSuccess = await initiateMpesaPayment();
-          if (!paymentSuccess) {
-            throw new Error('Payment not confirmed');
-          }
-        } catch (error) {
-          // Special handling for when backend doesn't properly update status
-          const fallbackSuccess = await handlePaymentFallback(checkoutRequestId);
-          if (!fallbackSuccess) {
-            throw error;
-          }
-          paymentSuccess = true;
-        }
+        paymentSuccess = await initiateMpesaPayment();
+        mpesaTransactionId = checkoutRequestId;
       }
 
-      // Prepare sale data with null checks
-      const saleData = {
-        customerId: selectedCustomer?.id || null,
-        paymentMethod: paymentMethod || 'CASH',
+      if (!paymentSuccess) {
+        throw new Error('Payment not completed successfully');
+      }
+
+      const checkoutData = {
+        customerId: selectedCustomer,
+        paymentMethod: paymentMethod,
         mpesaNumber: paymentMethod === 'MPESA' ? formatPhoneNumber(mpesaNumber) : null,
         mpesaTransactionId: paymentMethod === 'MPESA' ? checkoutRequestId : null,
-        mpesaReceiptNumber: paymentMethod === 'MPESA' ? mpesaReceiptNumber : null,
         items: cartItems.map(item => ({
-          productId: item?.id || '',
-          quantity: item?.quantity || 0,
-          price: item?.price || 0,
-          discount: item?.discount || 0
+          productId: item.id,
+          quantity: item.quantity,
+          price: item.price,
+          name: item.name,
+          sku: item.sku,
+          discount: item.discount || 0
         }))
       };
 
       const response = await fetch('http://localhost:8080/api/sales', {
         method: 'POST',
         headers: getAuthHeader(),
-        body: JSON.stringify(saleData)
+        body: JSON.stringify(checkoutData)
       });
 
-      if (!response?.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData?.message || 'Checkout failed');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Checkout failed');
       }
 
       const sale = await response.json();
       
-      // Safe receipt printing
       try {
         if (sale?.id) {
           await printReceipt(sale);
@@ -364,23 +316,20 @@ const Cart = () => {
         console.error("Failed to print receipt:", printError);
       }
       
-      // Clear cart only after successful sale creation
       dispatch(clearCart());
       
-      // Show transaction summary
       alert(
         `Order #${sale?.id || 'N/A'} completed successfully!\n\n` +
         `Payment Method: ${paymentMethod}\n` +
-        `${paymentMethod === 'MPESA' ? 'M-Pesa Receipt: ' + (mpesaReceiptNumber || 'N/A') : ''}\n` +
+        `${paymentMethod === 'MPESA' ? 'M-Pesa Transaction ID: ' + (checkoutRequestId || 'N/A') : ''}\n` +
         `Total Amount: Ksh ${(total || 0).toFixed(2)}`
       );
       
-      // Reset payment state
       resetPaymentState();
       
     } catch (err) {
       console.error("Checkout failed:", err);
-      setCheckoutError(err?.message || 'Checkout failed. Please try again.');
+      setCheckoutError(err.message || 'Checkout failed. Please try again.');
     } finally {
       setIsCheckingOut(false);
     }
@@ -398,11 +347,11 @@ const Cart = () => {
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Your Shopping Cart</h1>
       
-      {!cartItems?.length ? (
+      {cartItems.length === 0 ? (
         <div className="text-center py-12">
           <h2 className="text-2xl font-medium mb-4">Your cart is empty</h2>
           <Link 
-            to="/products" 
+            to="/pos" 
             className="inline-block bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition duration-150 ease-in-out"
           >
             Continue Shopping
@@ -422,21 +371,21 @@ const Cart = () => {
                   Select Customer
                 </label>
                 <select
-                  value={selectedCustomerId}
-                  onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  value={selectedCustomer || ''}
+                  onChange={(e) => setSelectedCustomer(e.target.value ? Number(e.target.value) : null)}
                   className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="">Guest Customer</option>
+                  <option value="">Select Customer</option>
                   {customers.map((customer) => (
-                    <option key={customer?.id} value={customer?.id}>
-                      {customer?.name || 'Unknown'} ({customer?.phone || 'No phone'})
+                    <option key={customer.id} value={customer.id}>
+                      {customer.name} ({customer.phone || 'No phone'})
                     </option>
                   ))}
                 </select>
               </div>
               <div className="flex items-end">
                 <Link
-                  to="/customers/new"
+                  to="/customers"
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-md text-center transition duration-150 ease-in-out"
                 >
                   + Add New Customer
@@ -452,59 +401,52 @@ const Cart = () => {
               <div className="bg-white rounded-lg shadow overflow-hidden">
                 <div className="divide-y divide-gray-200">
                   {cartItems.map((item) => (
-                    <div key={item?.id} className="p-4 flex">
-                      {item?.imageUrl && (
+                    <div key={item.id} className="p-4 flex">
+                      {item.imageUrl && (
                         <div className="flex-shrink-0">
                           <img 
                             src={item.imageUrl} 
-                            alt={item?.name || 'Product'}
+                            alt={item.name}
                             className="h-20 w-20 object-cover rounded"
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = '/placeholder-product.png';
-                            }}
                           />
                         </div>
                       )}
                       <div className="ml-4 flex-1 flex flex-col">
                         <div className="flex justify-between">
                           <h3 className="text-lg font-medium">
-                            {item?.name || 'Product'}
+                            {item.name || 'Product'}
                           </h3>
                           <p className="ml-4 font-bold">
-                            Ksh {(
-                              ((item?.price || 0) - (item?.discount || 0)) * 
-                              (item?.quantity || 0)
-                            ).toFixed(2)}
+                            Ksh {((item.price - (item.discount || 0)) * item.quantity).toFixed(2)}
                           </p>
                         </div>
                         <div className="flex items-center">
                           <p className="text-gray-600">
-                            Unit Price: Ksh {(item?.price || 0).toFixed(2)}
+                            Unit Price: Ksh {item.price ? item.price.toFixed(2) : '0.00'}
                           </p>
-                          {(item?.discount || 0) > 0 && (
+                          {item.discount > 0 && (
                             <span className="ml-2 text-green-600">
-                              (Discount: Ksh {(item?.discount || 0).toFixed(2)})
+                              (Discount: Ksh {item.discount.toFixed(2)})
                             </span>
                           )}
                         </div>
-                        {item?.sku && (
+                        {item.sku && (
                           <p className="text-gray-500 text-xs">SKU: {item.sku}</p>
                         )}
                         
                         <div className="flex-1 flex items-end justify-between mt-2">
                           <div className="flex items-center">
                             <button
-                              onClick={() => handleQuantityChange(item?.id, (item?.quantity || 0) - 1)}
+                              onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
                               className="px-3 py-1 border rounded-l-md bg-gray-100 hover:bg-gray-200"
                             >
                               -
                             </button>
                             <span className="px-4 py-1 border-t border-b text-center">
-                              {item?.quantity || 0}
+                              {item.quantity}
                             </span>
                             <button
-                              onClick={() => handleQuantityChange(item?.id, (item?.quantity || 0) + 1)}
+                              onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
                               className="px-3 py-1 border rounded-r-md bg-gray-100 hover:bg-gray-200"
                             >
                               +
@@ -512,7 +454,7 @@ const Cart = () => {
                           </div>
                           
                           <button
-                            onClick={() => handleRemoveItem(item?.id)}
+                            onClick={() => handleRemoveItem(item.id)}
                             className="text-red-500 hover:text-red-700"
                           >
                             Remove
@@ -589,26 +531,23 @@ const Cart = () => {
                     </div>
                   )}
                 </div>
-
+                
                 {/* Order Totals */}
                 <div className="space-y-3 mb-6">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subtotal:</span>
                     <span>Ksh {subtotal.toFixed(2)}</span>
                   </div>
-                  
-                  {(discountAmount || 0) > 0 && (
+                  {discountAmount > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Discount:</span>
-                      <span>Ksh {discountAmount.toFixed(2)}</span>
+                      <span>-Ksh {discountAmount.toFixed(2)}</span>
                     </div>
                   )}
-                  
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Tax:</span>
+                    <span className="text-gray-600">Tax (16%):</span>
                     <span>Ksh {taxAmount.toFixed(2)}</span>
                   </div>
-                  
                   <div className="flex justify-between font-bold text-lg pt-3 border-t">
                     <span>Total:</span>
                     <span>Ksh {total.toFixed(2)}</span>

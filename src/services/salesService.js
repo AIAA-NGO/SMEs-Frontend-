@@ -6,6 +6,7 @@ const getAuthHeader = () => {
   const token = localStorage.getItem('token');
   return {
     Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json'
   };
 };
 
@@ -26,14 +27,10 @@ export const getSales = async (startDate, endDate) => {
     if (params.toString()) url += `?${params.toString()}`;
     
     const response = await fetch(url, {
-      headers: {
-        ...getAuthHeader()
-      }
+      headers: getAuthHeader()
     });
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch sales: ${response.statusText}`);
-    }
+    await handleApiError(response);
     return await response.json();
   } catch (error) {
     console.error('Error in getSales:', error);
@@ -49,13 +46,9 @@ export const getSales = async (startDate, endDate) => {
 export const getSaleById = async (id) => {
   try {
     const response = await fetch(`${API_BASE_URL}/${id}`, {
-      headers: {
-        ...getAuthHeader()
-      }
+      headers: getAuthHeader()
     });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch sale: ${response.statusText}`);
-    }
+    await handleApiError(response);
     return await response.json();
   } catch (error) {
     console.error(`Error fetching sale with ID ${id}:`, error);
@@ -72,20 +65,11 @@ export const createSale = async (saleData) => {
   try {
     const response = await fetch(API_BASE_URL, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        ...getAuthHeader()
-      },
+      headers: getAuthHeader(),
       body: JSON.stringify(saleData)
     });
     
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.message || `Failed to create sale: ${response.statusText}`
-      );
-    }
-    
+    await handleApiError(response);
     return await response.json();
   } catch (error) {
     console.error('Error creating sale:', error);
@@ -100,21 +84,13 @@ export const createSale = async (saleData) => {
  */
 export const cancelSale = async (id) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/${id}/cancel`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeader()
-      },
+    const response = await fetch(`${API_BASE_URL}/${id}/status`, {
+      method: 'PATCH',
+      headers: getAuthHeader(),
+      body: JSON.stringify({ status: 'CANCELLED' })
     });
     
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.message || `Failed to cancel sale: ${response.statusText}`
-      );
-    }
-    
+    await handleApiError(response);
     return await response.json();
   } catch (error) {
     console.error(`Error cancelling sale with ID ${id}:`, error);
@@ -130,13 +106,9 @@ export const cancelSale = async (id) => {
 export const getSalesByCustomer = async (customerId) => {
   try {
     const response = await fetch(`${API_BASE_URL}/customer/${customerId}`, {
-      headers: {
-        ...getAuthHeader()
-      }
+      headers: getAuthHeader()
     });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch customer sales: ${response.statusText}`);
-    }
+    await handleApiError(response);
     return await response.json();
   } catch (error) {
     console.error(`Error fetching sales for customer ${customerId}:`, error);
@@ -152,13 +124,9 @@ export const getSalesByCustomer = async (customerId) => {
 export const getSalesByStatus = async (status) => {
   try {
     const response = await fetch(`${API_BASE_URL}/status/${status}`, {
-      headers: {
-        ...getAuthHeader()
-      }
+      headers: getAuthHeader()
     });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch sales by status: ${response.statusText}`);
-    }
+    await handleApiError(response);
     return await response.json();
   } catch (error) {
     console.error(`Error fetching sales with status ${status}:`, error);
@@ -172,25 +140,16 @@ export const getSalesByStatus = async (status) => {
  * @param {Date} endDate - End date
  * @returns {Promise<Array>} - Array of sales
  */
-// In salesService.js
 export const getSalesByDateRange = async (startDate, endDate) => {
   try {
     const response = await fetch(
       `${API_BASE_URL}/date-range?startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`,
       {
-        headers: {
-          ...getAuthHeader()
-        }
+        headers: getAuthHeader()
       }
     );
     
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.message || `Failed to fetch sales by date range: ${response.statusText}`
-      );
-    }
-    
+    await handleApiError(response);
     return await response.json();
   } catch (error) {
     console.error('Error fetching sales by date range:', error);
@@ -206,13 +165,9 @@ export const getSalesByDateRange = async (startDate, endDate) => {
 export const generateReceipt = async (id) => {
   try {
     const response = await fetch(`${API_BASE_URL}/${id}/receipt`, {
-      headers: {
-        ...getAuthHeader()
-      }
+      headers: getAuthHeader()
     });
-    if (!response.ok) {
-      throw new Error(`Failed to generate receipt: ${response.statusText}`);
-    }
+    await handleApiError(response);
     return await response.json();
   } catch (error) {
     console.error(`Error generating receipt for sale ${id}:`, error);
@@ -280,14 +235,10 @@ export const getDailySummary = async (date = new Date()) => {
     const response = await fetch(
       `${API_BASE_URL}/daily-summary?date=${date.toISOString().split('T')[0]}`,
       {
-        headers: {
-          ...getAuthHeader()
-        }
+        headers: getAuthHeader()
       }
     );
-    if (!response.ok) {
-      throw new Error(`Failed to fetch daily summary: ${response.statusText}`);
-    }
+    await handleApiError(response);
     return await response.json();
   } catch (error) {
     console.error('Error fetching daily summary:', error);
@@ -296,7 +247,7 @@ export const getDailySummary = async (date = new Date()) => {
 };
 
 // ======================================
-// NEW REPORT-RELATED FUNCTIONS ADDED BELOW
+// REPORT-RELATED FUNCTIONS
 // ======================================
 
 /**
@@ -312,14 +263,10 @@ export const getSalesReport = async (startDate, endDate) => {
     if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
 
     const response = await fetch(`${REPORTS_BASE_URL}/sales?${params.toString()}`, {
-      headers: {
-        ...getAuthHeader()
-      }
+      headers: getAuthHeader()
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch sales report: ${response.statusText}`);
-    }
+    await handleApiError(response);
     return await response.json();
   } catch (error) {
     console.error('Error fetching sales report:', error);
@@ -338,10 +285,7 @@ export const exportSalesReport = async (startDate, endDate, format = 'CSV') => {
   try {
     const response = await fetch(`${REPORTS_BASE_URL}/export`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeader()
-      },
+      headers: getAuthHeader(),
       body: JSON.stringify({
         reportType: 'SALES',
         startDate: startDate?.toISOString().split('T')[0],
@@ -350,9 +294,7 @@ export const exportSalesReport = async (startDate, endDate, format = 'CSV') => {
       })
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to export sales report: ${response.statusText}`);
-    }
+    await handleApiError(response);
     return await response.blob();
   } catch (error) {
     console.error('Error exporting sales report:', error);
@@ -373,14 +315,10 @@ export const getProductPerformanceReport = async (startDate, endDate) => {
     if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
 
     const response = await fetch(`${REPORTS_BASE_URL}/products?${params.toString()}`, {
-      headers: {
-        ...getAuthHeader()
-      }
+      headers: getAuthHeader()
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch product performance report: ${response.statusText}`);
-    }
+    await handleApiError(response);
     return await response.json();
   } catch (error) {
     console.error('Error fetching product performance report:', error);
@@ -401,14 +339,10 @@ export const getProfitLossReport = async (startDate, endDate) => {
     if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
 
     const response = await fetch(`${REPORTS_BASE_URL}/profit-loss?${params.toString()}`, {
-      headers: {
-        ...getAuthHeader()
-      }
+      headers: getAuthHeader()
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch profit/loss report: ${response.statusText}`);
-    }
+    await handleApiError(response);
     return await response.json();
   } catch (error) {
     console.error('Error fetching profit/loss report:', error);
@@ -429,4 +363,23 @@ const handleApiError = async (response) => {
     throw new Error(errorMessage);
   }
   return response;
+};
+/**
+ * Delete a sale permanently
+ * @param {number|string} id - Sale ID to delete
+ * @returns {Promise<Object>} - Confirmation message
+ */
+export const deleteSale = async (id) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeader()
+    });
+    
+    await handleApiError(response);
+    return await response.json();
+  } catch (error) {
+    console.error(`Error deleting sale with ID ${id}:`, error);
+    throw error;
+  }
 };

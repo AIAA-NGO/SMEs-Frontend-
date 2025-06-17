@@ -201,14 +201,16 @@ const CategoriesPage = () => {
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow">
+    <div className="p-4 md:p-6 bg-white rounded-lg shadow">
       <div className="no-print">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Categories Management</h1>
-          <div className="flex space-x-2">
+        {/* Header with Export Buttons */}
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-800">Categories Management</h1>
+          
+          <div className="flex flex-wrap gap-2">
             <button 
               onClick={handlePrint}
-              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700"
+              className="px-3 py-2 md:px-4 md:py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 text-sm md:text-base"
             >
               Print
             </button>
@@ -220,13 +222,13 @@ const CategoriesPage = () => {
                 'Created At': formatCreatedAt(cat.createdAt || cat.created_at)
               }))} 
               filename={"categories.csv"}
-              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700"
+              className="px-3 py-2 md:px-4 md:py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 text-sm md:text-base"
             >
               Download CSV
             </CSVLink>
             <button 
               onClick={handleExcelDownload}
-              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700"
+              className="px-3 py-2 md:px-4 md:py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 text-sm md:text-base"
             >
               Download Excel
             </button>
@@ -286,7 +288,7 @@ const CategoriesPage = () => {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-2 items-center">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full">
               <DatePicker
                 selected={startDate}
                 onChange={date => setStartDate(date)}
@@ -294,9 +296,9 @@ const CategoriesPage = () => {
                 startDate={startDate}
                 endDate={endDate}
                 placeholderText="Start Date"
-                className="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                className="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 w-full sm:w-auto"
               />
-              <span>to</span>
+              <span className="text-gray-500">to</span>
               <DatePicker
                 selected={endDate}
                 onChange={date => setEndDate(date)}
@@ -305,13 +307,13 @@ const CategoriesPage = () => {
                 endDate={endDate}
                 minDate={startDate}
                 placeholderText="End Date"
-                className="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                className="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 w-full sm:w-auto"
               />
             </div>
             {(startDate || endDate) && (
               <button 
                 onClick={clearDateFilters}
-                className="text-sm text-indigo-600 hover:text-indigo-800"
+                className="text-sm text-indigo-600 hover:text-indigo-800 w-full sm:w-auto text-center sm:text-left"
               >
                 Clear Dates
               </button>
@@ -348,23 +350,23 @@ const CategoriesPage = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-print">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Description</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Created At</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-print">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading && filteredCategories.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan="5" className="px-4 py-4 text-center text-gray-500">
                     Loading categories...
                   </td>
                 </tr>
               ) : filteredCategories.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan="5" className="px-4 py-4 text-center text-gray-500">
                     {searchTerm || startDate || endDate 
                       ? 'No categories match your search criteria' 
                       : 'No categories found'}
@@ -373,10 +375,10 @@ const CategoriesPage = () => {
               ) : (
                 filteredCategories.map((category) => (
                   <tr key={category.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                       {category.id}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-4 whitespace-nowrap">
                       {editingId === category.id ? (
                         <input
                           type="text"
@@ -390,7 +392,7 @@ const CategoriesPage = () => {
                         <div className="text-sm font-medium text-gray-900">{category.name}</div>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
+                    <td className="px-4 py-4 text-sm text-gray-500 hidden sm:table-cell">
                       {editingId === category.id ? (
                         <textarea
                           value={editingDescription}
@@ -402,10 +404,10 @@ const CategoriesPage = () => {
                         category.description || 'N/A'
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
                       {formatCreatedAt(category.createdAt || category.created_at)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium no-print">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium no-print">
                       {editingId === category.id ? (
                         <div className="flex space-x-2">
                           <button
@@ -424,7 +426,7 @@ const CategoriesPage = () => {
                           </button>
                         </div>
                       ) : (
-                        <div className="flex space-x-4">
+                        <div className="flex space-x-2 sm:space-x-4">
                           <button
                             onClick={() => startEditing(category)}
                             className="text-indigo-600 hover:text-indigo-900"

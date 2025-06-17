@@ -36,6 +36,7 @@ const InventoryPage = () => {
   const [expiredItems, setExpiredItems] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   // Check if a product is expired
   const isProductExpired = (product) => {
@@ -59,7 +60,6 @@ const InventoryPage = () => {
         }
       );
       
-      // Enhance products with correct isExpired status
       const enhancedInventory = response.content.map(product => ({
         ...product,
         isExpired: isProductExpired(product)
@@ -88,15 +88,13 @@ const InventoryPage = () => {
     }
   };
 
-  // Fetch expired items - CORRECTED VERSION
+  // Fetch expired items
   const fetchExpiredItems = async () => {
     try {
-      // Get all products to properly check expiry status
       const allProducts = await InventoryService.getInventoryStatus(
         '', null, null, false, false, { page: 0, size: 1000 }
       );
       
-      // Filter to only actually expired products
       const expired = allProducts.content.filter(product => 
         product.expiryDate && isAfter(new Date(), parseISO(product.expiryDate))
       );
@@ -222,7 +220,7 @@ const InventoryPage = () => {
     return dateString ? format(new Date(dateString), 'MMM dd, yyyy HH:mm') : 'N/A';
   };
 
-  // Status badge component - UPDATED to use correct expiry check
+  // Status badge component
   const StatusBadge = ({ product }) => {
     const isExpired = isProductExpired(product);
     
@@ -262,14 +260,78 @@ const InventoryPage = () => {
     );
   };
 
-  // Render inventory table rows - UPDATED with correct expiry display
-  const renderInventoryRows = (items) => {
+  // Render inventory table rows for mobile
+  const renderMobileInventoryRows = (items) => {
+    return items.map((item) => {
+      const isExpired = isProductExpired(item);
+      
+      return (
+        <div key={item.id} className="bg-white shadow overflow-hidden rounded-lg mb-4 p-4">
+          <div className="flex items-center mb-3">
+            <div className="flex-shrink-0 h-10 w-10">
+              {item.imageUrl ? (
+                <img className="h-10 w-10 rounded-full" src={item.imageUrl} alt={item.name} />
+              ) : (
+                <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+                  {item.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-gray-900">{item.name}</h3>
+              <p className="text-xs text-gray-500">{item.sku}</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <p className="text-gray-500">Stock</p>
+              <p className="font-medium">
+                {item.quantityInStock} {item.unitName}
+              </p>
+            </div>
+            <div>
+              <p className="text-gray-500">Status</p>
+              <p><StatusBadge product={item} /></p>
+            </div>
+            <div>
+              <p className="text-gray-500">Expiry</p>
+              <p className={`flex items-center ${isExpired ? 'text-red-500' : ''}`}>
+                {item.expiryDate ? (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    {formatDate(item.expiryDate)}
+                  </>
+                ) : 'N/A'}
+              </p>
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={() => openAdjustmentModal(item)}
+                className="text-blue-600 hover:text-blue-900 text-sm font-medium flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+                Adjust
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    });
+  };
+
+  // Render inventory table rows for desktop
+  const renderDesktopInventoryRows = (items) => {
     return items.map((item) => {
       const isExpired = isProductExpired(item);
       
       return (
         <tr key={item.id} className="hover:bg-gray-50">
-          <td className="px-6 py-4 whitespace-nowrap">
+          <td className="px-4 py-4 whitespace-nowrap">
             <div className="flex items-center">
               <div className="flex-shrink-0 h-10 w-10">
                 {item.imageUrl ? (
@@ -286,8 +348,8 @@ const InventoryPage = () => {
               </div>
             </div>
           </td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{item.sku}</td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{item.sku}</td>
+          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
             {item.quantityInStock} {item.unitName}
             {item.maxStockLevel && (
               <span className="text-xs text-gray-500 ml-1">
@@ -295,10 +357,10 @@ const InventoryPage = () => {
               </span>
             )}
           </td>
-          <td className="px-6 py-4 whitespace-nowrap">
+          <td className="px-4 py-4 whitespace-nowrap">
             <StatusBadge product={item} />
           </td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
             <div className={`flex items-center ${isExpired ? 'text-red-500' : ''}`}>
               {item.expiryDate ? (
                 <>
@@ -311,7 +373,7 @@ const InventoryPage = () => {
               ) : 'N/A'}
             </div>
           </td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
             <button
               onClick={() => openAdjustmentModal(item)}
               className="text-blue-600 hover:text-blue-900 mr-3 flex items-center"
@@ -356,25 +418,143 @@ const InventoryPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-6">
       <ToastContainer position="top-right" autoClose={3000} />
       
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Inventory Management</h1>
-          <p className="text-gray-600 mt-1 md:mt-2">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800">Inventory Management</h1>
+          <p className="text-gray-600 mt-1 md:mt-2 text-sm sm:text-base">
             Track and manage your product inventory in real-time
           </p>
         </div>
       </div>
 
+      {/* Mobile filter button */}
+      <div className="sm:hidden mb-4">
+        <button
+          type="button"
+          className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          onClick={() => setMobileFiltersOpen(true)}
+        >
+          <svg className="mr-2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+          </svg>
+          Filters
+        </button>
+      </div>
+
+      {/* Mobile filters */}
+      {mobileFiltersOpen && (
+        <div className="fixed inset-0 overflow-y-auto z-50 sm:hidden">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={() => setMobileFiltersOpen(false)}></div>
+            </div>
+
+            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">Filters</h3>
+                  <button
+                    type="button"
+                    className="bg-white rounded-md text-gray-400 hover:text-gray-500"
+                    onClick={() => setMobileFiltersOpen(false)}
+                  >
+                    <span className="sr-only">Close</span>
+                    <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="mobile-search" className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                    <div className="relative rounded-md shadow-sm">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <input
+                        type="text"
+                        id="mobile-search"
+                        className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-12 py-2 sm:text-sm border-gray-300 rounded-md"
+                        placeholder="Search by name or barcode"
+                        value={filters.search}
+                        onChange={(e) => {
+                          setFilters(prev => ({ ...prev, search: e.target.value, page: 0 }));
+                          handleSearch(e.target.value);
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="mobile-lowStockOnly"
+                        checked={filters.lowStockOnly}
+                        onChange={(e) => setFilters(prev => ({ ...prev, lowStockOnly: e.target.checked, page: 0 }))}
+                        className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="mobile-lowStockOnly" className="ml-2 block text-sm text-gray-700">
+                        Low Stock Only
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="mobile-expiredOnly"
+                        checked={filters.expiredOnly}
+                        onChange={(e) => setFilters(prev => ({ ...prev, expiredOnly: e.target.checked, page: 0 }))}
+                        className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="mobile-expiredOnly" className="ml-2 block text-sm text-gray-700">
+                        Expired Only
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Items per page</label>
+                    <select
+                      name="size"
+                      value={filters.size}
+                      onChange={(e) => setFilters(prev => ({ ...prev, size: Number(e.target.value), page: 0 }))}
+                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                    >
+                      <option value="5">5</option>
+                      <option value="10">10</option>
+                      <option value="20">20</option>
+                      <option value="50">50</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 sm:mt-6">
+                <button
+                  type="button"
+                  className="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm"
+                  onClick={() => setMobileFiltersOpen(false)}
+                >
+                  Apply Filters
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
-        <nav className="-mb-px flex space-x-8">
+      <div className="border-b border-gray-200 mb-4 md:mb-6">
+        <nav className="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto">
           <button
             onClick={() => setActiveTab('all')}
-            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+            className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-xs sm:text-sm ${
               activeTab === 'all' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
@@ -382,26 +562,26 @@ const InventoryPage = () => {
           </button>
           <button
             onClick={() => setActiveTab('low-stock')}
-            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+            className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-xs sm:text-sm ${
               activeTab === 'low-stock' ? 'border-yellow-500 text-yellow-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
             Low Stock
             {lowStockItems.length > 0 && (
-              <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+              <span className="ml-1 sm:ml-2 inline-flex items-center px-1.5 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                 {lowStockItems.length}
               </span>
             )}
           </button>
           <button
             onClick={() => setActiveTab('expired')}
-            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+            className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-xs sm:text-sm ${
               activeTab === 'expired' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
             Expired
             {expiredItems.length > 0 && (
-              <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+              <span className="ml-1 sm:ml-2 inline-flex items-center px-1.5 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                 {expiredItems.length}
               </span>
             )}
@@ -409,8 +589,8 @@ const InventoryPage = () => {
         </nav>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow-md p-4 md:p-6 mb-6">
+      {/* Desktop Filters */}
+      <div className="hidden sm:block bg-white rounded-lg shadow-md p-4 md:p-6 mb-4 md:mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-2">
             <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">Search</label>
@@ -483,7 +663,7 @@ const InventoryPage = () => {
         <div className="mb-4 flex justify-end">
           <button
             onClick={handleRemoveExpired}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            className="inline-flex items-center px-3 py-1 sm:px-4 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
           >
             Remove All Expired
           </button>
@@ -512,20 +692,26 @@ const InventoryPage = () => {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Mobile view */}
+            <div className="sm:hidden">
+              {renderMobileInventoryRows(getCurrentItems())}
+            </div>
+
+            {/* Desktop view */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {renderInventoryRows(getCurrentItems())}
+                  {renderDesktopInventoryRows(getCurrentItems())}
                 </tbody>
               </table>
             </div>

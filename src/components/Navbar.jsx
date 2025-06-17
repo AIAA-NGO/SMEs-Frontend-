@@ -4,44 +4,51 @@ import { useSelector, useDispatch } from "react-redux";
 import {
   FaShoppingCart,
   FaUser,
-  FaHeart,
-  FaBoxOpen,
   FaChevronDown,
   FaCog,
   FaLock,
-  FaSignOutAlt,
+  FaSignOutAlt
+  
 } from "react-icons/fa";
-import logo from "../assets/logo.png";
 import axios from "axios";
 import { setCart } from "../features/cartSlice";
 import { logout } from "../features/auth/authSlice";
 
 const API_BASE_URL = "http://localhost:8080/api";
 
-const NavBar = () => {
+const Navbar = () => {
   const { pathname } = useLocation();
   const dispatch = useDispatch();
   const navigate = useNavigate();
   
   const cartItems = useSelector((state) => state.cart.items);
-  const { user } = useSelector((state) => state.auth);
+  const { userInfo } = useSelector((state) => state.auth);
   
   const [showDropdown, setShowDropdown] = useState(false);
   const [cartItemCount, setCartItemCount] = useState(0);
   const [profileImage, setProfileImage] = useState(null);
+  const [ setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const fetchCart = async () => {
       try {
-        if (user) {
+        if (userInfo) {
           const response = await axios.get(`${API_BASE_URL}/cart`, {
-            headers: { Authorization: `Bearer ${user.token}` }
+            headers: { Authorization: `Bearer ${userInfo.token}` }
           });
           dispatch(setCart(response.data));
           
-          // Fetch user profile image if available
-          if (user.profileImage) {
-            setProfileImage(user.profileImage);
+          if (userInfo.profileImage) {
+            setProfileImage(userInfo.profileImage);
           }
         } else {
           const guestCart = JSON.parse(localStorage.getItem('guestCart')) || [];
@@ -53,7 +60,7 @@ const NavBar = () => {
     };
     
     fetchCart();
-  }, [user, dispatch]);
+  }, [userInfo, dispatch]);
 
   useEffect(() => {
     const count = cartItems.reduce((total, item) => total + (item.quantity || 1), 0);
@@ -63,7 +70,7 @@ const NavBar = () => {
   const handleLogout = async () => {
     try {
       await axios.post(`${API_BASE_URL}/auth/logout`, {}, {
-        headers: { Authorization: `Bearer ${user.token}` }
+        headers: { Authorization: `Bearer ${userInfo.token}` }
       });
       dispatch(logout());
       navigate("/");
@@ -79,31 +86,19 @@ const NavBar = () => {
   if (shouldHideNavbar) return null;
 
   return (
-    <nav className="sticky top-0 z-50 w-full bg-white border-b shadow-md h-20 flex items-center px-6">
-      <div className="container mx-auto flex items-center justify-between w-full">
-        {/* Logo and left side */}
-        <div className="flex-shrink-0">
-          <Link to="/" className="flex items-center">
-            <img 
-              src={logo} 
-              alt="AAIA Logo" 
-              className="h-12 w-12 rounded-full object-cover" 
-            /> 
-            <span className="ml-2 text-2xl font-bold text-orange-600 hidden md:inline">AIAA</span>
-          </Link>
-        </div>
-
+    <nav className="sticky top-0 z-40 w-full bg-white border-b shadow-md h-20 flex items-center px-4 sm:px-6">
+      <div className="container mx-auto flex items-center justify-end w-full">
         {/* Right side navigation */}
-        <div className="flex items-center space-x-6">
+        <div className="flex items-center space-x-4 sm:space-x-6">
           {/* Cart */}
           <Link
             to="/cart"
-            className="relative flex items-center text-gray-700 hover:text-orange-500"
+            className="relative flex items-center text-gray-700 hover:text-orange-500 p-2"
           >
-            <FaShoppingCart className="mr-1" />
-            <span className="hidden md:inline">Cart</span>
+            <FaShoppingCart className="text-lg" />
+            <span className="ml-1 hidden sm:inline">Cart</span>
             {cartItemCount > 0 && (
-              <span className="absolute -top-2 -right-3 bg-orange-500 text-white text-xs h-5 w-5 flex items-center justify-center rounded-full">
+              <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs h-5 w-5 flex items-center justify-center rounded-full">
                 {cartItemCount}
               </span>
             )}
@@ -113,7 +108,7 @@ const NavBar = () => {
           <div className="relative">
             <button
               onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center space-x-1 focus:outline-none"
+              className="flex items-center space-x-1 focus:outline-none p-2"
             >
               {/* Profile picture or default icon */}
               {profileImage ? (
@@ -127,13 +122,13 @@ const NavBar = () => {
                   <FaUser className="text-gray-600" />
                 </div>
               )}
-              <FaChevronDown className={`text-xs text-gray-500 transition-transform ${showDropdown ? "transform rotate-180" : ""}`} />
+              <FaChevronDown className={`text-xs text-gray-500 transition-transform ${showDropdown ? "transform rotate-180" : ""} hidden sm:inline`} />
             </button>
 
             {/* Dropdown menu */}
             {showDropdown && (
               <div className="absolute right-0 mt-2 w-64 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
-                {user ? (
+                {userInfo ? (
                   <>
                     {/* Profile header */}
                     <div className="px-4 py-3 border-b">
@@ -150,8 +145,8 @@ const NavBar = () => {
                           </div>
                         )}
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{user.name || user.username}</p>
-                          <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                          <p className="text-sm font-medium text-gray-900">{userInfo.name || userInfo.username}</p>
+                          <p className="text-xs text-gray-500 truncate">{userInfo.email}</p>
                         </div>
                       </div>
                     </div>
@@ -164,24 +159,6 @@ const NavBar = () => {
                     >
                       <FaUser className="mr-3 text-gray-500" />
                       My Profile
-                    </Link>
-
-                    <Link
-                      to="/account/orders"
-                      onClick={() => setShowDropdown(false)}
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <FaBoxOpen className="mr-3 text-gray-500" />
-                      My Orders
-                    </Link>
-
-                    <Link
-                      to="/account/wishlist"
-                      onClick={() => setShowDropdown(false)}
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <FaHeart className="mr-3 text-gray-500" />
-                      Wishlist
                     </Link>
 
                     <Link
@@ -202,7 +179,7 @@ const NavBar = () => {
                       Change Password
                     </Link>
 
-                    {user?.role === "ADMIN" && (
+                    {userInfo?.role === "ADMIN" && (
                       <Link
                         to="/admin"
                         onClick={() => setShowDropdown(false)}
@@ -252,4 +229,4 @@ const NavBar = () => {
   );
 };
 
-export default NavBar;
+export default Navbar;

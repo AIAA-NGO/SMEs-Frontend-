@@ -49,6 +49,15 @@ const CreatePurchase = () => {
   const [products, setProducts] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     fetchSuppliers();
@@ -147,7 +156,7 @@ const CreatePurchase = () => {
       setLoading(true);
       await createPurchase(purchaseData);
       message.success('Purchase order created successfully');
-      navigate('/purchases'); // Changed from navigating to track page to just going back to purchases list
+      navigate('/purchases');
     } catch (error) {
       message.error(error.message || 'Failed to create purchase');
     } finally {
@@ -157,31 +166,123 @@ const CreatePurchase = () => {
 
   const { subtotal, taxAmount, discountAmount, total } = calculateTotals();
 
+  const columns = [
+    {
+      title: 'Product',
+      dataIndex: 'productId',
+      render: (value, record, index) => (
+        <Select
+          placeholder="Select product"
+          value={value}
+          className="w-full"
+          onChange={(val) => handleItemChange(index, 'productId', val)}
+          showSearch
+          optionFilterProp="children"
+          dropdownMatchSelectWidth={false}
+        >
+          {products.map(product => (
+            <Option key={product.id} value={product.id}>
+              <Space>
+                <Avatar 
+                  src={product.image} 
+                  size="small"
+                  className="bg-gray-100 text-green-600"
+                >
+                  {product.name.charAt(0)}
+                </Avatar>
+                <span>
+                  {isMobile ? product.name.substring(0, 15) + (product.name.length > 15 ? '...' : '') : product.name}
+                  {!isMobile && (
+                    <Text type="secondary" className="text-xs ml-2">
+                      {product.sku || 'N/A'}
+                    </Text>
+                  )}
+                </span>
+              </Space>
+            </Option>
+          ))}
+        </Select>
+      ),
+    },
+    {
+      title: 'Qty',
+      dataIndex: 'quantity',
+      render: (value, record, index) => (
+        <InputNumber
+          min={1}
+          value={value}
+          onChange={(val) => handleItemChange(index, 'quantity', val)}
+          className="w-full"
+        />
+      ),
+    },
+    {
+      title: isMobile ? 'Price' : 'Unit Price',
+      dataIndex: 'unitPrice',
+      render: (value, record, index) => (
+        <InputNumber
+          min={0}
+          value={value}
+          onChange={(val) => handleItemChange(index, 'unitPrice', val)}
+          className="w-full"
+          formatter={value => `KSh ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+          parser={value => value.replace(/KSh\s?|(,*)/g, '')}
+        />
+      ),
+    },
+    {
+      title: 'Total',
+      dataIndex: 'totalPrice',
+      render: (value) => (
+        <Text strong className="text-green-600">
+          {value ? formatCurrency(value) : 'KSh 0'}
+        </Text>
+      ),
+    },
+    {
+      title: 'Action',
+      align: 'center',
+      render: (_, record, index) => (
+        <Button
+          danger
+          type="text"
+          icon={<MinusOutlined />}
+          onClick={() => handleRemoveItem(index)}
+          className="text-gray-600 hover:text-red-500"
+        />
+      ),
+    },
+  ];
+
   return (
     <ConfigProvider
       theme={{
         token: {
-          colorPrimary: '#800000',
+          colorPrimary: '#10B981',
           borderRadius: 4,
           colorBgContainer: '#fff',
         },
         components: {
           Button: {
-            colorPrimary: '#800000',
+            colorPrimary: '#10B981',
             algorithm: true,
+          },
+          Table: {
+            cellPaddingBlock: 8,
+            cellPaddingInline: 8,
           },
         },
       }}
     >
       <App>
-        <div className="create-purchase" style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', backgroundColor: '#f5f5f5' }}>
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="bg-gray-50 min-h-screen p-4">
+          <div className="max-w-full mx-auto">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-2">
               <Button 
                 type="text" 
                 icon={<ArrowLeftOutlined />} 
                 onClick={() => navigate('/purchases')}
-                style={{ color: '#800000' }}
+                className="text-gray-800 hover:text-green-600 px-0"
               >
                 Back to Purchases
               </Button>
@@ -189,49 +290,43 @@ const CreatePurchase = () => {
                 type="primary" 
                 icon={<EyeOutlined />}
                 onClick={() => navigate('/purchases/track')}
-                style={{ 
-                  backgroundColor: '#800000',
-                  borderColor: '#800000',
-                  borderRadius: '4px'
-                }}
+                className="bg-green-600 hover:bg-green-700 border-green-600"
               >
                 View Track Page
               </Button>
             </div>
             
-            <Card variant="borderless" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', backgroundColor: '#fff' }}>
-              <Title level={3} style={{ marginBottom: 8, color: '#800000' }}>
-                <ShopOutlined style={{ marginRight: 8 }} />
-                New Purchase Order
-              </Title>
-              <Text type="secondary" style={{ display: 'block', marginBottom: 24 }}>
+            <Card className="w-full shadow-sm bg-white" bodyStyle={{ padding: isMobile ? 16 : 24 }}>
+              <div className="flex flex-col md:flex-row md:items-center gap-2 mb-2">
+                <ShopOutlined className="text-green-600 text-xl" />
+                <Title level={3} className="m-0 text-gray-800">
+                  New Purchase Order
+                </Title>
+              </div>
+              <Text type="secondary" className="block mb-4">
                 Fill in the supplier details and items to create a new purchase order
               </Text>
               
-              <Divider style={{ margin: '16px 0', borderColor: '#f0f0f0' }} />
+              <Divider className="my-4 border-gray-200" />
               
               <Form form={form} layout="vertical">
                 <Card 
-                  variant="borderless" 
-                  style={{ 
-                    backgroundColor: '#fafafa',
-                    borderLeft: '4px solid #800000',
-                    marginBottom: '24px'
-                  }}
+                  className="w-full mb-4 bg-gray-50 border-0 border-l-4 border-green-600"
+                  bodyStyle={{ padding: isMobile ? 12 : 16 }}
                 >
-                  <Row gutter={24}>
-                    <Col span={12}>
+                  <Row gutter={[8, 8]}>
+                    <Col xs={24} md={12}>
                       <Form.Item
                         name="supplierId"
-                        label={<Text strong style={{ color: '#800000' }}>Supplier</Text>}
+                        label={<Text strong className="text-gray-800">Supplier</Text>}
                         rules={[{ required: true, message: 'Please select a supplier' }]}
                       >
                         <Select 
                           placeholder="Select supplier" 
                           showSearch 
                           optionFilterProp="children"
-                          size="large"
-                          style={{ borderRadius: '4px' }}
+                          size={isMobile ? 'middle' : 'large'}
+                          className="w-full"
                         >
                           {suppliers.map(supplier => (
                             <Option key={supplier.id} value={supplier.id}>
@@ -239,7 +334,7 @@ const CreatePurchase = () => {
                                 <Avatar 
                                   src={supplier.logo} 
                                   size="small"
-                                  style={{ backgroundColor: '#f5f5f5', color: '#800000' }}
+                                  className="bg-gray-100 text-green-600"
                                 >
                                   {supplier.companyName.charAt(0)}
                                 </Avatar>
@@ -250,17 +345,17 @@ const CreatePurchase = () => {
                         </Select>
                       </Form.Item>
                     </Col>
-                    <Col span={12}>
+                    <Col xs={24} md={12}>
                       <Form.Item
                         name="orderDate"
-                        label={<Text strong style={{ color: '#800000' }}>Order Date</Text>}
+                        label={<Text strong className="text-gray-800">Order Date</Text>}
                         rules={[{ required: true, message: 'Please select order date' }]}
                       >
                         <DatePicker 
                           showTime 
                           format="YYYY-MM-DD HH:mm" 
-                          style={{ width: '100%' }} 
-                          size="large"
+                          className="w-full" 
+                          size={isMobile ? 'middle' : 'large'}
                         />
                       </Form.Item>
                     </Col>
@@ -268,21 +363,18 @@ const CreatePurchase = () => {
                 </Card>
 
                 <Card 
-                  title={<Text strong style={{ color: '#800000' }}>Order Items</Text>} 
-                  variant="borderless"
-                  style={{ boxShadow: '0 1px 2px 0 rgba(0,0,0,0.03)', marginBottom: '24px', backgroundColor: '#fff' }}
+                  title={<Text strong className="text-gray-800">Order Items</Text>} 
+                  className="w-full mb-4"
+                  bodyStyle={{ padding: isMobile ? 0 : 16 }}
                   extra={
                     <Button
                       type="primary"
                       onClick={handleAddItem}
                       icon={<PlusOutlined />}
-                      style={{ 
-                        backgroundColor: '#800000',
-                        borderColor: '#800000',
-                        borderRadius: '4px'
-                      }}
+                      size={isMobile ? 'middle' : 'large'}
+                      className="bg-green-600 hover:bg-green-700 border-green-600"
                     >
-                      Add Item
+                      {isMobile ? 'Add' : 'Add Item'}
                     </Button>
                   }
                 >
@@ -290,115 +382,29 @@ const CreatePurchase = () => {
                     dataSource={items}
                     rowKey={(record) => record.id}
                     pagination={false}
-                    columns={[
-                      {
-                        title: 'Product',
-                        dataIndex: 'productId',
-                        width: '35%',
-                        render: (value, record, index) => (
-                          <Select
-                            placeholder="Select product"
-                            value={value}
-                            style={{ width: '100%', borderRadius: '4px' }}
-                            onChange={(val) => handleItemChange(index, 'productId', val)}
-                            showSearch
-                            optionFilterProp="children"
-                          >
-                            {products.map(product => (
-                              <Option key={product.id} value={product.id}>
-                                <Space>
-                                  <Avatar 
-                                    src={product.image} 
-                                    size="small"
-                                    style={{ backgroundColor: '#f5f5f5', color: '#800000' }}
-                                  >
-                                    {product.name.charAt(0)}
-                                  </Avatar>
-                                  <span>
-                                    {product.name} 
-                                    <Text type="secondary" style={{ fontSize: '12px', marginLeft: '8px' }}>
-                                      {product.sku || 'N/A'}
-                                    </Text>
-                                  </span>
-                                </Space>
-                              </Option>
-                            ))}
-                          </Select>
-                        ),
-                      },
-                      {
-                        title: 'Quantity',
-                        dataIndex: 'quantity',
-                        width: '15%',
-                        render: (value, record, index) => (
-                          <InputNumber
-                            min={1}
-                            value={value}
-                            onChange={(val) => handleItemChange(index, 'quantity', val)}
-                            style={{ width: '100%', borderRadius: '4px' }}
-                          />
-                        ),
-                      },
-                      {
-                        title: 'Unit Price',
-                        dataIndex: 'unitPrice',
-                        width: '15%',
-                        render: (value, record, index) => (
-                          <InputNumber
-                            min={0}
-                            value={value}
-                            onChange={(val) => handleItemChange(index, 'unitPrice', val)}
-                            style={{ width: '100%', borderRadius: '4px' }}
-                            formatter={value => `KSh ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                            parser={value => value.replace(/KSh\s?|(,*)/g, '')}
-                          />
-                        ),
-                      },
-                      {
-                        title: 'Total',
-                        dataIndex: 'totalPrice',
-                        width: '15%',
-                        render: (value) => (
-                          <Text strong style={{ color: '#800000' }}>
-                            {value ? formatCurrency(value) : 'KSh 0'}
-                          </Text>
-                        ),
-                      },
-                      {
-                        title: 'Action',
-                        width: '10%',
-                        align: 'center',
-                        render: (_, record, index) => (
-                          <Button
-                            danger
-                            type="text"
-                            icon={<MinusOutlined />}
-                            onClick={() => handleRemoveItem(index)}
-                            style={{ fontSize: '16px', color: '#800000' }}
-                          />
-                        ),
-                      },
-                    ]}
+                    scroll={{ x: true }}
+                    columns={columns}
                     locale={{
                       emptyText: (
-                        <div style={{ padding: '24px', textAlign: 'center' }}>
+                        <div className="p-4 text-center">
                           <Text type="secondary">No items added yet. Click "Add Item" to start.</Text>
                         </div>
                       )
                     }}
-                    style={{ backgroundColor: '#fff' }}
+                    className="responsive-table"
+                    size={isMobile ? 'middle' : 'default'}
                   />
                 </Card>
 
-                <Row gutter={24}>
-                  <Col span={12}>
+                <Row gutter={[8, 8]}>
+                  <Col xs={24} md={12}>
                     <Card 
-                      title={<Text strong style={{ color: '#800000' }}>Order Adjustments</Text>} 
-                      variant="borderless"
-                      style={{ boxShadow: '0 1px 2px 0 rgba(0,0,0,0.03)', backgroundColor: '#fff' }}
+                      title={<Text strong className="text-gray-800">Order Adjustments</Text>} 
+                      className="w-full mb-2 md:mb-0"
+                      bodyStyle={{ padding: isMobile ? 12 : 16 }}
                     >
-                      <Row gutter={16}>
-                        <Col span={12}>
+                      <Row gutter={8}>
+                        <Col xs={24} sm={12}>
                           <Form.Item 
                             name="taxRate" 
                             label={<Text strong>Tax Rate (%)</Text>}
@@ -407,12 +413,12 @@ const CreatePurchase = () => {
                             <InputNumber 
                               min={0} 
                               max={100} 
-                              style={{ width: '100%', borderRadius: '4px' }} 
-                              size="large"
+                              className="w-full" 
+                              size={isMobile ? 'middle' : 'large'}
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col xs={24} sm={12}>
                           <Form.Item 
                             name="discount" 
                             label={<Text strong>Discount (%)</Text>}
@@ -421,21 +427,21 @@ const CreatePurchase = () => {
                             <InputNumber 
                               min={0} 
                               max={100} 
-                              style={{ width: '100%', borderRadius: '4px' }} 
-                              size="large"
+                              className="w-full" 
+                              size={isMobile ? 'middle' : 'large'}
                             />
                           </Form.Item>
                         </Col>
                       </Row>
                     </Card>
                   </Col>
-                  <Col span={12}>
+                  <Col xs={24} md={12}>
                     <Card 
-                      title={<Text strong style={{ color: '#800000' }}>Order Summary</Text>} 
-                      variant="borderless"
-                      style={{ boxShadow: '0 1px 2px 0 rgba(0,0,0,0.03)', backgroundColor: '#fff' }}
+                      title={<Text strong className="text-gray-800">Order Summary</Text>} 
+                      className="w-full"
+                      bodyStyle={{ padding: isMobile ? 12 : 16 }}
                     >
-                      <Space direction="vertical" style={{ width: '100%' }}>
+                      <Space direction="vertical" className="w-full">
                         <Row justify="space-between">
                           <Col><Text>Subtotal:</Text></Col>
                           <Col><Text>{formatCurrency(subtotal)}</Text></Col>
@@ -448,17 +454,17 @@ const CreatePurchase = () => {
                           <Col><Text>Discount ({form.getFieldValue('discount') || 0}%):</Text></Col>
                           <Col><Text>-{formatCurrency(discountAmount)}</Text></Col>
                         </Row>
-                        <Divider style={{ margin: '12px 0', borderColor: '#f0f0f0' }} />
+                        <Divider className="my-2 border-gray-200" />
                         <Row justify="space-between">
-                          <Col><Text strong style={{ fontSize: '16px' }}>Total Amount:</Text></Col>
+                          <Col><Text strong className="text-base">Total Amount:</Text></Col>
                           <Col>
                             <Statistic 
                               value={total} 
                               prefix="KSh" 
                               valueStyle={{ 
-                                fontSize: '20px', 
+                                fontSize: isMobile ? '16px' : '20px',
                                 fontWeight: 'bold',
-                                color: '#800000'
+                                color: '#10B981'
                               }}
                               precision={0}
                             />
@@ -469,26 +475,21 @@ const CreatePurchase = () => {
                   </Col>
                 </Row>
 
-                <div style={{ marginTop: '32px', textAlign: 'right' }}>
+                <div className="mt-6 text-right">
                   <Space>
                     <Button 
-                      size="large" 
+                      size={isMobile ? 'middle' : 'large'}
                       onClick={() => navigate('/purchases')}
-                      style={{ width: '150px', borderRadius: '4px' }}
+                      className="w-24 md:w-32"
                     >
                       Cancel
                     </Button>
                     <Button 
                       type="primary" 
-                      size="large" 
+                      size={isMobile ? 'middle' : 'large'}
                       onClick={handleSubmit} 
                       loading={loading}
-                      style={{ 
-                        width: '200px',
-                        backgroundColor: '#800000',
-                        borderColor: '#800000',
-                        borderRadius: '4px'
-                      }}
+                      className="w-32 md:w-40 bg-green-600 hover:bg-green-700 border-green-600"
                     >
                       Submit Order
                     </Button>
@@ -496,8 +497,41 @@ const CreatePurchase = () => {
                 </div>
               </Form>
             </Card>
-          </Space>
+          </div>
         </div>
+
+        <style jsx global>{`
+          @media (max-width: 767px) {
+            .ant-table-thead > tr > th,
+            .ant-table-tbody > tr > td {
+              padding: 8px !important;
+            }
+            
+            .ant-table-cell {
+              font-size: 12px;
+            }
+            
+            .ant-select-single:not(.ant-select-customize-input) .ant-select-selector {
+              height: 32px;
+            }
+            
+            .ant-input-number-input {
+              height: 32px;
+            }
+            
+            .ant-card-head-title {
+              padding: 8px 0;
+            }
+            
+            .ant-card-body {
+              padding: 12px;
+            }
+          }
+          
+          .responsive-table .ant-table-container {
+            overflow-x: auto;
+          }
+        `}</style>
       </App>
     </ConfigProvider>
   );

@@ -59,7 +59,7 @@ function App() {
                 <Route path="/Users/edit/:id" element={<EditUser />} />
                 <Route path="/Users/change-password/:id" element={<UserChangePassword />} />
                 <Route path="/sales/history" element={<SalesHistory />} />
-                <Route path="/sales/returns" element={<SalesReturnPage />} />
+               
                 <Route path="/sales/returns/create" element={<SalesReturnPage />} />
                 <Route path="/purchases/edit/:id" element={<EditPurchase />} />
                 <Route path="*" element={<NotFound />} />
@@ -80,6 +80,7 @@ function App() {
                 <Route path="/purchases/track" element={<DashboardLayout><TrackPurchase /></DashboardLayout>} />
                 <Route  path="/purchases"element={<DashboardLayout><PurchaseDetails /></DashboardLayout>} />
                 <Route path="/sales" element={<DashboardLayout><SalesList /></DashboardLayout>} />
+                <Route path="/sales/returns" element={<DashboardLayout><SalesReturnPage /></DashboardLayout>} />
                 <Route path="/apply-discount" element={<DashboardLayout><ApplyDiscount /></DashboardLayout>} />
                  
                 {/* Report Routes */}

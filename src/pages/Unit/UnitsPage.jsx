@@ -213,13 +213,15 @@ const UnitsPage = () => {
   );
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Measurement Units</h1>
-        <div className="flex space-x-2">
+    <div className="p-4 md:p-6 bg-white rounded-lg shadow">
+      {/* Header with Export Buttons */}
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-800">Measurement Units</h1>
+        
+        <div className="flex flex-wrap gap-2">
           <button 
             onClick={handlePrint}
-            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 no-print transition-colors duration-200"
+            className="px-3 py-2 md:px-4 md:py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 text-sm md:text-base no-print transition-colors duration-200"
           >
             Print
           </button>
@@ -231,7 +233,7 @@ const UnitsPage = () => {
               'Created At': formatCreatedAt(unit.createdAt)
             }))} 
             filename={"units.csv"}
-            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 no-print transition-colors duration-200"
+            className="px-3 py-2 md:px-4 md:py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 text-sm md:text-base no-print transition-colors duration-200"
             onClick={() => {
               if (units.length === 0) {
                 setError('There is nothing to export');
@@ -244,13 +246,13 @@ const UnitsPage = () => {
           </CSVLink>
           <button 
             onClick={handleExcelDownload}
-            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 no-print transition-colors duration-200"
+            className="px-3 py-2 md:px-4 md:py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 text-sm md:text-base no-print transition-colors duration-200"
           >
             Download Excel
           </button>
           <button
             onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 no-print transition-colors duration-200"
+            className="px-3 py-2 md:px-4 md:py-2 bg-blue-600 text-white rounded hover:bg-blue-700 no-print transition-colors duration-200 text-sm md:text-base"
           >
             Add Unit
           </button>
@@ -312,17 +314,17 @@ const UnitsPage = () => {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Abbreviation</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-print">Actions</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Abbreviation</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Created At</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-print">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {loading && filteredUnits.length === 0 ? (
               <tr>
-                <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
+                <td colSpan="5" className="px-4 py-4 text-center text-gray-500">
                   <div className="flex justify-center items-center space-x-2">
                     <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -334,17 +336,17 @@ const UnitsPage = () => {
               </tr>
             ) : filteredUnits.length === 0 ? (
               <tr>
-                <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
+                <td colSpan="5" className="px-4 py-4 text-center text-gray-500">
                   {searchTerm ? 'No units match your search' : 'No units found'}
                 </td>
               </tr>
             ) : (
               filteredUnits.map((unit) => (
                 <tr key={unit.id} className="hover:bg-gray-50 transition-colors duration-150">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                     {unit.id}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap">
                     {editingId === unit.id ? (
                       <input
                         type="text"
@@ -357,7 +359,7 @@ const UnitsPage = () => {
                       <div className="text-sm font-medium text-gray-900">{unit.name}</div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap">
                     {editingId === unit.id ? (
                       <input
                         type="text"
@@ -370,10 +372,10 @@ const UnitsPage = () => {
                       <div className="text-sm font-medium text-gray-900">{unit.abbreviation}</div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
                     {formatCreatedAt(unit.createdAt)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium no-print">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium no-print">
                     {editingId === unit.id ? (
                       <div className="flex space-x-2">
                         <button
@@ -400,7 +402,7 @@ const UnitsPage = () => {
                         </button>
                       </div>
                     ) : (
-                      <div className="flex space-x-4">
+                      <div className="flex space-x-2 sm:space-x-4">
                         <button
                           onClick={() => startEditing(unit)}
                           className="text-blue-600 hover:text-blue-900 transition-colors duration-200"
