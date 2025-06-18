@@ -64,7 +64,7 @@ const UsersList = () => {
       }
 
       const api = axios.create({
-        baseURL: process.env.REACT_APP_API_URL || "http://localhost:8080",
+        baseURL: process.env.REACT_APP_API_URL || "https://inventorymanagementsystem-latest-37zl.onrender.com",
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",

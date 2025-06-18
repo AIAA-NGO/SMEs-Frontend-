@@ -1,7 +1,7 @@
 // src/services/permissionServices.js
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8080/api/permissions'; // Adjust port if needed
+const API_URL = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api/permissions'; // Adjust port if needed
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');

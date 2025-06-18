@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8080/api/purchases';
+const API_BASE_URL = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api/purchases';
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');

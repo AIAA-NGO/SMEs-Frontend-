@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:8080/api/customers';
+const API_BASE = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api/customers';
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');

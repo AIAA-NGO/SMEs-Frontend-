@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api';
 
 // Get auth headers with token
 const getAuthHeader = () => {

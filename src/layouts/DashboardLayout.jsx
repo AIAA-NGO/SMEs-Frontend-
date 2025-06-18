@@ -16,7 +16,7 @@ const DashboardLayout = ({ children }) => {
       }
     };
 
-    handleResize(); // Initial check
+    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -32,7 +32,7 @@ const DashboardLayout = ({ children }) => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex min-h-screen bg-gray-100 w-screen overflow-x-hidden">
       {/* Mobile Sidebar Toggle */}
       <button
         onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
@@ -52,7 +52,7 @@ const DashboardLayout = ({ children }) => {
         onToggleMinimize={toggleSidebarMinimize}
       />
 
-      {/* Backdrop - Only visible on mobile when sidebar is open */}
+      {/* Backdrop */}
       {isMobileSidebarOpen && isMobile && (
         <div
           onClick={() => setIsMobileSidebarOpen(false)}
@@ -63,10 +63,12 @@ const DashboardLayout = ({ children }) => {
       {/* Main Content Area */}
       <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
         isSidebarMinimized ? "md:ml-20" : "md:ml-64"
-      }`}>
+      } w-full max-w-[100vw] overflow-x-hidden`}>
         <Navbar />
-        <main className="flex-1 p-4 md:p-6 bg-gray-100 overflow-auto">
-          {children}
+        <main className="flex-1 p-4 md:p-6 bg-gray-100 w-full max-w-[100vw] overflow-x-hidden">
+          <div className="mx-auto w-full max-w-full">
+            {children}
+          </div>
         </main>
       </div>
     </div>

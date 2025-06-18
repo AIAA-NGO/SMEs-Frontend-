@@ -6,6 +6,7 @@ import { store } from './redux/store';
 import DashboardLayout from "./layouts/DashboardLayout";
 import Signin from "./pages/auth/Signin";
 import SignUp from './pages/auth/Signup';
+import Profile from './pages/account/Profile';
 import CategoriesPage from './pages/Categories/CategoriesPage';
 import BrandsPage from './pages/Brands/BrandsPage';
 import UnitsPage from "./pages/Unit/UnitsPage";
@@ -59,10 +60,10 @@ function App() {
                 <Route path="/Users/edit/:id" element={<EditUser />} />
                 <Route path="/Users/change-password/:id" element={<UserChangePassword />} />
                 <Route path="/sales/history" element={<SalesHistory />} />
-               
                 <Route path="/sales/returns/create" element={<SalesReturnPage />} />
                 <Route path="/purchases/edit/:id" element={<EditPurchase />} />
                 <Route path="*" element={<NotFound />} />
+                <Route path="/profile" element={<DashboardLayout><Profile /></DashboardLayout>} />
                 <Route path="/dashboard/admin" element={<DashboardLayout><AdminDashboardControl/></DashboardLayout>} />
                 <Route path="/products" element={<DashboardLayout><ProductPage /></DashboardLayout>} />
                 <Route path="/products/create" element={<DashboardLayout><CreateProduct /></DashboardLayout>} />

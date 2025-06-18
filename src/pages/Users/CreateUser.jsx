@@ -22,7 +22,7 @@ const CreateUser = () => {
 
   // Configure axios instance
   const api = axios.create({
-    baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8080',
+    baseURL: process.env.REACT_APP_API_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com',
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`,
       'Content-Type': 'application/json'

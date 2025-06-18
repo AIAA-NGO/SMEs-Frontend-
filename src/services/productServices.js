@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://localhost:8080/api",
+  baseURL: "https://inventorymanagementsystem-latest-37zl.onrender.com/api",
   // Removed default Content-Type header since we'll set it per request
 });
 

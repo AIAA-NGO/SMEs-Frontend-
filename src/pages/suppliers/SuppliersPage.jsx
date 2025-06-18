@@ -39,7 +39,7 @@ const SuppliersPage = () => {
   // Fetch categories
   const fetchCategories = async () => {
     try {
-      const res = await fetch('http://localhost:8080/api/categories', {
+      const res = await fetch('https://inventorymanagementsystem-latest-37zl.onrender.com/api/categories', {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }

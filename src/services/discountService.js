@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8080/";
+const API_BASE_URL = "https://inventorymanagementsystem-latest-37zl.onrender.com/";
 
 // Create a single axios instance with base configuration
 const api = axios.create({

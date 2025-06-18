@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8080/api',
+  baseURL: process.env.REACT_APP_API_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com/api',
 });
 
 // Request interceptor for auth token

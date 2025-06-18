@@ -6,7 +6,7 @@ import { getAllProducts } from '../../services/productServices';
 import { getAllCategories } from '../../services/categories'; // Updated import
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com/api';
 
 const ProductPerformanceReport = () => {
   const [startDate, setStartDate] = useState(dayjs().subtract(1, 'month'));

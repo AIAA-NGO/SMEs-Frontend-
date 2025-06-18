@@ -1,5 +1,5 @@
-const API_BASE_URL = 'http://localhost:8080/api/sales';
-const REPORTS_BASE_URL = 'http://localhost:8080/api/reports';
+const API_BASE_URL = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api/sales';
+const REPORTS_BASE_URL = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api/reports';
 
 // Helper function to get authorization header
 const getAuthHeader = () => {

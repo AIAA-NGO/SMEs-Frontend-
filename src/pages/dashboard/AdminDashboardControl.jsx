@@ -30,9 +30,9 @@ ChartJS.register(
   Filler
 );
 
-const API_BASE_URL = 'http://localhost:8080/api/sales';
-const REPORTS_BASE_URL = 'http://localhost:8080/api/reports';
-const DISCOUNTS_BASE_URL = 'http://localhost:8080/api/discounts';
+const API_BASE_URL = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api/sales';
+const REPORTS_BASE_URL = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api/reports';
+const DISCOUNTS_BASE_URL = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api/discounts';
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');
@@ -396,7 +396,7 @@ const Dashboard = () => {
     setError(prev => ({ ...prev, customers: null }));
     
     try {
-      const response = await fetch('http://localhost:8080/api/customers', {
+      const response = await fetch('https://inventorymanagementsystem-latest-37zl.onrender.com/api/customers', {
         headers: getAuthHeader()
       });
       if (!response.ok) throw new Error('Failed to fetch customers');
@@ -418,7 +418,7 @@ const Dashboard = () => {
     setError(prev => ({ ...prev, topProducts: null }));
     
     try {
-      const response = await fetch('http://localhost:8080/api/dashboard/top-products', {
+      const response = await fetch('https://inventorymanagementsystem-latest-37zl.onrender.com/api/dashboard/top-products', {
         headers: getAuthHeader()
       });
       if (!response.ok) throw new Error('Failed to fetch top products');
@@ -437,7 +437,7 @@ const Dashboard = () => {
     setError(prev => ({ ...prev, lowStock: null }));
     
     try {
-      const response = await fetch('http://localhost:8080/api/dashboard/low-stock', {
+      const response = await fetch('https://inventorymanagementsystem-latest-37zl.onrender.com/api/dashboard/low-stock', {
         headers: getAuthHeader()
       });
       if (!response.ok) throw new Error('Failed to fetch low stock items');

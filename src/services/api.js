@@ -1,84 +1,172 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8080/";
+const API_BASE_URL = "https://inventorymanagementsystem-latest-37zl.onrender.com/api/";
 
-// LOGIN - use `username`, not `email`
+const api = axios.create({
+  baseURL: API_BASE_URL,
+});
+
+// Request interceptor to add auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Auth functions
 export const loginUser = async ({ username, password }) => {
-  return await axios.post(`${API_BASE_URL}api/auth/login`, {
-    username,
-    password,
-  });
+  try {
+    const response = await api.post("auth/login", { username, password });
+    return { data: response.data, error: null };
+  } catch (error) {
+    return handleApiError(error);
+  }
 };
 
-// REGISTER - use correct auth registration endpoint
 export const registerUser = async (userData) => {
-  return await axios.post(`${API_BASE_URL}api/auth/register`, userData);
+  try {
+    const response = await api.post("auth/register", userData);
+    return { data: response.data, error: null };
+  } catch (error) {
+    return handleApiError(error);
+  }
 };
 
-// REFRESH TOKEN
+export const fetchCurrentUser = async () => {
+  try {
+    const response = await api.get("auth/me");
+    return { data: response.data, error: null };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
 export const refreshToken = async () => {
-  return await axios.post(`${API_BASE_URL}api/auth/refresh-token`);
+  try {
+    const response = await api.post("auth/refresh-token");
+    return { data: response.data, error: null };
+  } catch (error) {
+    return handleApiError(error);
+  }
 };
 
-// GET CURRENT USER INFO
-export const fetchCurrentUser = async (token) => {
-  return await axios.get(`${API_BASE_URL}api/auth/me`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+export const logoutUser = async () => {
+  try {
+    await api.post("auth/logout");
+    return { data: null, error: null };
+  } catch (error) {
+    return handleApiError(error);
+  }
 };
 
-// CREATE NEW USER (Admin only) — optional if needed separately
-export const createUser = async (userData, token) => {
-  return await axios.post(`${API_BASE_URL}api/users`, userData, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+// User functions
+export const getAllUsers = async () => {
+  try {
+    const response = await api.get("users");
+    return { data: response.data, error: null };
+  } catch (error) {
+    return handleApiError(error);
+  }
 };
 
-// GET ALL USERS (Admin only)
-export const getAllUsers = async (token) => {
-  return await axios.get(`${API_BASE_URL}users`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+export const getUserById = async (id) => {
+  try {
+    const response = await api.get(`users/${id}`);
+    return { data: response.data, error: null };
+  } catch (error) {
+    return handleApiError(error);
+  }
 };
 
-// GET USER BY ID
-export const getUserById = async (id, token) => {
-  return await axios.get(`${API_BASE_URL}users/${id}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+export const createUser = async (userData) => {
+  try {
+    const response = await api.post("users", userData);
+    return { data: response.data, error: null };
+  } catch (error) {
+    return handleApiError(error);
+  }
 };
 
-// UPDATE USER BY ID
-export const updateUser = async (id, userData, token) => {
-  return await axios.put(`${API_BASE_URL}users/${id}`, userData, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+export const updateUser = async (id, userData) => {
+  try {
+    const response = await api.put(`users/${id}`, userData);
+    return { data: response.data, error: null };
+  } catch (error) {
+    return handleApiError(error);
+  }
 };
 
-// DELETE USER BY ID (Admin only)
-export const deleteUser = async (id, token) => {
-  return await axios.delete(`${API_BASE_URL}users/${id}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+export const deleteUser = async (id) => {
+  try {
+    const response = await api.delete(`users/${id}`);
+    return { data: response.data, error: null };
+  } catch (error) {
+    return handleApiError(error);
+  }
 };
 
-// GET ALL ROLES
-export const getAllRoles = async (token) => {
-  return await axios.get(`${API_BASE_URL}users/roles`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+export const changePassword = async (id, passwordData) => {
+  try {
+    const response = await api.put(`users/${id}/password`, passwordData);
+    return { data: response.data, error: null };
+  } catch (error) {
+    return handleApiError(error);
+  }
 };
+
+export const uploadProfileImage = async (id, imageFile) => {
+  try {
+    const formData = new FormData();
+    formData.append("file", imageFile);
+    
+    const response = await api.post(`users/${id}/upload-profile`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return { data: response.data, error: null };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+export const getAllRoles = async () => {
+  try {
+    const response = await api.get("users/roles");
+    return { data: response.data, error: null };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+const handleApiError = (error) => {
+  if (error.response) {
+    return {
+      error: true,
+      message: error.response.data?.message || "An error occurred",
+      status: error.response.status,
+      data: error.response.data,
+    };
+  } else if (error.request) {
+    return {
+      error: true,
+      message: "No response from server",
+      status: null,
+    };
+  } else {
+    return {
+      error: true,
+      message: error.message,
+      status: null,
+    };
+  }
+};
+
+export default api;
