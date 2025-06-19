@@ -1,46 +1,46 @@
 import React, { useState } from "react";
+import { loginUser } from "../../services/api";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
-import axios from "axios";
 
 const Signin = () => {
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState("");  
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setIsLoading(true);
 
     try {
-      const result = await login({ username, password });
-      
-      if (result.success) {
-        // Determine the highest role (assuming roles are ordered by privilege)
-        const roles = result.data.roles || [];
-        let redirectPath = "/home";
-        
-        if (roles.includes("ADMIN")) {
-          redirectPath = "/dashboard/admin";
-        } else if (roles.includes("MANAGER")) {
-          redirectPath = "/dashboard/manager";
-        } else if (roles.includes("CASHIER")) {
-          redirectPath = "/dashboard/cashier";
-        }
+      const response = await loginUser({ username, password });
+      const token = response.data.token;
+      const roles = response.data.roles; // roles is an array like ["ROLE_ADMIN"]
+      const userRole = roles && roles.length > 0 ? roles[0] : null;
+      const userName = response.data.username;
 
-        navigate(redirectPath);
+      if (token && userRole && userName) {
+        // Save info in localStorage for auth and personalization
+        localStorage.setItem("token", token);
+        localStorage.setItem("userRole", userRole);
+        localStorage.setItem("userName", userName);
+
+        // Navigate based on role
+        if (userRole === "ADMIN") {
+          navigate("/dashboard/admin");
+        } else if (userRole === "MANAGER") {
+          navigate("/dashboard/manager");
+        } else if (userRole === "CASHIER") {
+          navigate("/dashboard/cashier");
+        } else {
+          navigate("/home");
+        }
+        
       } else {
-        setError(result.message || "Login failed. Please check your credentials.");
+        setError("Invalid login response");
       }
     } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
-      console.error("Login error:", err);
-    } finally {
-      setIsLoading(false);
+      setError("Login failed. Please check your credentials.");
     }
   };
 
@@ -101,12 +101,9 @@ const Signin = () => {
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className={`w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition ${
-                  isLoading ? 'opacity-70 cursor-not-allowed' : ''
-                }`}
+                className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition"
               >
-                {isLoading ? 'Signing In...' : 'Sign In'}
+                Sign In
               </button>
             </form>
 

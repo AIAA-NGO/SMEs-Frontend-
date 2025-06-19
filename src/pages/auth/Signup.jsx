@@ -1,6 +1,6 @@
 import React, { useState } from "react";
+import { registerUser } from "../../services/api";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -15,7 +15,6 @@ const Signup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const navigate = useNavigate();
-  const { register } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -50,27 +49,57 @@ const Signup = () => {
     }
 
     try {
-      const result = await register({
+      await registerUser({
         username: formData.username,
         fullName: formData.fullName,
         email: formData.email,
         password: formData.password,
       });
       
-      if (result.success) {
-        setSuccess("Registration successful! Redirecting to login...");
-        setTimeout(() => navigate("/signin"), 2000);
-      } else {
-        // Handle backend validation errors
-        if (result.errors) {
-          setFieldErrors(result.errors);
-        } else {
-          setError(result.message || "Registration failed");
-        }
-      }
+      setSuccess("Registration successful! Redirecting to login...");
+      setTimeout(() => navigate("/signin"), 2000);
     } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
       console.error("Registration error:", err);
+      
+      // Handle 400 errors - common patterns in API responses
+      if (err.response?.status === 400) {
+        const errorData = err.response.data;
+        
+        // Check for common backend validation messages
+        if (typeof errorData === 'object' && errorData !== null) {
+          // Handle field-specific errors
+          const newFieldErrors = {};
+          Object.keys(errorData).forEach(key => {
+            if (key in formData) {
+              newFieldErrors[key] = errorData[key];
+            }
+          });
+          
+          if (Object.keys(newFieldErrors).length > 0) {
+            setFieldErrors(newFieldErrors);
+          } else {
+            // Handle generic object responses
+            setError(errorData.message || "Validation failed. Please check your inputs.");
+          }
+        } 
+        // Handle string responses
+        else if (typeof errorData === 'string') {
+          // Try to detect common patterns
+          if (errorData.toLowerCase().includes("username")) {
+            setFieldErrors({ username: "Username is already taken" });
+          } else if (errorData.toLowerCase().includes("email")) {
+            setFieldErrors({ email: "Email is already registered" });
+          } else {
+            setError(errorData);
+          }
+        } 
+        // Fallback for other 400 errors
+        else {
+          setError("Invalid registration data. Please check your inputs.");
+        }
+      } else {
+        setError(err.message || "Registration failed. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
