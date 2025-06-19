@@ -3,10 +3,8 @@ import { DatePicker, Table, Button, Statistic, message, Card, Row, Col } from 'a
 import { Download } from 'lucide-react';
 import dayjs from 'dayjs';
 import { getAllProducts } from '../../services/productServices';
-import { getAllCategories } from '../../services/categories';
-import axios from 'axios';
-
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com';
+import { getCategories } from '../../services/productServices';
+import { getProductPerformanceReport, exportReport } from '../../services/financialServices';
 
 const ProductPerformanceReport = () => {
   const [startDate, setStartDate] = useState(dayjs().subtract(1, 'month'));
@@ -45,14 +43,16 @@ const ProductPerformanceReport = () => {
       key: 'productId',
       width: 120,
       fixed: 'left',
-      sorter: (a, b) => a.productId - b.productId
+      sorter: (a, b) => a.productId - b.productId,
+      responsive: ['md']
     },
     { 
       title: 'Product Name', 
       dataIndex: 'productName', 
       key: 'productName',
       width: 200,
-      sorter: (a, b) => a.productName.localeCompare(b.productName)
+      sorter: (a, b) => a.productName.localeCompare(b.productName),
+      fixed: 'left'
     },
     { 
       title: 'Category', 
@@ -61,7 +61,8 @@ const ProductPerformanceReport = () => {
       width: 150,
       filters: [],
       onFilter: (value, record) => record.categoryName === value,
-      sorter: (a, b) => a.categoryName.localeCompare(b.categoryName)
+      sorter: (a, b) => a.categoryName.localeCompare(b.categoryName),
+      responsive: ['md']
     },
     { 
       title: 'Cost Price', 
@@ -69,7 +70,8 @@ const ProductPerformanceReport = () => {
       key: 'costPrice',
       render: val => <span className="text-gray-600 font-medium">{formatCurrency(val)}</span>,
       width: 150,
-      sorter: (a, b) => a.costPrice - b.costPrice
+      sorter: (a, b) => a.costPrice - b.costPrice,
+      responsive: ['lg']
     },
     { 
       title: 'Selling Price', 
@@ -77,7 +79,8 @@ const ProductPerformanceReport = () => {
       key: 'sellingPrice',
       render: val => <span className="text-blue-600 font-medium">{formatCurrency(val)}</span>,
       width: 150,
-      sorter: (a, b) => a.sellingPrice - b.sellingPrice
+      sorter: (a, b) => a.sellingPrice - b.sellingPrice,
+      responsive: ['lg']
     },
     { 
       title: 'Units Sold', 
@@ -101,7 +104,8 @@ const ProductPerformanceReport = () => {
       key: 'cost',
       render: val => <span className="text-gray-600 font-medium">{formatCurrency(val)}</span>,
       width: 150,
-      sorter: (a, b) => a.cost - b.cost
+      sorter: (a, b) => a.cost - b.cost,
+      responsive: ['lg']
     },
     { 
       title: 'Profit', 
@@ -125,14 +129,15 @@ const ProductPerformanceReport = () => {
         </span>
       ),
       width: 150,
-      sorter: (a, b) => a.profitMargin - b.profitMargin
+      sorter: (a, b) => a.profitMargin - b.profitMargin,
+      responsive: ['lg']
     },
   ];
 
   // Fetch categories from backend
   const fetchCategories = async () => {
     try {
-      const categoriesData = await getAllCategories();
+      const categoriesData = await getCategories();
       setCategories(categoriesData);
       return categoriesData;
     } catch (error) {
@@ -151,32 +156,23 @@ const ProductPerformanceReport = () => {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
-
-      // Fetch data in parallel
-      const [categoriesData, products, salesResponse] = await Promise.all([
+      // Fetch categories and products in parallel
+      const [categoriesData, products] = await Promise.all([
         fetchCategories(),
-        getAllProducts(),
-        axios.get(`${API_BASE_URL}/reports/products`, {
-          params: {
-            startDate: dayjs(startDate).format('YYYY-MM-DD'),
-            endDate: dayjs(endDate).format('YYYY-MM-DD')
-          },
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
+        getAllProducts()
       ]);
 
-      // Process the data
+      // Fetch sales data for the period
+      const salesData = await getProductPerformanceReport(
+        startDate.toDate(),
+        endDate.toDate()
+      );
+
+      // Combine product data with sales data
       const processedData = products.map(product => {
-        const salesData = salesResponse.data.find(item => item.productId === product.id) || {};
+        const salesInfo = salesData.find(item => item.productId === product.id) || {};
         
-        const unitsSold = salesData.unitsSold || 0;
+        const unitsSold = salesInfo.unitsSold || 0;
         const costPrice = product.cost_price || 0;
         const sellingPrice = product.price || 0;
         const revenue = unitsSold * sellingPrice;
@@ -184,6 +180,7 @@ const ProductPerformanceReport = () => {
         const profit = revenue - cost;
         const profitMargin = (revenue > 0) ? (profit / revenue) * 100 : 0;
 
+        // Find category name from categories data
         const productCategory = categoriesData.find(cat => cat.id === product.category_id);
         const categoryName = productCategory ? productCategory.name : 'Uncategorized';
 
@@ -202,24 +199,16 @@ const ProductPerformanceReport = () => {
       });
 
       setData(processedData);
+      
+      // Calculate summary statistics
       calculateSummary(processedData);
+      
+      // Update category filters
       updateCategoryFilters(processedData);
       
     } catch (error) {
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        config: error.config
-      });
-      
-      let errorMessage = 'Failed to fetch product performance data';
-      if (error.response?.data?.message) {
-        errorMessage += `: ${error.response.data.message}`;
-      } else if (error.message) {
-        errorMessage += `: ${error.message}`;
-      }
-      
-      message.error(errorMessage);
+      console.error('Error fetching product report:', error);
+      message.error('Failed to fetch product performance data');
     } finally {
       setLoading(false);
     }
@@ -243,14 +232,17 @@ const ProductPerformanceReport = () => {
   // Update category filters
   const updateCategoryFilters = (reportData) => {
     const uniqueCategories = [...new Set(reportData.map(item => item.categoryName))];
-    columns[2].filters = uniqueCategories.map(category => ({
-      text: category,
-      value: category
-    }));
+    const categoryColumn = columns.find(col => col.key === 'category');
+    if (categoryColumn) {
+      categoryColumn.filters = uniqueCategories.map(category => ({
+        text: category,
+        value: category
+      }));
+    }
   };
 
   // Export report
-  const exportReport = async () => {
+  const handleExport = async () => {
     if (!startDate || !endDate) {
       message.warning('Please select both start and end dates');
       return;
@@ -258,29 +250,15 @@ const ProductPerformanceReport = () => {
 
     setExportLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
+      const blob = await exportReport({
+        reportType: 'PRODUCT_PERFORMANCE',
+        startDate: startDate.toDate(),
+        endDate: endDate.toDate(),
+        format: 'PDF'
+      });
 
-      const response = await axios.post(
-        `${API_BASE_URL}/reports/export`,
-        {
-          reportType: 'PRODUCT_PERFORMANCE',
-          startDate: dayjs(startDate).format('YYYY-MM-DD'),
-          endDate: dayjs(endDate).format('YYYY-MM-DD'),
-          format: 'PDF'
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          responseType: 'blob'
-        }
-      );
-
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute(
@@ -293,8 +271,8 @@ const ProductPerformanceReport = () => {
 
       message.success('Report exported successfully');
     } catch (error) {
-      console.error('Export error:', error);
-      message.error(`Export failed: ${error.response?.data?.message || error.message}`);
+      console.error('Error exporting report:', error);
+      message.error('Failed to export report');
     } finally {
       setExportLoading(false);
     }
@@ -306,24 +284,25 @@ const ProductPerformanceReport = () => {
   }, []);
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Product Performance Report</h1>
-        <div className="flex gap-4">
+    <div className="p-4 md:p-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 gap-4">
+        <h1 className="text-xl md:text-2xl font-bold">Product Performance Report</h1>
+        <div className="flex gap-2 md:gap-4 w-full md:w-auto">
           <Button 
             icon={<Download size={16} />} 
-            onClick={exportReport}
+            onClick={handleExport}
             loading={exportLoading}
-            className="bg-blue-600 text-white hover:bg-blue-700"
+            className="bg-blue-600 text-white hover:bg-blue-700 w-full md:w-auto"
           >
-            Export Report
+            <span className="hidden md:inline">Export Report</span>
+            <span className="md:hidden">Export</span>
           </Button>
         </div>
       </div>
       
       {/* Date Range Selector */}
-      <Card className="mb-6">
-        <div className="flex flex-wrap gap-4 items-center">
+      <Card className="mb-4 md:mb-6">
+        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
           <DatePicker
             placeholder="Start Date"
             value={startDate}
@@ -342,7 +321,7 @@ const ProductPerformanceReport = () => {
             type="primary" 
             onClick={fetchProductReport}
             loading={loading}
-            className="bg-green-600 text-white hover:bg-green-700"
+            className="bg-green-600 text-white hover:bg-green-700 w-full md:w-auto"
           >
             Generate Report
           </Button>
@@ -350,45 +329,45 @@ const ProductPerformanceReport = () => {
       </Card>
       
       {/* Summary Cards */}
-      <Row gutter={16} className="mb-6">
-        <Col span={6}>
+      <Row gutter={[16, 16]} className="mb-4 md:mb-6">
+        <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic 
               title="Total Products" 
               value={summaryData.totalProducts} 
-              valueStyle={{ fontSize: '20px', fontWeight: 'bold' }}
+              valueStyle={{ fontSize: '18px', fontWeight: 'bold' }}
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic 
               title="Total Revenue" 
               value={formatCurrency(summaryData.totalRevenue)} 
-              valueStyle={{ fontSize: '20px', fontWeight: 'bold', color: '#16a34a' }}
+              valueStyle={{ fontSize: '18px', fontWeight: 'bold', color: '#16a34a' }}
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic 
               title="Total Profit" 
               value={formatCurrency(summaryData.totalProfit)} 
               valueStyle={{ 
-                fontSize: '20px', 
+                fontSize: '18px', 
                 fontWeight: 'bold', 
                 color: summaryData.totalProfit >= 0 ? '#16a34a' : '#dc2626' 
               }}
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic 
               title="Avg Profit Margin" 
               value={formatPercentage(summaryData.avgProfitMargin)} 
               valueStyle={{ 
-                fontSize: '20px', 
+                fontSize: '18px', 
                 fontWeight: 'bold', 
                 color: summaryData.avgProfitMargin >= 0 ? '#16a34a' : '#dc2626' 
               }}
@@ -404,13 +383,16 @@ const ProductPerformanceReport = () => {
           dataSource={data} 
           loading={loading}
           rowKey="productId"
-          scroll={{ x: 1800 }}
+          scroll={{ x: true }}
           pagination={{ 
             pageSize: 10,
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50', '100'],
-            showTotal: (total) => `Total ${total} products`
+            showTotal: (total) => `Total ${total} products`,
+            responsive: true
           }}
+          size="small"
+          className="responsive-table"
         />
       </Card>
     </div>

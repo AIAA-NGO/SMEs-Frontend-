@@ -12,7 +12,7 @@ import BrandsPage from './pages/Brands/BrandsPage';
 import UnitsPage from "./pages/Unit/UnitsPage";
 import CreateProduct from './pages/products/CreateProduct';
 import Cart from "./pages/Cart/cart";
-import Reports from "./pages/Sales reports/reports";
+
 import SuppliersPage from './pages/suppliers/SuppliersPage';
 import CustomersPage from './pages/Customers/CustomersPage';
 import ProductPage from './pages/products/ProductPage';
@@ -28,7 +28,7 @@ import SalesList from "./pages/sales/SalesList";
 import SalesHistory from "./pages/sales/SalesHistory";
 import SalesReturnPage from './pages/sales/SalesReturnPage';
 import CreatePurchase from './pages/Purchase/CreatePurchase';
-import TrackPurchase from './pages/Purchase/TrackPurchase';
+import ReceivePurchases from './pages/Purchase/ReceivePurchases';
 import PurchaseDetails from './pages/Purchase/PurchaseDetails';
 import BusinessProfile from './pages/settings/business/BusinessProfile';
 import CurrencySettings from './pages/settings/business/CurrencySettings';
@@ -75,13 +75,14 @@ function App() {
                 <Route path="/Unit" element={<DashboardLayout><UnitsPage /></DashboardLayout>} />
                 <Route path="/pos" element={<DashboardLayout><PosPage /></DashboardLayout>} />
                 <Route path="/cart" element={<DashboardLayout><Cart /></DashboardLayout>} />
-                <Route path="/reports" element={<DashboardLayout><Reports /></DashboardLayout>} />
+  
                 <Route path="/suppliers/*" element={<DashboardLayout><SuppliersPage /></DashboardLayout>} />
                 <Route path="/customers" element={<DashboardLayout><CustomersPage /></DashboardLayout>} />
                 <Route path="/users" element={<DashboardLayout>{<UsersList />}</DashboardLayout>} />
                 <Route path="/inventory" element={<DashboardLayout><InventoryPage /></DashboardLayout>}/>
                 <Route path="/purchases/create" element={<DashboardLayout><CreatePurchase /></DashboardLayout>} />
-                <Route path="/purchases/track" element={<DashboardLayout><TrackPurchase /></DashboardLayout>} />
+                <Route path="/purchases/track" element={<DashboardLayout><ReceivePurchases /></DashboardLayout>} />
+
                 <Route  path="/purchases"element={<DashboardLayout><PurchaseDetails /></DashboardLayout>} />
                 <Route path="/sales" element={<DashboardLayout><SalesList /></DashboardLayout>} />
                 <Route path="/sales/returns" element={<DashboardLayout><SalesReturnPage /></DashboardLayout>} />

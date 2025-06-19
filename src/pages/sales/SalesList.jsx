@@ -7,7 +7,6 @@ import {
   cancelSale,
   exportSalesToCSV
 } from '../../services/salesService';
-import { saveAs } from 'file-saver';
 
 export default function SalesList() {
   const [sales, setSales] = useState([]);
@@ -21,12 +20,15 @@ export default function SalesList() {
   const [modalType, setModalType] = useState('invoice');
   const [statusFilter, setStatusFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [cancelledSalesTotal, setCancelledSalesTotal] = useState(0);
+  const [cancelledSalesCount, setCancelledSalesCount] = useState(0);
   const itemsPerPage = 10;
   const printRef = useRef();
 
   useEffect(() => {
     const fetchSales = async () => {
       try {
+        setLoading(true);
         let data;
         if (startDate && endDate) {
           data = await getSalesByDateRange(new Date(startDate), new Date(endDate));
@@ -36,11 +38,18 @@ export default function SalesList() {
           data = await getSales();
         }
         
-        const sorted = data.reverse();
+        const sorted = data.sort((a, b) => new Date(b.saleDate) - new Date(a.saleDate));
         setSales(sorted);
         setFilteredSales(sorted);
+        
+        // Calculate cancelled sales totals
+        const cancelled = sorted.filter(s => s.status === 'CANCELLED');
+        const cancelledTotal = cancelled.reduce((sum, sale) => sum + (sale.total || 0), 0);
+        setCancelledSalesTotal(cancelledTotal);
+        setCancelledSalesCount(cancelled.length);
       } catch (err) {
         console.error('Failed to load sales', err);
+        alert('Failed to load sales data');
       } finally {
         setLoading(false);
       }
@@ -55,7 +64,8 @@ export default function SalesList() {
       const lower = search.toLowerCase();
       result = result.filter(sale =>
         (sale.customerName && sale.customerName.toLowerCase().includes(lower)) ||
-        (sale.customer && sale.customer.name && sale.customer.name.toLowerCase().includes(lower))
+        (sale.customer?.name?.toLowerCase().includes(lower)) ||
+        (sale.id.toString().includes(search))
       );
     }
 
@@ -64,17 +74,33 @@ export default function SalesList() {
   }, [search, sales]);
 
   const handleCancelSale = async (id) => {
-    if (window.confirm('Are you sure you want to cancel this sale?')) {
+    if (window.confirm('Are you sure you want to cancel/return this sale? This action cannot be undone.')) {
       try {
-        await cancelSale(id);
+        // Update the sale status to CANCELLED immediately (optimistic update)
         const updatedSales = sales.map(sale => 
           sale.id === id ? { ...sale, status: 'CANCELLED' } : sale
         );
+        
         setSales(updatedSales);
-        alert('Sale cancelled successfully');
+        
+        // Update cancelled sales totals
+        const cancelledSale = sales.find(s => s.id === id);
+        if (cancelledSale) {
+          setCancelledSalesTotal(prev => prev + (cancelledSale.total || 0));
+          setCancelledSalesCount(prev => prev + 1);
+        }
+        
+        // Then make the API call
+        await cancelSale(id);
+        alert('Sale cancelled/returned successfully');
       } catch (err) {
         console.error('Failed to cancel sale', err);
-        alert('Failed to cancel sale');
+        alert(err.message || 'Failed to cancel sale');
+        // Revert the changes if the API call fails
+        const originalSales = sales.map(sale => 
+          sale.id === id ? { ...sale, status: sale.status } : sale
+        );
+        setSales(originalSales);
       }
     }
   };
@@ -86,35 +112,67 @@ export default function SalesList() {
       setModalType('receipt');
     } catch (err) {
       console.error('Failed to generate receipt', err);
-      alert('Failed to generate receipt');
+      alert(err.message || 'Failed to generate receipt');
     }
   };
 
+  // Calculate totals
   const totals = filteredSales.reduce(
     (acc, sale) => {
+      acc.all += sale.total || 0;
       if (sale.status === 'COMPLETED') {
         acc.completed += sale.total;
-      } else if (sale.status === 'CANCELLED') {
-        acc.cancelled += sale.total;
+        acc.completedCount++;
       }
-      acc.all += sale.total || 0;
       return acc;
     },
-    { completed: 0, cancelled: 0, all: 0 }
+    { 
+      completed: 0, 
+      all: 0, 
+      completedCount: 0,
+      // Use the state values for cancelled sales
+      cancelled: cancelledSalesTotal,
+      cancelledCount: cancelledSalesCount
+    }
   );
 
-  const exportCSV = () => {
-    exportSalesToCSV(filteredSales);
+  const exportCSV = async () => {
+    try {
+      await exportSalesToCSV(filteredSales);
+    } catch (err) {
+      console.error('Export failed', err);
+      alert('Failed to export data');
+    }
   };
 
   const handlePrint = () => {
     if (printRef.current) {
-      const printContents = printRef.current.innerHTML;
-      const originalContents = document.body.innerHTML;
-      document.body.innerHTML = printContents;
-      window.print();
-      document.body.innerHTML = originalContents;
-      window.location.reload();
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Receipt</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+              .receipt { max-width: 500px; margin: 0 auto; }
+              .header { text-align: center; margin-bottom: 20px; }
+              .items { width: 100%; border-collapse: collapse; margin: 20px 0; }
+              .items th, .items td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+              .total { font-weight: bold; text-align: right; margin-top: 10px; }
+              .footer { margin-top: 30px; font-size: 12px; text-align: center; }
+            </style>
+          </head>
+          <body>
+            ${printRef.current.innerHTML}
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 500);
     }
   };
 
@@ -123,6 +181,13 @@ export default function SalesList() {
     currentPage * itemsPerPage
   );
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
+
+  const resetFilters = () => {
+    setSearch('');
+    setStartDate('');
+    setEndDate('');
+    setStatusFilter('');
+  };
 
   return (
     <div className="p-4 bg-gray-50 min-h-screen">
@@ -154,7 +219,7 @@ export default function SalesList() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by customer"
+            placeholder="Search by customer or ID"
             className="p-2 border rounded w-full"
           />
           
@@ -185,12 +250,20 @@ export default function SalesList() {
             />
           </div>
           
-          <button 
-            onClick={exportCSV} 
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full"
-          >
-            Export CSV
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={exportCSV} 
+              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full"
+            >
+              Export CSV
+            </button>
+            <button
+              onClick={resetFilters}
+              className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 w-full"
+            >
+              Reset
+            </button>
+          </div>
         </div>
       </div>
 
@@ -204,19 +277,19 @@ export default function SalesList() {
             <div className="bg-white shadow rounded p-4 text-center">
               <p className="text-sm text-gray-500">Completed Sales</p>
               <p className="text-lg font-bold text-green-600">
-                Ksh {totals.completed.toFixed(2)}
+                {totals.completedCount} sales - Ksh {totals.completed.toFixed(2)}
               </p>
             </div>
             <div className="bg-white shadow rounded p-4 text-center">
-              <p className="text-sm text-gray-500">Cancelled Sales</p>
+              <p className="text-sm text-gray-500">Cancelled/Returned Sales</p>
               <p className="text-lg font-bold text-red-600">
-                Ksh {totals.cancelled.toFixed(2)}
+                {totals.cancelledCount} sales - Ksh {totals.cancelled.toFixed(2)}
               </p>
             </div>
             <div className="bg-white shadow rounded p-4 text-center">
               <p className="text-sm text-gray-500">Total Sales</p>
               <p className="text-lg font-bold text-gray-800">
-                Ksh {totals.all.toFixed(2)}
+                {filteredSales.length} sales - Ksh {totals.all.toFixed(2)}
               </p>
             </div>
           </div>
@@ -225,7 +298,7 @@ export default function SalesList() {
             <table className="w-full table-auto border-collapse">
               <thead className="bg-gray-200 text-left">
                 <tr>
-                  <th className="p-3 border hidden sm:table-cell">#</th>
+                  <th className="p-3 border hidden sm:table-cell">ID</th>
                   <th className="p-3 border">Customer</th>
                   <th className="p-3 border hidden sm:table-cell">Items</th>
                   <th className="p-3 border">Total</th>
@@ -236,22 +309,22 @@ export default function SalesList() {
               </thead>
               <tbody>
                 {pageSales.length > 0 ? (
-                  pageSales.map((sale, index) => (
+                  pageSales.map((sale) => (
                     <tr key={sale.id} className="hover:bg-gray-50">
-                      <td className="p-3 border hidden sm:table-cell">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                      <td className="p-3 border hidden sm:table-cell">{sale.id}</td>
                       <td className="p-3 border">
                         <div className="font-medium">
-                          {sale.customerName || (sale.customer && sale.customer.name) || 'N/A'}
+                          {sale.customerName || sale.customer?.name || 'Walk-in Customer'}
                         </div>
                         <div className="text-xs text-gray-500 sm:hidden">
                           {new Date(sale.saleDate).toLocaleDateString()}
                         </div>
                       </td>
                       <td className="p-3 border hidden sm:table-cell">
-                        {sale.items ? sale.items.length : 0}
+                        {sale.items?.length || 0}
                       </td>
                       <td className="p-3 border font-medium">
-                        Ksh {sale.total ? sale.total.toFixed(2) : '0.00'}
+                        Ksh {sale.total?.toFixed(2) || '0.00'}
                       </td>
                       <td className="p-3 border hidden sm:table-cell">
                         <span className={`px-2 py-1 rounded-full text-xs ${
@@ -283,12 +356,12 @@ export default function SalesList() {
                           >
                             Receipt
                           </button>
-                          {sale.status !== 'CANCELLED' && (
+                          {sale.status !== 'CANCELLED' && sale.status !== 'REFUNDED' && (
                             <button 
                               onClick={() => handleCancelSale(sale.id)}
                               className="text-red-600 hover:text-red-800 text-sm"
                             >
-                              Cancel
+                              {sale.status === 'COMPLETED' ? 'Return' : 'Cancel'}
                             </button>
                           )}
                         </div>
@@ -298,7 +371,7 @@ export default function SalesList() {
                 ) : (
                   <tr>
                     <td colSpan="7" className="p-4 text-center text-gray-500">
-                      No matching sales found.
+                      No sales records found. Try adjusting your filters.
                     </td>
                   </tr>
                 )}
@@ -375,7 +448,7 @@ export default function SalesList() {
                       </div>
                       <div>
                         <p className="font-semibold">Customer:</p>
-                        <p>{modalSale.customerName || (modalSale.customer && modalSale.customer.name) || 'N/A'}</p>
+                        <p>{modalSale.customerName || modalSale.customer?.name || 'Walk-in Customer'}</p>
                       </div>
                       <div>
                         <p className="font-semibold">Status:</p>
@@ -411,7 +484,7 @@ export default function SalesList() {
                     </div>
                     
                     <div className="mt-6">
-                      <h3 className="font-semibold mb-2 border-b pb-1">Items:</h3>
+                      <h3 className="font-semibold mb-2 border-b pb-1">Items ({modalSale.items?.length || 0}):</h3>
                       <div className="overflow-x-auto">
                         <table className="w-full">
                           <thead>
@@ -425,7 +498,10 @@ export default function SalesList() {
                           <tbody>
                             {modalSale.items?.map((item, idx) => (
                               <tr key={idx} className="border-b">
-                                <td className="p-2">{item.productName}</td>
+                                <td className="p-2">
+                                  {item.productName}
+                                  {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
+                                </td>
                                 <td className="p-2 text-right">{item.quantity}</td>
                                 <td className="p-2 text-right">Ksh {item.unitPrice?.toFixed(2) || '0.00'}</td>
                                 <td className="p-2 text-right">Ksh {item.totalPrice?.toFixed(2) || '0.00'}</td>
@@ -435,6 +511,13 @@ export default function SalesList() {
                         </table>
                       </div>
                     </div>
+                    
+                    {modalSale.notes && (
+                      <div className="mt-4">
+                        <p className="font-semibold">Notes:</p>
+                        <p className="text-sm bg-gray-100 p-2 rounded">{modalSale.notes}</p>
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -475,7 +558,10 @@ export default function SalesList() {
                         <tbody>
                           {modalSale.items?.map((item, idx) => (
                             <tr key={idx} className="border-b">
-                              <td className="p-2">{item.productName}</td>
+                              <td className="p-2">
+                                {item.productName}
+                                {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
+                              </td>
                               <td className="p-2 text-right">{item.quantity}</td>
                               <td className="p-2 text-right">Ksh {item.unitPrice?.toFixed(2) || '0.00'}</td>
                               <td className="p-2 text-right">Ksh {item.totalPrice?.toFixed(2) || '0.00'}</td>
@@ -490,14 +576,18 @@ export default function SalesList() {
                         <span className="font-semibold">Subtotal:</span>
                         <span>Ksh {modalSale.subtotal?.toFixed(2) || '0.00'}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="font-semibold">Tax:</span>
-                        <span>Ksh {modalSale.taxAmount?.toFixed(2) || '0.00'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-semibold">Discount:</span>
-                        <span>Ksh {modalSale.discountAmount?.toFixed(2) || '0.00'}</span>
-                      </div>
+                      {modalSale.taxAmount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="font-semibold">Tax:</span>
+                          <span>Ksh {modalSale.taxAmount?.toFixed(2) || '0.00'}</span>
+                        </div>
+                      )}
+                      {modalSale.discountAmount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="font-semibold">Discount:</span>
+                          <span>Ksh {modalSale.discountAmount?.toFixed(2) || '0.00'}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between mt-2 pt-2 border-t text-lg">
                         <span className="font-bold">Total:</span>
                         <span className="font-bold">Ksh {modalSale.total?.toFixed(2) || '0.00'}</span>
@@ -512,13 +602,21 @@ export default function SalesList() {
                   </>
                 )}
                 
-                <div className="mt-6 flex justify-center">
+                <div className="mt-6 flex justify-center gap-4">
                   <button
                     onClick={handlePrint}
                     className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
                   >
-                    Print Receipt
+                    Print {modalType === 'receipt' ? 'Receipt' : 'Details'}
                   </button>
+                  {modalType === 'details' && (
+                    <button
+                      onClick={() => handleGenerateReceipt(modalSale.id)}
+                      className="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700"
+                    >
+                      Generate Receipt
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

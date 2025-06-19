@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { FaShoppingCart, FaUser, FaChevronDown, FaSignOutAlt } from "react-icons/fa";
 import { setCart } from "../features/cartSlice";
-import { logout, setCredentials } from "../features/auth/authSlice";
+import { logout } from "../features/auth/authSlice";
 import { fetchCurrentUser, logoutUser } from "../services/api";
 
 const Navbar = () => {
@@ -11,35 +11,15 @@ const Navbar = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const cartItems = useSelector((state) => state.cart.items);
-  const { user, token, isAuthenticated } = useSelector((state) => state.auth);
+  const { userInfo } = useSelector((state) => state.auth);
   const [cartItemCount, setCartItemCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Check for existing auth state on initial load
-  useEffect(() => {
-    const checkAuthState = () => {
-      const storedToken = localStorage.getItem("token");
-      const storedUser = localStorage.getItem("userName");
-      const storedRole = localStorage.getItem("userRole");
-
-      if (storedToken && storedUser) {
-        dispatch(setCredentials({
-          user: {
-            username: storedUser,
-            role: storedRole
-          },
-          token: storedToken
-        }));
-      }
-    };
-    checkAuthState();
-  }, [dispatch]);
-
-  // Fetch user data if authenticated
+  // Fetch user data
   useEffect(() => {
     const getUserData = async () => {
-      if (isAuthenticated && token) {
+      if (userInfo?.token) {
         try {
           const { data, error } = await fetchCurrentUser();
           if (data && !error) {
@@ -51,7 +31,7 @@ const Navbar = () => {
       }
     };
     getUserData();
-  }, [isAuthenticated, token]);
+  }, [userInfo]);
 
   // Update cart count
   useEffect(() => {
@@ -62,20 +42,15 @@ const Navbar = () => {
   const handleLogout = async () => {
     try {
       await logoutUser();
-      // Clear local storage
-      localStorage.removeItem("token");
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("userName");
-      
       dispatch(logout());
-      navigate("/signin");  // Changed from "/login" to "/signin" to match your signin page route
+      navigate("/login");
       setShowDropdown(false);
     } catch (error) {
       console.error("Logout failed:", error);
     }
   };
 
-  const shouldHideNavbar = pathname === "/signin" || pathname === "/signup";
+  const shouldHideNavbar = pathname === "/login" || pathname === "/signup";
   if (shouldHideNavbar) return null;
 
   return (
@@ -115,9 +90,9 @@ const Navbar = () => {
                 )}
               </div>
               
-              {(currentUser || user) && (
+              {(currentUser || userInfo) && (
                 <span className="text-sm font-medium text-gray-700 hidden sm:inline">
-                  {currentUser?.username || user?.username || localStorage.getItem("userName")}
+                  {currentUser?.username || userInfo?.username}
                 </span>
               )}
               
@@ -143,7 +118,7 @@ const Navbar = () => {
                     My Profile
                   </Link>
 
-                  {isAuthenticated ? (
+                  {userInfo ? (
                     <button
                       onClick={handleLogout}
                       className="w-full flex items-center justify-center px-4 py-2 text-sm text-white bg-red-500 hover:bg-red-600 rounded mt-2 transition-colors"

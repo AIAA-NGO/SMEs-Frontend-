@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Table, Card, Statistic, DatePicker, Button, Select, Input, 
-  Modal, Form, message, Tabs, Spin, Tag, Divider, Row, Col 
+  Modal, Form, message, Tabs, Spin, Tag, Divider, Row, Col, Affix
 } from 'antd';
 import { 
   DownloadOutlined, SearchOutlined,
   FileTextOutlined, BarChartOutlined,
   ShoppingCartOutlined, PercentageOutlined, FileDoneOutlined,
-  DollarOutlined, CalendarOutlined, UserOutlined, TagOutlined
+  DollarOutlined, CalendarOutlined, UserOutlined, TagOutlined,
+  ArrowUpOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
@@ -95,6 +96,14 @@ const SalesReport = () => {
     }, { subtotal: 0, tax: 0, discount: 0, total: 0 });
   };
 
+  // Calculate individual sale total
+  const calculateSaleTotal = (sale) => {
+    const subtotal = sale.subtotal || 0;
+    const tax = sale.taxAmount || 0;
+    const discount = sale.discountAmount || 0;
+    return subtotal + tax - discount;
+  };
+
   // Fetch all sales data
   const fetchSalesData = async () => {
     setLoading(true);
@@ -174,6 +183,14 @@ const SalesReport = () => {
     setFilteredSalesTotal(calculateTotals(result));
   };
 
+  // Scroll to top function
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
   // Columns for transactions table
   const transactionColumns = [
     {
@@ -181,55 +198,71 @@ const SalesReport = () => {
       dataIndex: 'id',
       key: 'id',
       render: (id) => <span style={{ fontWeight: 600 }}>#{id}</span>,
-      sorter: (a, b) => a.id - b.id
+      sorter: (a, b) => a.id - b.id,
+      fixed: 'left',
+      width: 100
     },
     {
       title: 'Date',
       dataIndex: 'saleDate',
       key: 'date',
       render: (date) => <span style={{ color: colors.primary }}>{dayjs(date).format('DD MMM YYYY HH:mm')}</span>,
-      sorter: (a, b) => new Date(a.saleDate) - new Date(b.saleDate)
+      sorter: (a, b) => new Date(a.saleDate) - new Date(b.saleDate),
+      width: 150
     },
     {
       title: 'Customer',
       dataIndex: 'customerName',
       key: 'customer',
-      render: (text) => <span style={{ color: colors.purple }}>{text}</span>
+      render: (text) => <span style={{ color: colors.purple }}>{text || 'Walk-in'}</span>,
+      responsive: ['md'],
+      width: 150
     },
     {
       title: 'Subtotal',
       dataIndex: 'subtotal',
       key: 'subtotal',
       align: 'right',
-      render: (amount) => <span style={{ fontWeight: 500 }}>{formatCurrency(amount)}</span>
+      render: (amount) => <span style={{ fontWeight: 500 }}>{formatCurrency(amount)}</span>,
+      width: 120
     },
     {
       title: 'Tax',
       dataIndex: 'taxAmount',
       key: 'tax',
       align: 'right',
-      render: (amount) => <span style={{ color: colors.error }}>{formatCurrency(amount)}</span>
+      render: (amount) => <span style={{ color: colors.error }}>{formatCurrency(amount)}</span>,
+      responsive: ['lg'],
+      width: 120
     },
     {
       title: 'Discount',
       dataIndex: 'discountAmount',
       key: 'discount',
       align: 'right',
-      render: (amount) => <span style={{ color: colors.success }}>{formatCurrency(amount)}</span>
+      render: (amount) => <span style={{ color: colors.success }}>{formatCurrency(amount)}</span>,
+      responsive: ['lg'],
+      width: 120
     },
     {
       title: 'Total',
-      dataIndex: 'totalAmount',
       key: 'total',
       align: 'right',
-      render: (amount) => <span style={{ fontWeight: 600, color: colors.primary }}>{formatCurrency(amount)}</span>,
-      sorter: (a, b) => (a.totalAmount || 0) - (b.totalAmount || 0)
+      render: (_, record) => (
+        <span style={{ fontWeight: 600, color: colors.primary }}>
+          {formatCurrency(calculateSaleTotal(record))}
+        </span>
+      ),
+      sorter: (a, b) => calculateSaleTotal(a) - calculateSaleTotal(b),
+      fixed: 'right',
+      width: 120
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (status) => <Tag color={statusColors[status]} style={{ fontWeight: 500 }}>{status}</Tag>
+      render: (status) => <Tag color={statusColors[status]} style={{ fontWeight: 500 }}>{status}</Tag>,
+      width: 120
     }
   ];
 
@@ -249,11 +282,12 @@ const SalesReport = () => {
       render: (text) => <span style={{ fontWeight: 500 }}>{text}</span>
     },
     {
-      title: 'Subtotal',
-      dataIndex: 'subtotal',
-      key: 'subtotal',
+      title: 'Unit Price',
+      dataIndex: 'unitPrice',
+      key: 'unitPrice',
       align: 'right',
-      render: (amount) => <span style={{ fontWeight: 500 }}>{formatCurrency(amount)}</span>
+      render: (price) => formatCurrency(price),
+      responsive: ['md']
     },
     {
       title: 'Total Revenue',
@@ -282,10 +316,23 @@ const SalesReport = () => {
   }, [activeTab]);
 
   return (
-    <div className="p-6" style={{ background: colors.background, minHeight: '100vh' }}>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: colors.primary }}>Sales Report</h1>
-        <div className="flex gap-4">
+    <div className="p-4 md:p-6" style={{ background: colors.background, minHeight: '100vh' }}>
+      {/* Scroll to top button */}
+      <Affix style={{ position: 'fixed', bottom: 50, right: 20, zIndex: 1000 }}>
+        <Button
+          type="primary"
+          shape="circle"
+          icon={<ArrowUpOutlined />}
+          onClick={scrollToTop}
+          style={{
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+          }}
+        />
+      </Affix>
+
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <h1 className="text-xl md:text-2xl font-bold" style={{ color: colors.primary }}>Sales Report</h1>
+        <div className="flex gap-2 md:gap-4 w-full md:w-auto">
           <Button 
             type="primary" 
             icon={<DownloadOutlined />}
@@ -293,10 +340,12 @@ const SalesReport = () => {
             style={{ 
               background: colors.purple, 
               borderColor: colors.purple,
-              fontWeight: 500
+              fontWeight: 500,
+              width: '100%'
             }}
           >
-            Export Data
+            <span className="hidden md:inline">Export Data</span>
+            <span className="md:hidden">Export</span>
           </Button>
         </div>
       </div>
@@ -307,11 +356,11 @@ const SalesReport = () => {
         style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.09)' }}
         bodyStyle={{ padding: 16 }}
       >
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-col md:flex-row gap-4">
           <RangePicker
             value={dateRange}
             onChange={setDateRange}
-            className="w-full md:w-auto"
+            className="w-full"
             disabledDate={(current) => current && current > dayjs().endOf('day')}
             style={{ borderRadius: 6 }}
             suffixIcon={<CalendarOutlined style={{ color: colors.primary }} />}
@@ -321,7 +370,7 @@ const SalesReport = () => {
             placeholder="Search by customer or ID"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full md:w-64"
+            className="w-full"
             prefix={<SearchOutlined style={{ color: colors.primary }} />}
             style={{ borderRadius: 6 }}
           />
@@ -330,7 +379,7 @@ const SalesReport = () => {
             placeholder="Filter by status"
             value={statusFilter}
             onChange={setStatusFilter}
-            className="w-full md:w-48"
+            className="w-full"
             allowClear
             suffixIcon={<TagOutlined style={{ color: colors.primary }} />}
             style={{ borderRadius: 6 }}
@@ -342,8 +391,8 @@ const SalesReport = () => {
         </div>
       </Card>
 
-      {/* Summary Cards */}
-      <Row gutter={16} className="mb-6">
+      {/* Summary Cards - Responsive layout */}
+      <Row gutter={[16, 16]} className="mb-6">
         <Col xs={24} sm={12} md={6}>
           <Card 
             bordered={false} 
@@ -417,42 +466,49 @@ const SalesReport = () => {
             }
             key="transactions"
           >
-            <Table
-              columns={transactionColumns}
-              dataSource={filteredSales}
-              loading={loading}
-              rowKey="id"
-              pagination={{ pageSize: 10 }}
-              style={{ padding: 16 }}
-              summary={() => (
-                <Table.Summary fixed>
-                  <Table.Summary.Row style={{ background: colors.cardHeader }}>
-                    <Table.Summary.Cell index={0} colSpan={3} align="right">
-                      <strong style={{ color: colors.primary }}>Totals:</strong>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={1} align="right">
-                      <strong>{formatCurrency(filteredSalesTotal.subtotal)}</strong>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={2} align="right">
-                      <strong style={{ color: colors.error }}>{formatCurrency(filteredSalesTotal.tax)}</strong>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={3} align="right">
-                      <strong style={{ color: colors.success }}>{formatCurrency(filteredSalesTotal.discount)}</strong>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={4} align="right">
-                      <strong style={{ color: colors.primary }}>{formatCurrency(filteredSalesTotal.total)}</strong>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={5}></Table.Summary.Cell>
-                  </Table.Summary.Row>
-                </Table.Summary>
-              )}
-            />
+            <div style={{ overflowX: 'auto' }}>
+              <Table
+                columns={transactionColumns}
+                dataSource={filteredSales}
+                loading={loading}
+                rowKey="id"
+                pagination={{ 
+                  pageSize: 10,
+                  showSizeChanger: true,
+                  pageSizeOptions: ['10', '20', '50', '100']
+                }}
+                style={{ padding: 16 }}
+                scroll={{ x: 'max-content' }}
+                summary={() => (
+                  <Table.Summary fixed>
+                    <Table.Summary.Row style={{ background: colors.cardHeader }}>
+                      <Table.Summary.Cell index={0} colSpan={3} align="right">
+                        <strong style={{ color: colors.primary }}>Totals:</strong>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={1} align="right">
+                        <strong>{formatCurrency(filteredSalesTotal.subtotal)}</strong>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={2} align="right">
+                        <strong style={{ color: colors.error }}>{formatCurrency(filteredSalesTotal.tax)}</strong>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={3} align="right">
+                        <strong style={{ color: colors.success }}>{formatCurrency(filteredSalesTotal.discount)}</strong>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={4} align="right">
+                        <strong style={{ color: colors.primary }}>{formatCurrency(filteredSalesTotal.total)}</strong>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={5}></Table.Summary.Cell>
+                    </Table.Summary.Row>
+                  </Table.Summary>
+                )}
+              />
+            </div>
           </TabPane>
           
           <TabPane
             tab={
               <span style={{ fontWeight: 500 }}>
-                
+                <BarChartOutlined style={{ color: colors.primary }} /> Reports
               </span>
             }
             key="report"
@@ -460,8 +516,48 @@ const SalesReport = () => {
             <Spin spinning={reportLoading}>
               {profitLossData && (
                 <div style={{ padding: 16 }}>
-                  
-                
+                  <Row gutter={16} className="mb-6">
+                    <Col xs={24} md={8}>
+                      <Card>
+                        <Statistic
+                          title="Total Revenue"
+                          value={formatCurrency(profitLossData.totalRevenue)}
+                          prefix={<DollarOutlined />}
+                          valueStyle={{ color: colors.success }}
+                        />
+                      </Card>
+                    </Col>
+                    <Col xs={24} md={8}>
+                      <Card>
+                        <Statistic
+                          title="Total Cost"
+                          value={formatCurrency(profitLossData.totalCost)}
+                          prefix={<DollarOutlined />}
+                          valueStyle={{ color: colors.error }}
+                        />
+                      </Card>
+                    </Col>
+                    <Col xs={24} md={8}>
+                      <Card>
+                        <Statistic
+                          title="Net Profit"
+                          value={formatCurrency(profitLossData.netProfit)}
+                          prefix={<DollarOutlined />}
+                          valueStyle={{ color: profitLossData.netProfit >= 0 ? colors.success : colors.error }}
+                        />
+                      </Card>
+                    </Col>
+                  </Row>
+
+                  <Divider orientation="left">Product Performance</Divider>
+                  <Table
+                    columns={productColumns}
+                    dataSource={productPerformance}
+                    rowKey="productId"
+                    pagination={{ pageSize: 10 }}
+                    style={{ marginBottom: 24 }}
+                    scroll={{ x: true }}
+                  />
                 </div>
               )}
             </Spin>

@@ -175,3 +175,48 @@ export const applyDiscount = async (id, discountData) => {
     throw error;
   }
 };
+/**
+ * Fetch pending purchases
+ * @returns {Promise<Array>} - Array of pending purchases
+ */
+export const getPendingPurchases = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/pending`, {
+      headers: getAuthHeader()
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch pending purchases');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching pending purchases:', error);
+    throw error;
+  }
+};
+
+/**
+ * Cancel purchase
+ * @param {number|string} id - Purchase ID
+ * @returns {Promise<Object>} - Cancelled purchase
+ */
+export const cancelPurchase = async (id) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/${id}/cancel`, {
+      method: 'POST',
+      headers: getAuthHeader()
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to cancel purchase');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error cancelling purchase ${id}:`, error);
+    throw error;
+  }
+};

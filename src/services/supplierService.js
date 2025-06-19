@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
+const API_BASE_URL = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api';
 
 // Get auth headers with token
 const getAuthHeader = () => {
@@ -65,4 +65,12 @@ export const deleteSupplier = async (id) => {
     throw new Error(err.message || 'Failed to delete supplier');
   }
   return true;
+};
+// Add this to your existing supplierService.js
+export const getSupplierPurchases = async (id) => {
+  const response = await fetch(`${API_BASE_URL}/suppliers/${id}/purchases`, {
+    headers: getAuthHeader()
+  });
+  if (!response.ok) throw new Error(`Failed to fetch purchases for supplier ${id}`);
+  return response.json();
 };
