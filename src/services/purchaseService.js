@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api/purchases';
+const API_BASE_URL = `${process.env.REACT_APP_API_BASE_URL}/purchases`;
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');

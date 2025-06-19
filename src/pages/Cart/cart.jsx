@@ -53,7 +53,7 @@ const Cart = () => {
         setLoading(true);
         setCustomerError(null);
         
-        const customersResponse = await fetch('https://inventorymanagementsystem-latest-37zl.onrender.com/api/customers', {
+        const customersResponse = await fetch(`${process.env.REACT_APP_API_BASE_URL}/customers`, {
           headers: getAuthHeader()
         });
 
@@ -114,7 +114,7 @@ const Cart = () => {
   const checkPaymentStatus = async (requestId) => {
     try {
       const response = await fetch(
-        `https://inventorymanagementsystem-latest-37zl.onrender.com/mpesa/payment-status?checkout_id=${requestId}`,
+        `http://localhost:8080/mpesa/payment-status?checkout_id=${requestId}`,
         { headers: getAuthHeader() }
       );
 
@@ -196,7 +196,7 @@ const Cart = () => {
         transactionDesc: `Payment for ${selectedCustomer?.name || 'guest'}`
       };
 
-      const response = await fetch('https://inventorymanagementsystem-latest-37zl.onrender.com/mpesa/stkpush/initiate', {
+      const response = await fetch('http://localhost:8080/mpesa/stkpush/initiate', {
         method: 'POST',
         headers: getAuthHeader(),
         body: JSON.stringify(mpesaRequest)
@@ -293,7 +293,7 @@ const Cart = () => {
         }))
       };
 
-      const response = await fetch('https://inventorymanagementsystem-latest-37zl.onrender.com/api/sales', {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/sales`, {
         method: 'POST',
         headers: getAuthHeader(),
         body: JSON.stringify(checkoutData)

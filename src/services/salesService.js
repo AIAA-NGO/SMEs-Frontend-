@@ -1,5 +1,5 @@
-const API_BASE_URL = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api/sales';
-const REPORTS_BASE_URL = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api/reports';
+const API_BASE_URL = `${process.env.REACT_APP_API_BASE_URL}/sales`;
+const REPORTS_BASE_URL = `${process.env.REACT_APP_API_BASE_URL}/reports`;
 
 // Helper function to get authorization header
 const getAuthHeader = () => {

@@ -1,28 +1,36 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { getAllPurchases, deletePurchase } from '../../services/purchaseService';
-import { formatDate } from '../../components/utils/formatUtils';
-import { Table, Button, Dropdown, Modal, message, Tag } from 'antd';
-import { EyeOutlined, EditOutlined, DeleteOutlined, MoreOutlined } from '@ant-design/icons';
-
-// KES currency formatter
-const formatCurrencyKES = (amount) => {
-  if (amount === null || amount === undefined) return 'KES 0.00';
-  return new Intl.NumberFormat('en-KE', {
-    style: 'currency',
-    currency: 'KES',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(amount);
-};
+import { Link } from 'react-router-dom';
+import { 
+  getAllPurchases, 
+  deletePurchase,
+  getPurchaseById
+} from '../../services/purchaseService';
+import { 
+  Table, 
+  Button, 
+  Dropdown, 
+  Modal, 
+  message, 
+  Tag, 
+  Descriptions, 
+  Card,
+  Divider
+} from 'antd';
+import { 
+  EyeOutlined, 
+  EditOutlined, 
+  DeleteOutlined, 
+  MoreOutlined,
+  PlusOutlined 
+} from '@ant-design/icons';
 
 const PurchaseList = () => {
   const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedPurchase, setSelectedPurchase] = useState(null);
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
-  const [expandedRowKeys, setExpandedRowKeys] = useState([]);
-  const navigate = useNavigate();
+  const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     fetchPurchases();
@@ -32,12 +40,7 @@ const PurchaseList = () => {
     setLoading(true);
     try {
       const data = await getAllPurchases();
-      // Calculate paid amount for each purchase
-      const purchasesWithPaidAmount = data.map(purchase => ({
-        ...purchase,
-        paidAmount: purchase.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0
-      }));
-      setPurchases(purchasesWithPaidAmount);
+      setPurchases(data);
     } catch (error) {
       message.error(error.message);
     } finally {
@@ -57,32 +60,28 @@ const PurchaseList = () => {
     }
   };
 
-  const getStatusTag = (status) => {
-    let color = '';
-    switch (status) {
-      case 'CANCELLED':
-        color = 'red';
-        break;
-      case 'PENDING':
-        color = 'orange';
-        break;
-      case 'RECEIVED':
-        color = 'green';
-        break;
-      default:
-        color = 'default';
+  const showPurchaseDetails = async (purchase) => {
+    setDetailLoading(true);
+    setIsDetailModalVisible(true);
+    try {
+      const details = await getPurchaseById(purchase.id);
+      setSelectedPurchase(details);
+    } catch (error) {
+      message.error(error.message);
+    } finally {
+      setDetailLoading(false);
     }
-    return <Tag color={color}>{status}</Tag>;
   };
 
-  const toggleExpandRow = (id) => {
-    setExpandedRowKeys(expandedRowKeys.includes(id) 
-      ? expandedRowKeys.filter(key => key !== id) 
-      : [...expandedRowKeys, id]);
-  };
-
-  const handleView = (id) => {
-    navigate(`/purchases/${id}`);
+  const getStatusTag = (status) => {
+    const statusConfig = {
+      'CANCELLED': { color: 'red' },
+      'PENDING': { color: 'orange' },
+      'RECEIVED': { color: 'green' },
+      default: { color: 'default' }
+    };
+    const config = statusConfig[status] || statusConfig.default;
+    return <Tag color={config.color}>{status}</Tag>;
   };
 
   const columns = [
@@ -90,24 +89,27 @@ const PurchaseList = () => {
       title: 'PO Number',
       dataIndex: 'id',
       key: 'id',
-      render: (id) => `PO-${id.toString().padStart(5, '0')}`,
+      render: (id) => `PO-${id}`,
       sorter: (a, b) => a.id - b.id,
-      fixed: 'left',
-      width: 120,
     },
     {
       title: 'Supplier',
       dataIndex: ['supplier', 'companyName'],
       key: 'supplier',
-      responsive: ['md'],
     },
     {
       title: 'Order Date',
       dataIndex: 'orderDate',
       key: 'orderDate',
-      render: (date) => formatDate(date),
+      render: (date) => date ? new Date(date).toLocaleDateString() : '-',
       sorter: (a, b) => new Date(a.orderDate) - new Date(b.orderDate),
-      responsive: ['md'],
+    },
+    {
+      title: 'Receiving Date',
+      dataIndex: 'receivedDate',
+      key: 'receivedDate',
+      render: (date) => date ? new Date(date).toLocaleDateString() : '-',
+      sorter: (a, b) => new Date(a.receivedDate) - new Date(b.receivedDate),
     },
     {
       title: 'Status',
@@ -120,31 +122,13 @@ const PurchaseList = () => {
         { text: 'RECEIVED', value: 'RECEIVED' },
       ],
       onFilter: (value, record) => record.status === value,
-      width: 120,
     },
     {
-      title: 'Total (KES)',
-      dataIndex: 'finalAmount',
-      key: 'finalAmount',
-      render: (amount) => formatCurrencyKES(amount),
-      sorter: (a, b) => a.finalAmount - b.finalAmount,
-      width: 150,
-    },
-    {
-      title: 'Paid (KES)',
-      dataIndex: 'paidAmount',
-      key: 'paidAmount',
-      render: (amount) => formatCurrencyKES(amount),
-      sorter: (a, b) => a.paidAmount - b.paidAmount,
-      width: 150,
-      responsive: ['md'],
-    },
-    {
-      title: 'Balance (KES)',
-      key: 'balance',
-      render: (_, record) => formatCurrencyKES(record.finalAmount - (record.paidAmount || 0)),
-      width: 150,
-      responsive: ['md'],
+      title: 'Total Amount (KES)',
+      dataIndex: 'totalAmount',
+      key: 'totalAmount',
+      render: (amount) => `KES ${amount?.toFixed(2) || '0.00'}`,
+      sorter: (a, b) => a.totalAmount - b.totalAmount,
     },
     {
       title: 'Actions',
@@ -152,147 +136,136 @@ const PurchaseList = () => {
       width: 120,
       fixed: 'right',
       render: (_, record) => (
-        <div className="flex items-center gap-2">
-          <Button 
-            type="text" 
-            icon={<EyeOutlined />} 
-            onClick={() => handleView(record.id)}
-            aria-label="View details"
-          />
-          <Dropdown
-            menu={{
-              items: [
-                {
-                  key: 'edit',
-                  label: (
-                    <Link to={`/purchases/edit/${record.id}`} className="flex items-center gap-2">
-                      <EditOutlined /> Edit
-                    </Link>
-                  ),
-                  disabled: record.status === 'CANCELLED',
-                },
-                {
-                  key: 'delete',
-                  label: (
-                    <span 
-                      onClick={() => {
-                        setSelectedPurchase(record);
-                        setIsDeleteModalVisible(true);
-                      }}
-                      className="flex items-center gap-2"
-                    >
-                      <DeleteOutlined /> Delete
-                    </span>
-                  ),
-                },
-              ],
-            }}
-            trigger={['click']}
-          >
-            <Button type="text" icon={<MoreOutlined />} aria-label="More actions" />
-          </Dropdown>
-        </div>
+        <Dropdown
+          menu={{
+            items: [
+              {
+                key: 'view',
+                label: (
+                  <span onClick={() => showPurchaseDetails(record)}>
+                    <EyeOutlined /> View
+                  </span>
+                ),
+              },
+              {
+                key: 'edit',
+                label: (
+                  <Link to={`/purchases/edit/${record.id}`}>
+                    <EditOutlined /> Edit
+                  </Link>
+                ),
+                disabled: record.status === 'CANCELLED',
+              },
+              {
+                key: 'delete',
+                label: (
+                  <span onClick={() => {
+                    setSelectedPurchase(record);
+                    setIsDeleteModalVisible(true);
+                  }}>
+                    <DeleteOutlined /> Delete
+                  </span>
+                ),
+              },
+            ],
+          }}
+          trigger={['click']}
+        >
+          <Button type="text" icon={<MoreOutlined />} />
+        </Dropdown>
       ),
     },
   ];
 
-  const expandedRowRender = (record) => {
-    const balance = record.finalAmount - (record.paidAmount || 0);
-    
-    return (
-      <div className="p-4 bg-gray-50">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <p className="text-sm font-medium text-gray-500">Supplier</p>
-            <p>{record.supplier?.companyName || '-'}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Order Date</p>
-            <p>{formatDate(record.orderDate)}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Received Date</p>
-            <p>{record.receivedDate ? formatDate(record.receivedDate) : '-'}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Discount Amount</p>
-            <p>{formatCurrencyKES(record.discountAmount)}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Tax Amount</p>
-            <p>{formatCurrencyKES(record.taxAmount)}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Total Amount</p>
-            <p>{formatCurrencyKES(record.finalAmount)}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Amount Paid</p>
-            <p>{formatCurrencyKES(record.paidAmount)}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Balance</p>
-            <p className={balance > 0 ? 'text-red-500' : 'text-green-500'}>
-              {formatCurrencyKES(balance)}
-            </p>
-          </div>
-        </div>
-        <div className="mt-4">
+  return (
+    <div style={{ padding: '24px' }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: 20 
+      }}>
+        <h2>Purchase Orders</h2>
+        <Link to="/purchases/create">
+          {/* Fixed button with explicit primary color */}
           <Button 
             type="primary" 
-            onClick={() => handleView(record.id)}
-            className="bg-blue-600 hover:bg-blue-700"
+            icon={<PlusOutlined />}
+            style={{ 
+              background: '#1890ff', // Ant Design's default primary blue
+              borderColor: '#1890ff',
+            }}
           >
-            View Full Details
-          </Button>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <h2 className="text-2xl font-bold text-gray-800">Purchase Orders</h2>
-        <Link to="/purchases/create">
-          <Button type="primary" className="bg-blue-600 hover:bg-blue-700">
             Create Purchase
           </Button>
         </Link>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <Table
-          columns={columns}
-          dataSource={purchases}
-          rowKey="id"
-          loading={loading}
-          pagination={{ 
-            pageSize: 10,
-            showSizeChanger: false,
-            className: 'px-4 py-2'
-          }}
-          scroll={{ x: true }}
-          size="middle"
-          className="w-full"
-          expandable={{
-            expandedRowRender,
-            expandedRowKeys,
-            onExpand: (expanded, record) => toggleExpandRow(record.id),
-            rowExpandable: () => true,
-            expandIcon: ({ expanded, onExpand, record }) => (
-              <button 
-                onClick={e => onExpand(record, e)} 
-                className="text-gray-500 hover:text-gray-700 focus:outline-none"
-                aria-label={expanded ? 'Collapse row' : 'Expand row'}
-              >
-                {expanded ? '▼' : '►'}
-              </button>
-            ),
-          }}
-        />
-      </div>
+      <Table
+        columns={columns}
+        dataSource={purchases}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+        scroll={{ x: 1200 }} // Increased to accommodate new column
+      />
 
+      {/* Purchase Details Modal */}
+      <Modal
+        title={selectedPurchase ? `Purchase Order - PO-${selectedPurchase.id}` : 'Purchase Details'}
+        open={isDetailModalVisible}
+        onCancel={() => setIsDetailModalVisible(false)}
+        footer={null}
+        width={800}
+      >
+        {detailLoading ? (
+          <div style={{ textAlign: 'center', padding: '24px' }}>Loading details...</div>
+        ) : selectedPurchase ? (
+          <Card loading={detailLoading}>
+            <Descriptions bordered column={1}>
+              <Descriptions.Item label="Supplier">
+                {selectedPurchase.supplier?.companyName || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Order Date">
+                {selectedPurchase.orderDate ? new Date(selectedPurchase.orderDate).toLocaleString() : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Receiving Date">
+                {selectedPurchase.receivedDate ? new Date(selectedPurchase.receivedDate).toLocaleString() : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Status">
+                {getStatusTag(selectedPurchase.status)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Total Amount">
+                KES {selectedPurchase.totalAmount?.toFixed(2) || '0.00'}
+              </Descriptions.Item>
+            </Descriptions>
+
+            <Divider orientation="left">Items</Divider>
+            <Table
+              dataSource={selectedPurchase.items || []}
+              rowKey="id"
+              pagination={false}
+              columns={[
+                { title: 'Product', dataIndex: ['product', 'name'] },
+                { title: 'Quantity', dataIndex: 'quantity' },
+                { 
+                  title: 'Unit Price (KES)', 
+                  dataIndex: 'unitPrice',
+                  render: (price) => `KES ${price?.toFixed(2)}`,
+                },
+                {
+                  title: 'Total (KES)',
+                  render: (_, record) => `KES ${(record.quantity * record.unitPrice)?.toFixed(2)}`,
+                },
+              ]}
+            />
+          </Card>
+        ) : (
+          <div>No purchase data available</div>
+        )}
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
       <Modal
         title="Confirm Delete"
         open={isDeleteModalVisible}
@@ -302,9 +275,9 @@ const PurchaseList = () => {
         cancelText="Cancel"
         okButtonProps={{ danger: true }}
       >
-        <p>Are you sure you want to delete purchase order PO-{selectedPurchase?.id.toString().padStart(5, '0')}?</p>
+        <p>Are you sure you want to delete purchase order PO-{selectedPurchase?.id}?</p>
         {selectedPurchase?.status === 'RECEIVED' && (
-          <p className="text-red-500 mt-2">Warning: This order has been marked as RECEIVED.</p>
+          <p style={{ color: 'red' }}>Warning: This order has been received.</p>
         )}
       </Modal>
     </div>

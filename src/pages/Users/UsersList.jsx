@@ -64,14 +64,14 @@ const UsersList = () => {
       }
 
       const api = axios.create({
-        baseURL: process.env.REACT_APP_API_URL || "https://inventorymanagementsystem-latest-37zl.onrender.com",
+        baseURL: process.env.REACT_APP_API_BASE_URL,
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
         }
       });
 
-      const response = await api.get("/api/users");
+      const response = await api.get("/users");
       
       let usersData = [];
       if (Array.isArray(response.data)) {

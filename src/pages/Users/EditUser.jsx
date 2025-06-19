@@ -39,7 +39,7 @@ export default function EditUser() {
 
   // Configure axios instance
   const api = axios.create({
-    baseURL: process.env.REACT_APP_API_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com',
+    baseURL: process.env.REACT_APP_API_BASE_URL,
     headers: {
       'Content-Type': 'application/json'
     }
@@ -58,12 +58,12 @@ export default function EditUser() {
 
         // Fetch user data and roles in parallel
         const [userResponse, rolesResponse] = await Promise.all([
-          api.get(`/api/users/${id}`, {
+          api.get(`/users/${id}`, {
             headers: {
               'Authorization': `Bearer ${token}`
             }
           }),
-          api.get('/api/users/roles', {
+          api.get('/users/roles', {
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -128,7 +128,7 @@ export default function EditUser() {
         active: formData.active
       };
 
-      await api.put(`/api/users/${id}`, updateData, {
+      await api.put(`/users/${id}`, updateData, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

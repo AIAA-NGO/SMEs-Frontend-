@@ -43,6 +43,9 @@ import ProductPerformanceReport from './pages/reports/ProductPerformanceReport';
 import InventoryValuationReport from './pages/reports/InventoryValuationReport';
 import FinancialReports from './pages/reports/FinancialReports';
 import SupplierPurchasesReport from './pages/reports/SupplierPurchasesReport';
+import IncomeStatement from './pages/finance/IncomeStatement';
+import CashFlow from './pages/finance/CashFlow';
+
 
 
 function App() {
@@ -83,7 +86,9 @@ function App() {
                 <Route path="/sales" element={<DashboardLayout><SalesList /></DashboardLayout>} />
                 <Route path="/sales/returns" element={<DashboardLayout><SalesReturnPage /></DashboardLayout>} />
                 <Route path="/apply-discount" element={<DashboardLayout><ApplyDiscount /></DashboardLayout>} />
-                 
+                   {/* New Financial Report Routes */}
+                <Route path="/reports/income-statement" element={<DashboardLayout><IncomeStatement /></DashboardLayout>} />
+                <Route path="/reports/cash-flow" element={<DashboardLayout><CashFlow /></DashboardLayout>} />
                 {/* Report Routes */}
                 <Route path="/reports/sales" element={<DashboardLayout><SalesReport /></DashboardLayout>} />
                 <Route path="/reports/products" element={<DashboardLayout><ProductPerformanceReport /></DashboardLayout>} />

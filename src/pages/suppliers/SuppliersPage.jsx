@@ -8,6 +8,7 @@ import {
   updateSupplier, 
   deleteSupplier 
 } from '../../services/supplierService';
+import { getAllCategories } from '../../services/categories';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -39,15 +40,11 @@ const SuppliersPage = () => {
   // Fetch categories
   const fetchCategories = async () => {
     try {
-      const res = await fetch('https://inventorymanagementsystem-latest-37zl.onrender.com/api/categories', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      const data = await res.json();
+      const data = await getAllCategories();
       setCategories(data.content || data);
     } catch (err) {
       console.error('Error fetching categories:', err);
+      setError('Failed to fetch categories');
     }
   };
 

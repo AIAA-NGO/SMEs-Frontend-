@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api/brands';
+const API_BASE = `${process.env.REACT_APP_API_BASE_URL}/brands`;
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');

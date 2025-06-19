@@ -19,7 +19,7 @@ const CreateSupplier = () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('https://inventorymanagementsystem-latest-37zl.onrender.com/api/categories', {
+      const res = await fetch('REACT_APP_API_BASE_URL/categories', {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }

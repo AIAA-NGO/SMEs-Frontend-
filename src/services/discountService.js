@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = "https://inventorymanagementsystem-latest-37zl.onrender.com/";
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 // Create a single axios instance with base configuration
 const api = axios.create({
@@ -26,61 +26,61 @@ api.interceptors.request.use(
 
 // ==================== AUTH ENDPOINTS ====================
 export const loginUser = async ({ username, password }) => {
-  return await api.post('api/auth/login', { username, password });
+  return await api.post('/auth/login', { username, password });
 };
 
 export const registerUser = async (userData) => {
-  return await api.post('api/auth/register', userData);
+  return await api.post('/auth/register', userData);
 };
 
 export const refreshToken = async () => {
-  return await api.post('api/auth/refresh-token');
+  return await api.post('/auth/refresh-token');
 };
 
 export const fetchCurrentUser = async () => {
-  return await api.get('api/auth/me');
+  return await api.get('/auth/me');
 };
 
 // ==================== USER ENDPOINTS ====================
 export const createUser = async (userData) => {
-  return await api.post('api/users', userData);
+  return await api.post('/users', userData);
 };
 
 export const getAllUsers = async () => {
-  return await api.get('api/users');
+  return await api.get('/users');
 };
 
 export const getUserById = async (id) => {
-  return await api.get(`api/users/${id}`);
+  return await api.get(`/users/${id}`);
 };
 
 export const updateUser = async (id, userData) => {
-  return await api.put(`api/users/${id}`, userData);
+  return await api.put(`/users/${id}`, userData);
 };
 
 export const deleteUser = async (id) => {
-  return await api.delete(`api/users/${id}`);
+  return await api.delete(`/users/${id}`);
 };
 
 export const getAllRoles = async () => {
-  return await api.get('api/users/roles');
+  return await api.get('/users/roles');
 };
 
 // ==================== DISCOUNT ENDPOINTS ====================
 export const createDiscount = async (discountData) => {
-  return await api.post('api/discounts', discountData);
+  return await api.post('/discounts', discountData);
 };
 
 export const getAllDiscounts = async () => {
-  return await api.get('api/discounts');
+  return await api.get('/discounts');
 };
 
 export const getActiveDiscounts = async () => {
-  return await api.get('api/discounts/active');
+  return await api.get('/discounts/active');
 };
 
 export const deleteDiscount = async (id) => {
-  return await api.delete(`api/discounts/${id}`);
+  return await api.delete(`/discounts/${id}`);
 };
 
 export default api;

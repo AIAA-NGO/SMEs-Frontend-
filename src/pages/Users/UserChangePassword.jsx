@@ -26,7 +26,7 @@ export default function ChangePassword() {
 
   // Configure axios instance
   const api = axios.create({
-    baseURL: process.env.REACT_APP_API_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com',
+    baseURL: process.env.REACT_APP_API_BASE_URL,
     headers: {
       'Content-Type': 'application/json'
     }
@@ -65,7 +65,7 @@ export default function ChangePassword() {
       }
 
       const response = await api.put(
-        `/api/users/${id}/password`,
+        `/users/${id}/password`,
         {
           oldPassword: passwordData.oldPassword,
           newPassword: passwordData.newPassword

@@ -1,23 +1,39 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Form, Button, Select, Table, message, Card, Row, Col, InputNumber, DatePicker } from 'antd';
-import { getPurchaseById, updatePurchase } from '../../services/purchaseService';
-import { getSuppliers as getAllSuppliers } from '../../services/supplierService';
-import { getAllProducts } from '../../services/productServices';
-import { PlusOutlined, MinusOutlined } from '@ant-design/icons';
+import { 
+  Form, 
+  Button, 
+  Select, 
+  Table, 
+  message, 
+  Card, 
+  Row, 
+  Col, 
+  InputNumber, 
+  DatePicker,
+  Typography,
+  Space 
+} from 'antd';
+import { 
+  getPurchaseById, 
+  updatePurchase 
+} from '../../services/purchaseService';
+import { 
+  getSuppliers as getAllSuppliers 
+} from '../../services/supplierService';
+import { 
+  getAllProducts 
+} from '../../services/productServices';
+import { 
+  PlusOutlined, 
+  MinusOutlined,
+  ArrowLeftOutlined,
+  SaveOutlined
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
-
-// Format currency as KES
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('en-KE', {
-    style: 'currency',
-    currency: 'KES',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value);
-};
+const { Title } = Typography;
 
 const EditPurchase = () => {
   const [form] = Form.useForm();
@@ -40,16 +56,11 @@ const EditPurchase = () => {
     try {
       const data = await getPurchaseById(id);
       setPurchase(data);
-      setItems(data.items.map(item => ({
-        ...item,
-        totalPrice: item.quantity * item.unitPrice
-      })));
+      setItems(data.items || []);
       
       form.setFieldsValue({
-        supplierId: data.supplier.id,
-        orderDate: dayjs(data.orderDate),
-        taxRate: data.taxAmount ? (data.taxAmount / data.totalAmount) * 100 : 0,
-        discount: data.discountAmount ? (data.discountAmount / data.totalAmount) * 100 : 0,
+        supplierId: data.supplier?.id,
+        orderDate: data.orderDate ? dayjs(data.orderDate) : null
       });
     } catch (error) {
       message.error(error.message);
@@ -78,7 +89,11 @@ const EditPurchase = () => {
   };
 
   const handleAddItem = () => {
-    setItems([...items, { productId: null, quantity: 1, unitPrice: 0, totalPrice: 0 }]);
+    setItems([...items, { 
+      productId: null, 
+      quantity: 1, 
+      unitPrice: 0 
+    }]);
   };
 
   const handleRemoveItem = (index) => {
@@ -89,26 +104,8 @@ const EditPurchase = () => {
 
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
-    newItems[index][field] = value;
-    
-    if (field === 'quantity' || field === 'unitPrice') {
-      newItems[index].totalPrice = 
-        (newItems[index].quantity || 0) * (newItems[index].unitPrice || 0);
-    }
-    
+    newItems[index] = { ...newItems[index], [field]: value };
     setItems(newItems);
-  };
-
-  const calculateTotals = () => {
-    const subtotal = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
-    const taxRate = form.getFieldValue('taxRate') || 0;
-    const discount = form.getFieldValue('discount') || 0;
-    
-    const taxAmount = subtotal * (taxRate / 100);
-    const discountAmount = subtotal * (discount / 100);
-    const total = subtotal + taxAmount - discountAmount;
-    
-    return { subtotal, taxAmount, discountAmount, total };
   };
 
   const handleSubmit = async () => {
@@ -127,204 +124,206 @@ const EditPurchase = () => {
       
       const purchaseData = {
         supplierId: values.supplierId,
-        orderDate: values.orderDate.format('YYYY-MM-DDTHH:mm:ss'),
+        orderDate: values.orderDate ? values.orderDate.toISOString() : new Date().toISOString(),
         items: items.map(item => ({
           productId: item.productId,
           quantity: item.quantity,
-          unitPrice: item.unitPrice,
-        })),
-        taxAmount: calculateTotals().taxAmount,
-        discountAmount: calculateTotals().discountAmount,
+          unitPrice: item.unitPrice
+        }))
       };
       
       setLoading(true);
-      const updatedPurchase = await updatePurchase(id, purchaseData);
+      await updatePurchase(id, purchaseData);
       message.success('Purchase order updated successfully');
-      navigate(`/purchases/${updatedPurchase.id}`);
+      navigate(`/purchases/${id}`);
     } catch (error) {
-      message.error(error.message || 'Failed to update purchase');
+      console.error('Update error:', error);
+      message.error(error.response?.data?.message || error.message || 'Failed to update purchase');
     } finally {
       setLoading(false);
     }
   };
 
-  const { subtotal, taxAmount, discountAmount, total } = calculateTotals();
+  const handleCancel = () => {
+    navigate('/purchases');
+  };
 
-  if (!purchase) return null;
+  if (!purchase) return <div style={{ textAlign: 'center', padding: '24px' }}>Loading purchase data...</div>;
 
   return (
-    <div className="edit-purchase">
-      <h2>Edit Purchase Order #{purchase.id.toString().padStart(5, '0')}</h2>
-      
-      <Form form={form} layout="vertical">
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Item
-              name="supplierId"
-              label="Supplier"
-              rules={[{ required: true, message: 'Please select a supplier' }]}
-            >
-              <Select 
-                placeholder="Select supplier" 
-                showSearch 
-                optionFilterProp="children"
-                disabled={loading}
-              >
-                {suppliers.map(supplier => (
-                  <Option key={supplier.id} value={supplier.id}>
-                    {supplier.companyName}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item
-              name="orderDate"
-              label="Order Date"
-              rules={[{ required: true, message: 'Please select order date' }]}
-            >
-              <DatePicker 
-                showTime 
-                format="YYYY-MM-DD HH:mm" 
-                style={{ width: '100%' }} 
-                disabled={loading}
-              />
-            </Form.Item>
-          </Col>
-        </Row>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Button 
+          type="text" 
+          icon={<ArrowLeftOutlined />} 
+          onClick={handleCancel}
+          style={{ marginBottom: 16 }}
+        >
+          Back to Purchases
+        </Button>
 
-        <Card title="Items" style={{ marginBottom: 16 }}>
-          <Button
-            type="dashed"
-            onClick={handleAddItem}
-            icon={<PlusOutlined />}
-            style={{ marginBottom: 16 }}
-            disabled={loading}
-          >
-            Add Item
-          </Button>
+        <Title level={3} style={{ marginBottom: 24 }}>
+          Edit Purchase Order #{purchase.id.toString().padStart(5, '0')}
+        </Title>
 
-          <Table
-            dataSource={items}
-            rowKey={(record, index) => index}
-            pagination={false}
-            loading={loading}
-            columns={[
-              {
-                title: 'Product',
-                dataIndex: 'productId',
-                render: (value, record, index) => (
-                  <Select
-                    placeholder="Select product"
-                    value={value}
-                    style={{ width: '100%' }}
-                    onChange={(val) => handleItemChange(index, 'productId', val)}
+        <Form form={form} layout="vertical">
+          <Card title="Basic Information" style={{ marginBottom: 24 }}>
+            <Row gutter={16}>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="supplierId"
+                  label="Supplier"
+                  rules={[{ required: true, message: 'Please select a supplier' }]}
+                >
+                  <Select 
+                    placeholder="Select supplier" 
+                    showSearch 
+                    optionFilterProp="children"
                     disabled={loading}
                   >
-                    {products.map(product => (
-                      <Option key={product.id} value={product.id}>
-                        {product.name}
+                    {suppliers.map(supplier => (
+                      <Option key={supplier.id} value={supplier.id}>
+                        {supplier.companyName}
                       </Option>
                     ))}
                   </Select>
-                ),
-              },
-              {
-                title: 'Quantity',
-                dataIndex: 'quantity',
-                render: (value, record, index) => (
-                  <InputNumber
-                    min={1}
-                    value={value}
-                    onChange={(val) => handleItemChange(index, 'quantity', val)}
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="orderDate"
+                  label="Order Date"
+                  rules={[{ required: true, message: 'Please select order date' }]}
+                >
+                  <DatePicker 
+                    showTime 
+                    format="YYYY-MM-DD HH:mm" 
+                    style={{ width: '100%' }} 
                     disabled={loading}
                   />
-                ),
-              },
-              {
-                title: 'Unit Price (KES)',
-                dataIndex: 'unitPrice',
-                render: (value, record, index) => (
-                  <InputNumber
-                    min={0}
-                    step={0.01}
-                    value={value}
-                    onChange={(val) => handleItemChange(index, 'unitPrice', val)}
-                    formatter={(value) => `KES ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    parser={(value) => value.replace(/KES\s?|(,*)/g, '')}
-                    disabled={loading}
-                  />
-                ),
-              },
-              {
-                title: 'Total (KES)',
-                dataIndex: 'totalPrice',
-                render: (value) => formatCurrency(value || 0),
-              },
-              {
-                title: 'Action',
-                render: (_, record, index) => (
-                  <Button
-                    danger
-                    type="text"
-                    icon={<MinusOutlined />}
-                    onClick={() => handleRemoveItem(index)}
-                    disabled={loading}
-                  />
-                ),
-              },
-            ]}
-          />
-        </Card>
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
 
-        <Row gutter={16}>
-          <Col span={8}>
-            <Form.Item name="taxRate" label="Tax Rate (%)">
-              <InputNumber 
-                min={0} 
-                max={100} 
-                style={{ width: '100%' }} 
-                disabled={loading}
-              />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="discount" label="Discount (%)">
-              <InputNumber 
-                min={0} 
-                max={100} 
-                style={{ width: '100%' }} 
-                disabled={loading}
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        <Card title="Summary" style={{ marginBottom: 16 }}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <p>Subtotal: {formatCurrency(subtotal)}</p>
-              <p>Tax: {formatCurrency(taxAmount)}</p>
-              <p>Discount: {formatCurrency(discountAmount)}</p>
-              <p><strong>Total: {formatCurrency(total)}</strong></p>
-            </Col>
-          </Row>
-        </Card>
-
-        <Form.Item>
-          <Button type="primary" onClick={handleSubmit} loading={loading}>
-            Update Purchase Order
-          </Button>
-          <Button 
-            style={{ marginLeft: 8 }} 
-            onClick={() => navigate(`/purchases/${id}`)}
-            disabled={loading}
+          <Card 
+            title={
+              <Space>
+                <span>Items</span>
+                <Button
+                  type="dashed"
+                  onClick={handleAddItem}
+                  icon={<PlusOutlined />}
+                  size="small"
+                  disabled={loading}
+                >
+                  Add Item
+                </Button>
+              </Space>
+            } 
+            style={{ marginBottom: 24 }}
           >
-            Cancel
-          </Button>
-        </Form.Item>
-      </Form>
+            <Table
+              dataSource={items}
+              rowKey={(record, index) => index}
+              pagination={false}
+              loading={loading}
+              columns={[
+                {
+                  title: 'Product',
+                  dataIndex: 'productId',
+                  render: (value, _, index) => (
+                    <Select
+                      placeholder="Select product"
+                      value={value}
+                      style={{ width: '100%' }}
+                      onChange={(val) => handleItemChange(index, 'productId', val)}
+                      disabled={loading}
+                    >
+                      {products.map(product => (
+                        <Option key={product.id} value={product.id}>
+                          {product.name}
+                        </Option>
+                      ))}
+                    </Select>
+                  ),
+                },
+                {
+                  title: 'Quantity',
+                  dataIndex: 'quantity',
+                  width: 120,
+                  render: (value, _, index) => (
+                    <InputNumber
+                      min={1}
+                      value={value}
+                      onChange={(val) => handleItemChange(index, 'quantity', val)}
+                      disabled={loading}
+                      style={{ width: '100%' }}
+                    />
+                  ),
+                },
+                {
+                  title: 'Unit Price (KES)',
+                  dataIndex: 'unitPrice',
+                  width: 150,
+                  render: (value, _, index) => (
+                    <InputNumber
+                      min={0}
+                      step={0.01}
+                      value={value}
+                      onChange={(val) => handleItemChange(index, 'unitPrice', val)}
+                      formatter={(value) => `KES ${value}`}
+                      parser={(value) => value.replace(/KES\s?|(,*)/g, '')}
+                      disabled={loading}
+                      style={{ width: '100%' }}
+                    />
+                  ),
+                },
+                {
+                  title: 'Action',
+                  width: 80,
+                  render: (_, __, index) => (
+                    <Button
+                      danger
+                      type="text"
+                      icon={<MinusOutlined />}
+                      onClick={() => handleRemoveItem(index)}
+                      disabled={loading}
+                    />
+                  ),
+                },
+              ]}
+              scroll={{ x: true }}
+            />
+          </Card>
+
+          <div style={{ textAlign: 'right', marginTop: 24 }}>
+            <Space>
+              <Button 
+                onClick={handleCancel}
+                disabled={loading}
+                style={{ minWidth: 100 }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="primary" 
+                onClick={handleSubmit} 
+                loading={loading}
+                icon={<SaveOutlined />}
+                style={{ 
+                  minWidth: 150,
+                  background: '#1890ff',
+                  borderColor: '#1890ff',
+                  fontWeight: 500
+                }}
+              >
+                Update Purchase
+              </Button>
+            </Space>
+          </div>
+        </Form>
+      </Space>
     </div>
   );
 };

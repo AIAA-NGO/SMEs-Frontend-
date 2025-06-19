@@ -3,7 +3,7 @@ import { loginUser } from "../../services/api";
 import { useNavigate, Link } from "react-router-dom";
 
 const Signin = () => {
-  const [username, setUsername] = useState("");  // username input
+  const [username, setUsername] = useState("");  
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();

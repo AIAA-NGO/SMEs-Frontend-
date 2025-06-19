@@ -13,7 +13,10 @@ import {
   ChevronLeft,
   ChevronRight,
   PackageCheck,
-  ListChecks
+  ListChecks,
+  Landmark,
+  Receipt,
+  Wallet
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -33,6 +36,7 @@ export default function Sidebar({
   const [salesOpen, setSalesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [purchasesOpen, setPurchasesOpen] = useState(false);
+  const [financeOpen, setFinanceOpen] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -52,6 +56,7 @@ export default function Sidebar({
       setSalesOpen(false);
       setSettingsOpen(false);
       setPurchasesOpen(false);
+      setFinanceOpen(false);
     }
   }, [isMinimized, isMobileOpen]);
 
@@ -261,6 +266,59 @@ export default function Sidebar({
             <DollarSign size={20} className={`${isActive('/apply-discount') ? 'text-blue-400' : 'text-gray-300'}`} />
             {(!isMinimized || isMobile) && <span className="font-medium">Apply Discount</span>}
           </Link>
+
+          {/* Finance Module */}
+          <div className="relative">
+            <button
+              onClick={() => setFinanceOpen(!financeOpen)}
+              className={`flex items-center justify-between w-full px-4 py-4 rounded-lg transition-all
+                ${isActive('/reports/income-statement') || isActive('/reports/cash-flow') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+                ${isMinimized && !isMobile ? 'justify-center px-2' : ''}`}
+              title={isMinimized && !isMobile ? 'Finance' : undefined}
+            >
+              <div className="flex items-center gap-3">
+                <Landmark size={20} className={`${isActive('/reports/income-statement') || isActive('/reports/cash-flow') ? 'text-blue-400' : 'text-gray-300'}`} />
+                {(!isMinimized || isMobile) && <span className="font-medium">Finance</span>}
+              </div>
+              {(!isMinimized || isMobile) && (
+                <ChevronDown 
+                  size={16} 
+                  className={`transition-transform ${financeOpen ? 'rotate-180' : ''} text-gray-400`}
+                />
+              )}
+            </button>
+            {(financeOpen && (!isMinimized || isMobile)) && (
+              <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
+                {/* Income Statement Link */}
+                <Link 
+                  to="/reports/income-statement" 
+                  onClick={() => {
+                    onLinkClick();
+                    setFinanceOpen(false);
+                  }}
+                  className={`flex items-center gap-2 py-3 px-3 rounded-md text-sm transition-colors
+                    ${isActive('/reports/income-statement') ? 'text-blue-400 font-medium bg-blue-900/20' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/30'}`}
+                >
+                  <FileText size={14} />
+                  Income Statement
+                </Link>
+
+                {/* Cash Flow Link */}
+                <Link 
+                  to="/reports/cash-flow" 
+                  onClick={() => {
+                    onLinkClick();
+                    setFinanceOpen(false);
+                  }}
+                  className={`flex items-center gap-2 py-3 px-3 rounded-md text-sm transition-colors
+                    ${isActive('/reports/cash-flow') ? 'text-blue-400 font-medium bg-blue-900/20' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/30'}`}
+                >
+                  <Wallet size={14} />
+                  Cash Flow Statement
+                </Link>
+              </div>
+            )}
+          </div>
 
           {/* Users */}
           <Link

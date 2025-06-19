@@ -17,7 +17,6 @@ import { FiTrendingUp } from "react-icons/fi";
 import { getSales } from '../../services/salesService';
 import { InventoryService } from '../../services/InventoryService';
 import { getAllProducts } from '../../services/productServices';
-import { getProfitLossReport } from '../../services/financialServices';
 
 ChartJS.register(
   CategoryScale,
@@ -30,6 +29,7 @@ ChartJS.register(
   Legend,
   Filler
 );
+
 const API_BASE_URL = `${process.env.REACT_APP_API_BASE_URL}/sales`;
 const REPORTS_BASE_URL = `${process.env.REACT_APP_API_BASE_URL}/reports`;
 const DISCOUNTS_BASE_URL = `${process.env.REACT_APP_API_BASE_URL}/discounts`;
@@ -75,7 +75,8 @@ const Dashboard = () => {
   const [profitData, setProfitData] = useState({
     totalProfit: 0,
     totalRevenue: 0,
-    totalCost: 0
+    totalCost: 0,
+    profitMargin: 0
   });
   const [summary, setSummary] = useState({
     subtotal: 0,
@@ -117,42 +118,13 @@ const Dashboard = () => {
     return "Evening";
   };
 
-  const fetchProfitData = async () => {
-    try {
-      setLoading(prev => ({ ...prev, profit: true }));
-      setError(prev => ({ ...prev, profit: null }));
-      
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(endDate.getDate() - 30);
-      
-      const profitReport = await getProfitLossReport(startDate, endDate);
-      
-      setProfitData({
-        totalProfit: profitReport.netProfit || 0,
-        totalRevenue: profitReport.totalRevenue || 0,
-        totalCost: profitReport.totalCost || 0
-      });
-      
-      setSummary(prev => ({
-        ...prev,
-        salesProfit: profitReport.netProfit || 0
-      }));
-    } catch (err) {
-      console.error("Failed to fetch profit data:", err);
-      setError(prev => ({ ...prev, profit: err.message }));
-    } finally {
-      setLoading(prev => ({ ...prev, profit: false }));
-    }
-  };
-
   const calculateSummary = (salesData) => {
     if (!salesData || salesData.length === 0) {
       return {
         subtotal: 0,
         discount: 0,
         total: 0,
-        salesProfit: profitData.totalProfit,
+        salesProfit: 0,
         totalSales: 0,
         inventoryCount: 0,
         customerCount: 0,
@@ -264,66 +236,62 @@ const Dashboard = () => {
     }
   };
 
-  const calculateSaleProfit = (sale) => {
-    if (!sale.saleItems || sale.saleItems.length === 0) return 0;
-    
-    return sale.saleItems.reduce((total, item) => {
-      const unitPrice = item.unitPrice || 0;
-      const costPrice = item.costPrice || 0;
-      const quantity = item.quantity || 0;
-      return total + (unitPrice - costPrice) * quantity;
-    }, 0);
-  };
-
-  const fetchSales = async () => {
-    setLoading(prev => ({ ...prev, sales: true, salesTrend: true }));
-    setError(prev => ({ ...prev, sales: null, salesTrend: null }));
-    
+  const fetchProfitData = async () => {
     try {
-      const response = await fetch(API_BASE_URL, {
-        headers: getAuthHeader()
-      });
-      if (!response.ok) throw new Error('Failed to fetch sales');
+      setLoading(prev => ({ ...prev, profit: true }));
+      setError(prev => ({ ...prev, profit: null }));
+      
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - 30);
+      
+      const formatDate = (date) => date.toISOString().split('T')[0];
+      
+      const response = await fetch(
+        `${REPORTS_BASE_URL}/products?startDate=${formatDate(startDate)}&endDate=${formatDate(endDate)}`, 
+        {
+          headers: getAuthHeader()
+        }
+      );
+      
+      if (!response.ok) throw new Error('Failed to fetch profit data');
       
       const data = await response.json();
-      setSales(data);
       
-      const dailySales = processDailySales(data);
-      const monthlySales = processMonthlySales(data);
+      let totalProfit = 0;
+      let totalRevenue = 0;
+      let totalCost = 0;
       
-      setSalesTrend({
-        daily: dailySales.amounts,
-        dailyLabels: dailySales.days,
-        monthly: monthlySales.amounts,
-        monthlyLabels: monthlySales.months
+      if (Array.isArray(data)) {
+        data.forEach(item => {
+          const revenue = item.revenue || 0;
+          const cost = item.cost || 0;
+          const profit = item.profit || 0;
+          
+          totalRevenue += revenue;
+          totalCost += cost;
+          totalProfit += profit;
+        });
+      }
+      
+      const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+      
+      setProfitData({
+        totalProfit,
+        totalRevenue,
+        totalCost,
+        profitMargin
       });
       
-      // Process recent sales with profit calculation (kept but not displayed)
-      const salesWithProfit = data.map(sale => ({
-        ...sale,
-        profit: calculateSaleProfit(sale)
-      }));
-      
-      setRecentSales(salesWithProfit.slice(0, 5));
-      
       setSummary(prev => ({
-        ...calculateSummary(data),
-        inventoryCount: prev.inventoryCount,
-        customerCount: prev.customerCount,
-        expiredItemsCount: prev.expiredItemsCount,
-        lowStockItemsCount: prev.lowStockItemsCount
+        ...prev,
+        salesProfit: totalProfit
       }));
     } catch (err) {
-      console.error("Failed to fetch sales:", err);
-      setError(prev => ({ ...prev, sales: err.message, salesTrend: err.message }));
+      console.error("Failed to fetch profit data:", err);
+      setError(prev => ({ ...prev, profit: err.message }));
     } finally {
-      setLoading(prev => ({ 
-        ...prev, 
-        sales: false, 
-        summary: false, 
-        recentSales: false,
-        salesTrend: false
-      }));
+      setLoading(prev => ({ ...prev, profit: false }));
     }
   };
 
@@ -356,6 +324,70 @@ const Dashboard = () => {
       setError(prev => ({ ...prev, inventory: err.message }));
     } finally {
       setLoading(prev => ({ ...prev, inventory: false }));
+    }
+  };
+
+  const fetchSales = async () => {
+    setLoading(prev => ({ ...prev, sales: true, salesTrend: true }));
+    setError(prev => ({ ...prev, sales: null, salesTrend: null }));
+    
+    try {
+      const response = await fetch(API_BASE_URL, {
+        headers: getAuthHeader()
+      });
+      if (!response.ok) throw new Error('Failed to fetch sales');
+      
+      const data = await response.json();
+      setSales(data);
+      
+      const dailySales = processDailySales(data);
+      const monthlySales = processMonthlySales(data);
+      
+      setSalesTrend({
+        daily: dailySales.amounts,
+        dailyLabels: dailySales.days,
+        monthly: monthlySales.amounts,
+        monthlyLabels: monthlySales.months
+      });
+      
+      const salesWithProfit = data.map(sale => {
+        let saleProfit = 0;
+        let saleCost = 0;
+        
+        if (sale.saleItems && sale.saleItems.length > 0) {
+          sale.saleItems.forEach(item => {
+            const unitPrice = item.unitPrice || 0;
+            const costPrice = item.costPrice || 0;
+            const quantity = item.quantity || 0;
+            
+            saleProfit += (unitPrice - costPrice) * quantity;
+            saleCost += costPrice * quantity;
+          });
+        }
+        
+        return { ...sale, profit: saleProfit, cost: saleCost };
+      });
+      
+      setRecentSales(salesWithProfit.slice(0, 5));
+      
+      setSummary(prev => ({
+        ...calculateSummary(data),
+        inventoryCount: prev.inventoryCount,
+        customerCount: prev.customerCount,
+        expiredItemsCount: prev.expiredItemsCount,
+        lowStockItemsCount: prev.lowStockItemsCount
+      }));
+    } catch (err) {
+      console.error("Failed to fetch sales:", err);
+      setError(prev => ({ ...prev, sales: err.message, salesTrend: err.message }));
+    } finally {
+      setLoading(prev => ({ 
+        ...prev, 
+        sales: false, 
+        summary: false, 
+        recentSales: false,
+        salesTrend: false
+      }));
     }
   };
 
@@ -474,12 +506,12 @@ const Dashboard = () => {
         await fetchInventoryData();
         await Promise.all([
           fetchSales(),
+          fetchProfitData(),
           fetchTopProducts(),
           fetchLowStockItems(),
           fetchExpiringAndExpiredItems(),
           fetchCustomerCount(),
-          fetchActiveDiscounts(),
-          fetchProfitData()
+          fetchActiveDiscounts()
         ]);
       } catch (err) {
         console.error("Dashboard initialization error:", err);
@@ -817,34 +849,19 @@ const Dashboard = () => {
           ) : activeDiscounts.length > 0 ? (
             <div className="space-y-3 md:space-y-4">
               {activeDiscounts.slice(0, 5).map((discount, index) => (
-                <div key={index} className="border-b pb-3 last:border-b-0 last:pb-0">
-                  <div className="flex justify-between items-center mb-1">
+                <div key={index} className="flex justify-between items-center">
+                  <div>
                     <p className="font-medium text-sm md:text-base">{discount.code || discount.name || 'Discount'}</p>
-                    <span className="text-purple-600 font-semibold text-sm md:text-base">
+                    <p className="text-xs md:text-sm text-gray-500">{discount.description || 'No description'}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-purple-600 font-semibold block text-sm md:text-base">
                       {discount.percentage || discount.value || 0}% off
                     </span>
+                    <span className="text-gray-500 text-xs block">
+                      Valid until: {formatDiscountDate(discount.validTo)}
+                    </span>
                   </div>
-                  <p className="text-xs md:text-sm text-gray-500 mb-1">{discount.description || 'No description'}</p>
-                  <div className="text-xs text-gray-500 mb-2">
-                    Valid until: {formatDiscountDate(discount.validTo)}
-                  </div>
-                  {discount.applicableProducts && discount.applicableProducts.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs font-medium text-gray-600 mb-1">Applicable Products:</p>
-                      <div className="space-y-1">
-                        {discount.applicableProducts.slice(0, 3).map((product, idx) => (
-                          <div key={idx} className="flex items-center text-xs">
-                            <span className="text-gray-700">• {product.name || product.productName || 'Product'}</span>
-                          </div>
-                        ))}
-                        {discount.applicableProducts.length > 3 && (
-                          <span className="text-xs text-gray-500">
-                            +{discount.applicableProducts.length - 3} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -920,16 +937,9 @@ const Dashboard = () => {
               {lowStockItems.slice(0, 5).map((item, index) => (
                 <div key={index} className="flex justify-between items-center">
                   <span className="font-medium text-sm md:text-base">{item.productName || item.name || 'Unknown Product'}</span>
-                  <div className="text-right">
-                    {item.lowStockThreshold && (
-                      <span className="text-red-600 font-semibold text-sm md:text-base block">
-                        Threshold: <span className="text-gray-700">{item.lowStockThreshold}</span>
-                      </span>
-                    )}
-                    <span className="text-gray-500 text-xs block">
-                      Stock: {item.quantityInStock || item.quantity_in_stock || 0}
-                    </span>
-                  </div>
+                  <span className="text-red-600 font-semibold">
+                    {item.quantityInStock || item.quantity_in_stock || 0} left
+                  </span>
                 </div>
               ))}
             </div>
@@ -969,6 +979,7 @@ const Dashboard = () => {
                   <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
                   <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
+                  <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profit</th>
                   <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                 </tr>
               </thead>
@@ -988,6 +999,9 @@ const Dashboard = () => {
                     </td>
                     <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-500">{formatKES(sale.subtotal)}</td>
                     <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-500">{formatKES(sale.discountAmount)}</td>
+                    <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-500">
+                      {formatKES(sale.profit || 0)}
+                    </td>
                     <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold text-green-600">{formatKES(sale.total)}</td>
                   </tr>
                 ))}

@@ -3,10 +3,10 @@ import { DatePicker, Table, Button, Statistic, message, Card, Row, Col } from 'a
 import { Download } from 'lucide-react';
 import dayjs from 'dayjs';
 import { getAllProducts } from '../../services/productServices';
-import { getAllCategories } from '../../services/categories'; // Updated import
+import { getAllCategories } from '../../services/categories';
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/api';
 
 const ProductPerformanceReport = () => {
   const [startDate, setStartDate] = useState(dayjs().subtract(1, 'month'));
@@ -129,16 +129,16 @@ const ProductPerformanceReport = () => {
     },
   ];
 
-  // Fetch categories from backend using the categories service
+  // Fetch categories from backend
   const fetchCategories = async () => {
     try {
-      const categoriesData = await getAllCategories(); // Updated to use getAllCategories
+      const categoriesData = await getAllCategories();
       setCategories(categoriesData);
-      return categoriesData; // Return the categories for use in other functions
+      return categoriesData;
     } catch (error) {
       console.error('Error fetching categories:', error);
       message.error('Failed to fetch categories');
-      return []; // Return empty array if there's an error
+      return [];
     }
   };
 
@@ -151,25 +151,28 @@ const ProductPerformanceReport = () => {
 
     setLoading(true);
     try {
-      // First fetch categories and products in parallel
-      const [categoriesData, products] = await Promise.all([
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      // Fetch data in parallel
+      const [categoriesData, products, salesResponse] = await Promise.all([
         fetchCategories(),
-        getAllProducts()
+        getAllProducts(),
+        axios.get(`${API_BASE_URL}/reports/products`, {
+          params: {
+            startDate: dayjs(startDate).format('YYYY-MM-DD'),
+            endDate: dayjs(endDate).format('YYYY-MM-DD')
+          },
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
       ]);
 
-      // Then fetch sales data for the period
-      const token = localStorage.getItem('token');
-      const params = {
-        startDate: dayjs(startDate).format('YYYY-MM-DD'),
-        endDate: dayjs(endDate).format('YYYY-MM-DD')
-      };
-
-      const salesResponse = await axios.get(`${API_BASE_URL}/reports/products`, {
-        params,
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      // Combine product data with sales data
+      // Process the data
       const processedData = products.map(product => {
         const salesData = salesResponse.data.find(item => item.productId === product.id) || {};
         
@@ -181,7 +184,6 @@ const ProductPerformanceReport = () => {
         const profit = revenue - cost;
         const profitMargin = (revenue > 0) ? (profit / revenue) * 100 : 0;
 
-        // Find category name from categories data
         const productCategory = categoriesData.find(cat => cat.id === product.category_id);
         const categoryName = productCategory ? productCategory.name : 'Uncategorized';
 
@@ -200,16 +202,24 @@ const ProductPerformanceReport = () => {
       });
 
       setData(processedData);
-      
-      // Calculate summary statistics
       calculateSummary(processedData);
-      
-      // Update category filters
       updateCategoryFilters(processedData);
       
     } catch (error) {
-      console.error('Error fetching product report:', error);
-      message.error('Failed to fetch product performance data');
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        config: error.config
+      });
+      
+      let errorMessage = 'Failed to fetch product performance data';
+      if (error.response?.data?.message) {
+        errorMessage += `: ${error.response.data.message}`;
+      } else if (error.message) {
+        errorMessage += `: ${error.message}`;
+      }
+      
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -220,7 +230,7 @@ const ProductPerformanceReport = () => {
     const totalRevenue = reportData.reduce((sum, item) => sum + (item.revenue || 0), 0);
     const totalCost = reportData.reduce((sum, item) => sum + (item.cost || 0), 0);
     const totalProfit = totalRevenue - totalCost;
-    const avgProfitMargin = totalProfit / (totalRevenue || 1) * 100;
+    const avgProfitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
     setSummaryData({
       totalProducts: reportData.length,
@@ -249,6 +259,10 @@ const ProductPerformanceReport = () => {
     setExportLoading(true);
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
       const response = await axios.post(
         `${API_BASE_URL}/reports/export`,
         {
@@ -266,7 +280,6 @@ const ProductPerformanceReport = () => {
         }
       );
 
-      // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -280,8 +293,8 @@ const ProductPerformanceReport = () => {
 
       message.success('Report exported successfully');
     } catch (error) {
-      console.error('Error exporting report:', error);
-      message.error('Failed to export report');
+      console.error('Export error:', error);
+      message.error(`Export failed: ${error.response?.data?.message || error.message}`);
     } finally {
       setExportLoading(false);
     }

@@ -100,7 +100,7 @@ const cartSlice = createSlice({
 export const fetchCart = () => async (dispatch) => {
   try {
     const token = localStorage.getItem('token');
-    const response = await fetch('https://inventorymanagementsystem-latest-37zl.onrender.com/api/cart', {
+    const response = await fetch('REACT_APP_API_BASE_URL/cart', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'

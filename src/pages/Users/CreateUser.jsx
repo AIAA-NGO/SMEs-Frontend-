@@ -22,7 +22,7 @@ const CreateUser = () => {
 
   // Configure axios instance
   const api = axios.create({
-    baseURL: process.env.REACT_APP_API_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com',
+    baseURL: process.env.REACT_APP_API_BASE_URL,
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`,
       'Content-Type': 'application/json'
@@ -33,7 +33,7 @@ const CreateUser = () => {
   useEffect(() => {
     const fetchRoles = async () => {
       try {
-        const response = await api.get('/api/users/roles');
+        const response = await api.get('/users/roles');
         setRoles(response.data);
       } catch (err) {
         console.error('Failed to fetch roles:', err);
@@ -49,7 +49,7 @@ const CreateUser = () => {
       if (formData.username.length < 3) return;
       
       try {
-        const response = await api.get('/api/users/check-username', {
+        const response = await api.get('/users/check-username', {
           params: { username: formData.username }
         });
         setUsernameAvailable(response.data.available);
@@ -103,7 +103,7 @@ const CreateUser = () => {
         active: formData.active
       };
 
-      await api.post('/api/users', payload);
+      await api.post('/users', payload);
       setSuccess(true);
       setTimeout(() => navigate('/users'), 1500);
     } catch (err) {

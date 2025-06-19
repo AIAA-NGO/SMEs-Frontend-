@@ -1,9 +1,13 @@
 import axios from "axios";
 
-const API_BASE_URL = "https://inventorymanagementsystem-latest-37zl.onrender.com/api/";
+// Use environment variable with fallback to local development URL
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
 // Request interceptor to add auth token
@@ -20,10 +24,23 @@ api.interceptors.request.use(
   }
 );
 
+// Response interceptor to handle errors globally
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Handle token expiration or unauthorized access
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Auth functions
 export const loginUser = async ({ username, password }) => {
   try {
-    const response = await api.post("auth/login", { username, password });
+    const response = await api.post("/auth/login", { username, password });
     return { data: response.data, error: null };
   } catch (error) {
     return handleApiError(error);
@@ -32,7 +49,7 @@ export const loginUser = async ({ username, password }) => {
 
 export const registerUser = async (userData) => {
   try {
-    const response = await api.post("auth/register", userData);
+    const response = await api.post("/auth/register", userData);
     return { data: response.data, error: null };
   } catch (error) {
     return handleApiError(error);
@@ -41,7 +58,7 @@ export const registerUser = async (userData) => {
 
 export const fetchCurrentUser = async () => {
   try {
-    const response = await api.get("auth/me");
+    const response = await api.get("/auth/me");
     return { data: response.data, error: null };
   } catch (error) {
     return handleApiError(error);
@@ -50,7 +67,7 @@ export const fetchCurrentUser = async () => {
 
 export const refreshToken = async () => {
   try {
-    const response = await api.post("auth/refresh-token");
+    const response = await api.post("/auth/refresh-token");
     return { data: response.data, error: null };
   } catch (error) {
     return handleApiError(error);
@@ -59,7 +76,8 @@ export const refreshToken = async () => {
 
 export const logoutUser = async () => {
   try {
-    await api.post("auth/logout");
+    await api.post("/auth/logout");
+    localStorage.removeItem("token");
     return { data: null, error: null };
   } catch (error) {
     return handleApiError(error);
@@ -69,7 +87,7 @@ export const logoutUser = async () => {
 // User functions
 export const getAllUsers = async () => {
   try {
-    const response = await api.get("users");
+    const response = await api.get("/users");
     return { data: response.data, error: null };
   } catch (error) {
     return handleApiError(error);
@@ -78,7 +96,7 @@ export const getAllUsers = async () => {
 
 export const getUserById = async (id) => {
   try {
-    const response = await api.get(`users/${id}`);
+    const response = await api.get(`/users/${id}`);
     return { data: response.data, error: null };
   } catch (error) {
     return handleApiError(error);
@@ -87,7 +105,7 @@ export const getUserById = async (id) => {
 
 export const createUser = async (userData) => {
   try {
-    const response = await api.post("users", userData);
+    const response = await api.post("/users", userData);
     return { data: response.data, error: null };
   } catch (error) {
     return handleApiError(error);
@@ -96,7 +114,7 @@ export const createUser = async (userData) => {
 
 export const updateUser = async (id, userData) => {
   try {
-    const response = await api.put(`users/${id}`, userData);
+    const response = await api.put(`/users/${id}`, userData);
     return { data: response.data, error: null };
   } catch (error) {
     return handleApiError(error);
@@ -105,7 +123,7 @@ export const updateUser = async (id, userData) => {
 
 export const deleteUser = async (id) => {
   try {
-    const response = await api.delete(`users/${id}`);
+    const response = await api.delete(`/users/${id}`);
     return { data: response.data, error: null };
   } catch (error) {
     return handleApiError(error);
@@ -114,7 +132,7 @@ export const deleteUser = async (id) => {
 
 export const changePassword = async (id, passwordData) => {
   try {
-    const response = await api.put(`users/${id}/password`, passwordData);
+    const response = await api.put(`/users/${id}/password`, passwordData);
     return { data: response.data, error: null };
   } catch (error) {
     return handleApiError(error);
@@ -126,7 +144,7 @@ export const uploadProfileImage = async (id, imageFile) => {
     const formData = new FormData();
     formData.append("file", imageFile);
     
-    const response = await api.post(`users/${id}/upload-profile`, formData, {
+    const response = await api.post(`/users/${id}/upload-profile`, formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
@@ -139,7 +157,7 @@ export const uploadProfileImage = async (id, imageFile) => {
 
 export const getAllRoles = async () => {
   try {
-    const response = await api.get("users/roles");
+    const response = await api.get("/users/roles");
     return { data: response.data, error: null };
   } catch (error) {
     return handleApiError(error);
@@ -157,16 +175,16 @@ const handleApiError = (error) => {
   } else if (error.request) {
     return {
       error: true,
-      message: "No response from server",
+      message: "No response from server - the server might be down",
       status: null,
     };
   } else {
     return {
       error: true,
-      message: error.message,
+      message: error.message || "Network error occurred",
       status: null,
     };
   }
 };
 
-export default api;
+export default api

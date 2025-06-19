@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   Form, 
   Button, 
@@ -11,58 +10,39 @@ import {
   Col, 
   InputNumber, 
   DatePicker,
-  Space,
   Typography,
   Divider,
+  Space,
   Statistic,
-  Modal,
-  Steps,
-  Tag,
-  Progress,
-  Badge,
-  Avatar,
-  ConfigProvider,
-  App,
-  version as antdVersion
+  ConfigProvider
 } from 'antd';
 import { createPurchase } from '../../services/purchaseService';
 import { getSuppliers } from '../../services/supplierService';
 import { getAllProducts } from '../../services/productServices';
-import { 
-  PlusOutlined, 
-  MinusOutlined, 
-  ArrowLeftOutlined,
-  ShopOutlined,
-  EyeOutlined
-} from '@ant-design/icons';
-
-console.log(`Using Ant Design version: ${antdVersion}`);
+import { PlusOutlined, MinusOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
-const { Step } = Steps;
 
 const CreatePurchase = () => {
   const [form] = Form.useForm();
-  const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const [totalAmount, setTotalAmount] = useState(0);
 
   useEffect(() => {
     fetchSuppliers();
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    const total = items.reduce((sum, item) => {
+      return sum + ((item.quantity || 0) * (item.unitPrice || 0));
+    }, 0);
+    setTotalAmount(total);
+  }, [items]);
 
   const fetchSuppliers = async () => {
     try {
@@ -100,32 +80,14 @@ const CreatePurchase = () => {
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
     newItems[index][field] = value;
-    
-    if (field === 'quantity' || field === 'unitPrice') {
-      newItems[index].totalPrice = 
-        (newItems[index].quantity || 0) * (newItems[index].unitPrice || 0);
-    }
-    
     setItems(newItems);
-  };
-
-  const calculateTotals = () => {
-    const subtotal = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
-    const taxRate = form.getFieldValue('taxRate') || 0;
-    const discount = form.getFieldValue('discount') || 0;
-    
-    const taxAmount = subtotal * (taxRate / 100);
-    const discountAmount = subtotal * (discount / 100);
-    const total = subtotal + taxAmount - discountAmount;
-    
-    return { subtotal, taxAmount, discountAmount, total };
   };
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-KE', {
       style: 'currency',
       currency: 'KES',
-      minimumFractionDigits: 0
+      minimumFractionDigits: 2
     }).format(value);
   };
 
@@ -146,17 +108,15 @@ const CreatePurchase = () => {
           quantity: item.quantity,
           unitPrice: item.unitPrice,
         })),
-        taxRate: values.taxRate || 0,
-        discount: values.discount || 0,
-        taxAmount: calculateTotals().taxAmount,
-        discountAmount: calculateTotals().discountAmount,
-        totalAmount: calculateTotals().total,
+        totalAmount: totalAmount
       };
       
       setLoading(true);
       await createPurchase(purchaseData);
-      message.success('Purchase order created successfully');
-      navigate('/purchases');
+      message.success('Purchase created successfully');
+      form.resetFields();
+      setItems([]);
+      setTotalAmount(0);
     } catch (error) {
       message.error(error.message || 'Failed to create purchase');
     } finally {
@@ -164,375 +124,192 @@ const CreatePurchase = () => {
     }
   };
 
-  const { subtotal, taxAmount, discountAmount, total } = calculateTotals();
-
-  const columns = [
-    {
-      title: 'Product',
-      dataIndex: 'productId',
-      render: (value, record, index) => (
-        <Select
-          placeholder="Select product"
-          value={value}
-          className="w-full"
-          onChange={(val) => handleItemChange(index, 'productId', val)}
-          showSearch
-          optionFilterProp="children"
-          dropdownMatchSelectWidth={false}
-        >
-          {products.map(product => (
-            <Option key={product.id} value={product.id}>
-              <Space>
-                <Avatar 
-                  src={product.image} 
-                  size="small"
-                  className="bg-gray-100 text-green-600"
-                >
-                  {product.name.charAt(0)}
-                </Avatar>
-                <span>
-                  {isMobile ? product.name.substring(0, 15) + (product.name.length > 15 ? '...' : '') : product.name}
-                  {!isMobile && (
-                    <Text type="secondary" className="text-xs ml-2">
-                      {product.sku || 'N/A'}
-                    </Text>
-                  )}
-                </span>
-              </Space>
-            </Option>
-          ))}
-        </Select>
-      ),
-    },
-    {
-      title: 'Qty',
-      dataIndex: 'quantity',
-      render: (value, record, index) => (
-        <InputNumber
-          min={1}
-          value={value}
-          onChange={(val) => handleItemChange(index, 'quantity', val)}
-          className="w-full"
-        />
-      ),
-    },
-    {
-      title: isMobile ? 'Price' : 'Unit Price',
-      dataIndex: 'unitPrice',
-      render: (value, record, index) => (
-        <InputNumber
-          min={0}
-          value={value}
-          onChange={(val) => handleItemChange(index, 'unitPrice', val)}
-          className="w-full"
-          formatter={value => `KSh ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-          parser={value => value.replace(/KSh\s?|(,*)/g, '')}
-        />
-      ),
-    },
-    {
-      title: 'Total',
-      dataIndex: 'totalPrice',
-      render: (value) => (
-        <Text strong className="text-green-600">
-          {value ? formatCurrency(value) : 'KSh 0'}
-        </Text>
-      ),
-    },
-    {
-      title: 'Action',
-      align: 'center',
-      render: (_, record, index) => (
-        <Button
-          danger
-          type="text"
-          icon={<MinusOutlined />}
-          onClick={() => handleRemoveItem(index)}
-          className="text-gray-600 hover:text-red-500"
-        />
-      ),
-    },
-  ];
-
   return (
     <ConfigProvider
       theme={{
         token: {
-          colorPrimary: '#10B981',
-          borderRadius: 4,
-          colorBgContainer: '#fff',
-        },
-        components: {
-          Button: {
-            colorPrimary: '#10B981',
-            algorithm: true,
-          },
-          Table: {
-            cellPaddingBlock: 8,
-            cellPaddingInline: 8,
-          },
+          colorPrimary: '#52c41a',
+          colorText: '#000000',
         },
       }}
     >
-      <App>
-        <div className="bg-gray-50 min-h-screen p-4">
-          <div className="max-w-full mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-2">
-              <Button 
-                type="text" 
-                icon={<ArrowLeftOutlined />} 
-                onClick={() => navigate('/purchases')}
-                className="text-gray-800 hover:text-green-600 px-0"
-              >
-                Back to Purchases
-              </Button>
-              <Button 
-                type="primary" 
-                icon={<EyeOutlined />}
-                onClick={() => navigate('/purchases/track')}
-                className="bg-green-600 hover:bg-green-700 border-green-600"
-              >
-                View Track Page
-              </Button>
-            </div>
-            
-            <Card className="w-full shadow-sm bg-white" bodyStyle={{ padding: isMobile ? 16 : 24 }}>
-              <div className="flex flex-col md:flex-row md:items-center gap-2 mb-2">
-                <ShopOutlined className="text-green-600 text-xl" />
-                <Title level={3} className="m-0 text-gray-800">
-                  New Purchase Order
-                </Title>
-              </div>
-              <Text type="secondary" className="block mb-4">
-                Fill in the supplier details and items to create a new purchase order
-              </Text>
-              
-              <Divider className="my-4 border-gray-200" />
-              
-              <Form form={form} layout="vertical">
-                <Card 
-                  className="w-full mb-4 bg-gray-50 border-0 border-l-4 border-green-600"
-                  bodyStyle={{ padding: isMobile ? 12 : 16 }}
+      <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+        <Title level={2}>Create New Purchase</Title>
+        
+        <Card>
+          <Form form={form} layout="vertical">
+            <Row gutter={24}>
+              <Col span={12}>
+                <Form.Item
+                  name="supplierId"
+                  label="Supplier"
+                  rules={[{ required: true, message: 'Please select a supplier' }]}
                 >
-                  <Row gutter={[8, 8]}>
-                    <Col xs={24} md={12}>
-                      <Form.Item
-                        name="supplierId"
-                        label={<Text strong className="text-gray-800">Supplier</Text>}
-                        rules={[{ required: true, message: 'Please select a supplier' }]}
-                      >
-                        <Select 
-                          placeholder="Select supplier" 
-                          showSearch 
-                          optionFilterProp="children"
-                          size={isMobile ? 'middle' : 'large'}
-                          className="w-full"
-                        >
-                          {suppliers.map(supplier => (
-                            <Option key={supplier.id} value={supplier.id}>
-                              <Space>
-                                <Avatar 
-                                  src={supplier.logo} 
-                                  size="small"
-                                  className="bg-gray-100 text-green-600"
-                                >
-                                  {supplier.companyName.charAt(0)}
-                                </Avatar>
-                                <span>{supplier.companyName}</span>
-                              </Space>
-                            </Option>
-                          ))}
-                        </Select>
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} md={12}>
-                      <Form.Item
-                        name="orderDate"
-                        label={<Text strong className="text-gray-800">Order Date</Text>}
-                        rules={[{ required: true, message: 'Please select order date' }]}
-                      >
-                        <DatePicker 
-                          showTime 
-                          format="YYYY-MM-DD HH:mm" 
-                          className="w-full" 
-                          size={isMobile ? 'middle' : 'large'}
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                </Card>
-
-                <Card 
-                  title={<Text strong className="text-gray-800">Order Items</Text>} 
-                  className="w-full mb-4"
-                  bodyStyle={{ padding: isMobile ? 0 : 16 }}
-                  extra={
-                    <Button
-                      type="primary"
-                      onClick={handleAddItem}
-                      icon={<PlusOutlined />}
-                      size={isMobile ? 'middle' : 'large'}
-                      className="bg-green-600 hover:bg-green-700 border-green-600"
-                    >
-                      {isMobile ? 'Add' : 'Add Item'}
-                    </Button>
-                  }
+                  <Select 
+                    placeholder="Select supplier" 
+                    showSearch 
+                    optionFilterProp="children"
+                    style={{ width: '100%' }}
+                  >
+                    {suppliers.map(supplier => (
+                      <Option key={supplier.id} value={supplier.id}>
+                        {supplier.companyName}
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="orderDate"
+                  label="Order Date"
+                  rules={[{ required: true, message: 'Please select order date' }]}
                 >
-                  <Table
-                    dataSource={items}
-                    rowKey={(record) => record.id}
-                    pagination={false}
-                    scroll={{ x: true }}
-                    columns={columns}
-                    locale={{
-                      emptyText: (
-                        <div className="p-4 text-center">
-                          <Text type="secondary">No items added yet. Click "Add Item" to start.</Text>
-                        </div>
-                      )
-                    }}
-                    className="responsive-table"
-                    size={isMobile ? 'middle' : 'default'}
+                  <DatePicker 
+                    showTime 
+                    format="YYYY-MM-DD HH:mm" 
+                    style={{ width: '100%' }} 
                   />
-                </Card>
+                </Form.Item>
+              </Col>
+            </Row>
 
-                <Row gutter={[8, 8]}>
-                  <Col xs={24} md={12}>
-                    <Card 
-                      title={<Text strong className="text-gray-800">Order Adjustments</Text>} 
-                      className="w-full mb-2 md:mb-0"
-                      bodyStyle={{ padding: isMobile ? 12 : 16 }}
+            <Divider orientation="left">Items</Divider>
+            
+            <Table
+              dataSource={items}
+              rowKey="id"
+              pagination={false}
+              columns={[
+                {
+                  title: 'Product',
+                  dataIndex: 'productId',
+                  render: (value, _, index) => (
+                    <Select
+                      placeholder="Select product"
+                      value={value}
+                      style={{ width: '100%' }}
+                      onChange={(val) => handleItemChange(index, 'productId', val)}
+                      showSearch
+                      optionFilterProp="children"
                     >
-                      <Row gutter={8}>
-                        <Col xs={24} sm={12}>
-                          <Form.Item 
-                            name="taxRate" 
-                            label={<Text strong>Tax Rate (%)</Text>}
-                            initialValue={16}
-                          >
-                            <InputNumber 
-                              min={0} 
-                              max={100} 
-                              className="w-full" 
-                              size={isMobile ? 'middle' : 'large'}
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={12}>
-                          <Form.Item 
-                            name="discount" 
-                            label={<Text strong>Discount (%)</Text>}
-                            initialValue={0}
-                          >
-                            <InputNumber 
-                              min={0} 
-                              max={100} 
-                              className="w-full" 
-                              size={isMobile ? 'middle' : 'large'}
-                            />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    </Card>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Card 
-                      title={<Text strong className="text-gray-800">Order Summary</Text>} 
-                      className="w-full"
-                      bodyStyle={{ padding: isMobile ? 12 : 16 }}
-                    >
-                      <Space direction="vertical" className="w-full">
-                        <Row justify="space-between">
-                          <Col><Text>Subtotal:</Text></Col>
-                          <Col><Text>{formatCurrency(subtotal)}</Text></Col>
-                        </Row>
-                        <Row justify="space-between">
-                          <Col><Text>Tax ({form.getFieldValue('taxRate') || 0}%):</Text></Col>
-                          <Col><Text>{formatCurrency(taxAmount)}</Text></Col>
-                        </Row>
-                        <Row justify="space-between">
-                          <Col><Text>Discount ({form.getFieldValue('discount') || 0}%):</Text></Col>
-                          <Col><Text>-{formatCurrency(discountAmount)}</Text></Col>
-                        </Row>
-                        <Divider className="my-2 border-gray-200" />
-                        <Row justify="space-between">
-                          <Col><Text strong className="text-base">Total Amount:</Text></Col>
-                          <Col>
-                            <Statistic 
-                              value={total} 
-                              prefix="KSh" 
-                              valueStyle={{ 
-                                fontSize: isMobile ? '16px' : '20px',
-                                fontWeight: 'bold',
-                                color: '#10B981'
-                              }}
-                              precision={0}
-                            />
-                          </Col>
-                        </Row>
-                      </Space>
-                    </Card>
-                  </Col>
-                </Row>
+                      {products.map(product => (
+                        <Option key={product.id} value={product.id}>
+                          {product.name}
+                        </Option>
+                      ))}
+                    </Select>
+                  ),
+                  align: 'center'
+                },
+                {
+                  title: 'Quantity',
+                  dataIndex: 'quantity',
+                  render: (value, _, index) => (
+                    <InputNumber
+                      min={1}
+                      value={value}
+                      onChange={(val) => handleItemChange(index, 'quantity', val)}
+                      style={{ width: '100%' }}
+                    />
+                  ),
+                  width: '15%'
+                },
+                {
+                  title: 'Unit Price (KSH)',
+                  dataIndex: 'unitPrice',
+                  render: (value, _, index) => (
+                    <InputNumber
+                      min={0}
+                      value={value}
+                      onChange={(val) => handleItemChange(index, 'unitPrice', val)}
+                      style={{ width: '100%' }}
+                      formatter={value => `KSh ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={value => value.replace(/KSh\s?|(,*)/g, '')}
+                    />
+                  ),
+                  width: '20%'
+                },
+                {
+                  title: 'Total (KSH)',
+                  render: (_, record) => (
+                    <Text>{formatCurrency((record.quantity || 0) * (record.unitPrice || 0))}</Text>
+                  ),
+                  align: 'right',
+                  width: '20%'
+                },
+                {
+                  title: 'Action',
+                  render: (_, __, index) => (
+                    <Button
+                      danger
+                      type="text"
+                      icon={<MinusOutlined />}
+                      onClick={() => handleRemoveItem(index)}
+                    />
+                  ),
+                  width: '10%'
+                },
+              ]}
+              footer={() => (
+                <Button
+                  type="dashed"
+                  onClick={handleAddItem}
+                  icon={<PlusOutlined />}
+                  block
+                >
+                  Add Item
+                </Button>
+              )}
+              locale={{
+                emptyText: 'No items added yet'
+              }}
+              style={{ width: '100%' }}
+            />
 
-                <div className="mt-6 text-right">
-                  <Space>
-                    <Button 
-                      size={isMobile ? 'middle' : 'large'}
-                      onClick={() => navigate('/purchases')}
-                      className="w-24 md:w-32"
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      type="primary" 
-                      size={isMobile ? 'middle' : 'large'}
-                      onClick={handleSubmit} 
-                      loading={loading}
-                      className="w-32 md:w-40 bg-green-600 hover:bg-green-700 border-green-600"
-                    >
-                      Submit Order
-                    </Button>
-                  </Space>
-                </div>
-              </Form>
-            </Card>
-          </div>
-        </div>
+            <Divider />
 
-        <style jsx global>{`
-          @media (max-width: 767px) {
-            .ant-table-thead > tr > th,
-            .ant-table-tbody > tr > td {
-              padding: 8px !important;
-            }
-            
-            .ant-table-cell {
-              font-size: 12px;
-            }
-            
-            .ant-select-single:not(.ant-select-customize-input) .ant-select-selector {
-              height: 32px;
-            }
-            
-            .ant-input-number-input {
-              height: 32px;
-            }
-            
-            .ant-card-head-title {
-              padding: 8px 0;
-            }
-            
-            .ant-card-body {
-              padding: 12px;
-            }
-          }
-          
-          .responsive-table .ant-table-container {
-            overflow-x: auto;
-          }
-        `}</style>
-      </App>
+            <div style={{ 
+              backgroundColor: '#fafafa',
+              padding: '16px',
+              borderRadius: '4px',
+              margin: '16px 0',
+              textAlign: 'right'
+            }}>
+              <Statistic 
+                title="Total Amount" 
+                value={totalAmount} 
+                precision={2}
+                valueStyle={{ fontSize: '24px', fontWeight: 'bold' }}
+                prefix="KSh"
+                formatter={value => new Intl.NumberFormat('en-KE').format(value)}
+              />
+            </div>
+
+            <div style={{ marginTop: 24, textAlign: 'right' }}>
+              <Space>
+                <Button onClick={() => { form.resetFields(); setItems([]); setTotalAmount(0); }}>
+                  Reset
+                </Button>
+                <Button 
+                  type="primary" 
+                  onClick={handleSubmit} 
+                  loading={loading}
+                  style={{ 
+                    backgroundColor: '#52c41a',
+                    borderColor: '#52c41a',
+                    color: '#000000',
+                    fontWeight: 'bold',
+                    width: '150px'
+                  }}
+                >
+                  Make Purchase
+                </Button>
+              </Space>
+            </div>
+          </Form>
+        </Card>
+      </div>
     </ConfigProvider>
   );
 };

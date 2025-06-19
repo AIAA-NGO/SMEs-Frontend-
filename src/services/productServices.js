@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://inventorymanagementsystem-latest-37zl.onrender.com/api",
+  baseURL: process.env.REACT_APP_API_BASE_URL,
   // Removed default Content-Type header since we'll set it per request
 });
 
