@@ -114,7 +114,7 @@ const Cart = () => {
   const checkPaymentStatus = async (requestId) => {
     try {
       const response = await fetch(
-        `https://http://localhost:8080/mpesa/payment-status?checkout_id=${requestId}`,
+        `https://https://inventorymanagementsystem-latest-37zl.onrender.com/mpesa/payment-status?checkout_id=${requestId}`,
         { headers: getAuthHeader() }
       );
 
@@ -196,7 +196,7 @@ const Cart = () => {
         transactionDesc: `Payment for ${selectedCustomer?.name || 'guest'}`
       };
 
-      const response = await fetch('https://http://localhost:8080/mpesa/stkpush/initiate', {
+      const response = await fetch('https://https://inventorymanagementsystem-latest-37zl.onrender.com/mpesa/stkpush/initiate', {
         method: 'POST',
         headers: getAuthHeader(),
         body: JSON.stringify(mpesaRequest)
