@@ -196,7 +196,7 @@ const Cart = () => {
         transactionDesc: `Payment for ${selectedCustomer?.name || 'guest'}`
       };
 
-      const response = await fetch('https://https://inventorymanagementsystem-latest-37zl.onrender.com/mpesa/stkpush/initiate', {
+      const response = await fetch('https://inventorymanagementsystem-latest-37zl.onrender.com/mpesa/stkpush/initiate', {
         method: 'POST',
         headers: getAuthHeader(),
         body: JSON.stringify(mpesaRequest)
