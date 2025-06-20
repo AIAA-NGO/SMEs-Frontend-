@@ -5,7 +5,7 @@ import { InventoryService } from '../../services/InventoryService';
 import { getAllProducts } from '../../services/productServices';
 import { getAllCategories } from '../../services/categories';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com';
 
 const InventoryValuationReport = () => {
   const [data, setData] = useState([]);

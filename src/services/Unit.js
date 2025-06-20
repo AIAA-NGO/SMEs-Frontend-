@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Use environment variable with fallback to local development URL
-const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://https://inventorymanagementsystem-latest-37zl.onrender.com';
+const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://http://localhost:8080';
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
