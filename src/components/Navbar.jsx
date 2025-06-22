@@ -1,20 +1,26 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
 import { FaShoppingCart, FaUser, FaChevronDown, FaSignOutAlt } from "react-icons/fa";
-import { setCart } from "../features/cartSlice";
-import { logout, setCredentials } from "../features/auth/authSlice";
+import { logout } from "../features/auth/authSlice";
 import { fetchCurrentUser, logoutUser } from "../services/api";
 
 const Navbar = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const dispatch = useDispatch();
-  const cartItems = useSelector((state) => state.cart.items);
-  const { user, token, isAuthenticated } = useSelector((state) => state.auth);
   const [cartItemCount, setCartItemCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Get cart count from session storage
+  const getCartItemCount = () => {
+    const cartData = sessionStorage.getItem('cart');
+    if (cartData) {
+      const cart = JSON.parse(cartData);
+      return cart.items.reduce((total, item) => total + (item.quantity || 1), 0);
+    }
+    return 0;
+  };
 
   // Check for existing auth state on initial load
   useEffect(() => {
@@ -24,22 +30,16 @@ const Navbar = () => {
       const storedRole = localStorage.getItem("userRole");
 
       if (storedToken && storedUser) {
-        dispatch(setCredentials({
-          user: {
-            username: storedUser,
-            role: storedRole
-          },
-          token: storedToken
-        }));
+        setIsAuthenticated(true);
       }
     };
     checkAuthState();
-  }, [dispatch]);
+  }, []);
 
   // Fetch user data if authenticated
   useEffect(() => {
     const getUserData = async () => {
-      if (isAuthenticated && token) {
+      if (isAuthenticated) {
         try {
           const { data, error } = await fetchCurrentUser();
           if (data && !error) {
@@ -51,13 +51,24 @@ const Navbar = () => {
       }
     };
     getUserData();
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated]);
 
-  // Update cart count
+  // Update cart count when cart changes
   useEffect(() => {
-    const count = cartItems.reduce((total, item) => total + (item.quantity || 1), 0);
-    setCartItemCount(count);
-  }, [cartItems]);
+    const handleStorageChange = () => {
+      setCartItemCount(getCartItemCount());
+    };
+
+    // Listen for changes to session storage
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Initial count
+    setCartItemCount(getCartItemCount());
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -67,8 +78,8 @@ const Navbar = () => {
       localStorage.removeItem("userRole");
       localStorage.removeItem("userName");
       
-      dispatch(logout());
-      navigate("/signin");  // Changed from "/login" to "/signin" to match your signin page route
+      setIsAuthenticated(false);
+      navigate("/signin");
       setShowDropdown(false);
     } catch (error) {
       console.error("Logout failed:", error);
@@ -115,9 +126,9 @@ const Navbar = () => {
                 )}
               </div>
               
-              {(currentUser || user) && (
+              {(currentUser || localStorage.getItem("userName")) && (
                 <span className="text-sm font-medium text-gray-700 hidden sm:inline">
-                  {currentUser?.username || user?.username || localStorage.getItem("userName")}
+                  {currentUser?.username || localStorage.getItem("userName")}
                 </span>
               )}
               

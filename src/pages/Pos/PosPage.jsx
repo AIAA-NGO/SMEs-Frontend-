@@ -1,9 +1,34 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { addToCart } from '../../features/cartSlice';
+import { Link } from 'react-router-dom';
 import { getAllProducts, getCategories, getProductImage } from '../../services/productServices';
 import { FiShoppingCart, FiRefreshCw, FiAlertCircle, FiSearch, FiPlus, FiMinus } from 'react-icons/fi';
 import { BsCartPlus, BsStarFill, BsStarHalf, BsStar } from 'react-icons/bs';
+
+// Helper functions for session storage
+const getCartFromSession = () => {
+  const cartData = sessionStorage.getItem('cart');
+  return cartData ? JSON.parse(cartData) : {
+    items: [],
+    subtotal: 0,
+    discountAmount: 0,
+    taxAmount: 0,
+    total: 0
+  };
+};
+
+const saveCartToSession = (cart) => {
+  sessionStorage.setItem('cart', JSON.stringify(cart));
+};
+
+const calculateCartTotals = (items) => {
+  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const discountAmount = items.reduce((sum, item) => sum + ((item.discount || 0) * item.quantity), 0);
+  const taxableAmount = subtotal - discountAmount;
+  const taxAmount = taxableAmount * 0.16; // Assuming 16% tax rate
+  const total = taxableAmount + taxAmount;
+  
+  return { subtotal, discountAmount, taxAmount, total };
+};
 
 const ProductCard = ({ product, onAddToCart, cartQuantity }) => {
   const [imageUrl, setImageUrl] = useState('');
@@ -306,9 +331,14 @@ export default function PosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [cart, setCart] = useState(getCartFromSession());
 
-  const dispatch = useDispatch();
-  const cartItems = useSelector((state) => state.cart.items);
+  // Update session storage whenever cart changes
+  useEffect(() => {
+    saveCartToSession(cart);
+    // Dispatch a storage event to notify other components
+    window.dispatchEvent(new Event('storage'));
+  }, [cart]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -344,36 +374,43 @@ export default function PosPage() {
 
   const handleAddToCart = (product, quantity = 1) => {
     const productStock = product.quantity_in_stock || 0;
-    const existingItem = cartItems.find(item => item.id === product.id);
+    const existingItem = cart.items.find(item => item.id === product.id);
 
     if (productStock < 1) return;
 
+    let updatedItems;
     if (existingItem) {
       if (existingItem.quantity + quantity > productStock) {
         return;
       }
-      dispatch(addToCart({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        quantity: quantity,
-        imageUrl: product.hasImage ? `/api/products/${product.id}/image` : null,
-        stock: product.quantity_in_stock,
-        sku: product.sku || '',
-        barcode: product.barcode || ''
-      }));
+      updatedItems = cart.items.map(item => 
+        item.id === product.id 
+          ? { ...item, quantity: item.quantity + quantity }
+          : item
+      );
     } else {
-      dispatch(addToCart({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        quantity: quantity,
-        imageUrl: product.hasImage ? `/api/products/${product.id}/image` : null,
-        stock: product.quantity_in_stock,
-        sku: product.sku || '',
-        barcode: product.barcode || ''
-      }));
+      updatedItems = [
+        ...cart.items,
+        {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          quantity: quantity,
+          imageUrl: product.hasImage ? `/api/products/${product.id}/image` : null,
+          stock: product.quantity_in_stock,
+          sku: product.sku || '',
+          barcode: product.barcode || '',
+          discount: 0
+        }
+      ];
     }
+
+    const newCart = {
+      items: updatedItems,
+      ...calculateCartTotals(updatedItems)
+    };
+
+    setCart(newCart);
   };
 
   const filteredProducts = products.filter(product => {
@@ -425,7 +462,7 @@ export default function PosPage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {filteredProducts.map((product) => {
-              const cartItem = cartItems.find(item => item.id === product.id);
+              const cartItem = cart.items.find(item => item.id === product.id);
               const cartQuantity = cartItem ? cartItem.quantity : 0;
               
               return (

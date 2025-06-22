@@ -1,14 +1,33 @@
 import React, { useEffect, useState } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
 import { Link } from 'react-router-dom';
-import { 
-  removeFromCart, 
-  updateCartItem,
-  clearCart,
-  applyDiscount
-} from '../../features/cartSlice';
 import { printReceipt } from '../../components/utils/printUtils';
 import { FaMoneyBillWave, FaCreditCard, FaMobileAlt, FaUniversity } from 'react-icons/fa';
+
+// Helper functions for session storage
+const getCartFromSession = () => {
+  const cartData = sessionStorage.getItem('cart');
+  return cartData ? JSON.parse(cartData) : {
+    items: [],
+    subtotal: 0,
+    discountAmount: 0,
+    taxAmount: 0,
+    total: 0
+  };
+};
+
+const saveCartToSession = (cart) => {
+  sessionStorage.setItem('cart', JSON.stringify(cart));
+};
+
+const calculateCartTotals = (items) => {
+  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const discountAmount = items.reduce((sum, item) => sum + ((item.discount || 0) * item.quantity), 0);
+  const taxableAmount = subtotal - discountAmount;
+  const taxAmount = taxableAmount * 0.16; // Assuming 16% tax rate
+  const total = taxableAmount + taxAmount;
+  
+  return { subtotal, discountAmount, taxAmount, total };
+};
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');
@@ -19,9 +38,7 @@ const getAuthHeader = () => {
 };
 
 const Cart = () => {
-  const dispatch = useDispatch();
-  const cartItems = useSelector(state => state.cart.items);
-  const { subtotal, discountAmount, taxAmount, total } = useSelector(state => state.cart);
+  const [cart, setCart] = useState(getCartFromSession());
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
@@ -36,6 +53,11 @@ const Cart = () => {
   const [mpesaReceiptNumber, setMpesaReceiptNumber] = useState(null);
   const [pollingInterval, setPollingInterval] = useState(null);
   const [lastStatusCheck, setLastStatusCheck] = useState(null);
+
+  // Update session storage whenever cart changes
+  useEffect(() => {
+    saveCartToSession(cart);
+  }, [cart]);
 
   // Cleanup polling interval on unmount
   useEffect(() => {
@@ -82,23 +104,42 @@ const Cart = () => {
       return;
     }
     
-    const item = cartItems.find(item => item.id === id);
+    const updatedItems = cart.items.map(item => {
+      if (item.id === id) {
+        return { ...item, quantity: newQuantity };
+      }
+      return item;
+    });
+    
+    const item = cart.items.find(item => item.id === id);
     if (!item) return;
     
-    dispatch(updateCartItem({ 
-      id,
-      quantity: newQuantity,
-      name: item.name,
-      price: item.price,
-      imageUrl: item.imageUrl,
-      stock: item.stock,
-      sku: item.sku,
-      discount: item.discount // Include discount if it exists
-    }));
+    const newCart = {
+      ...cart,
+      items: updatedItems,
+      ...calculateCartTotals(updatedItems)
+    };
+    
+    setCart(newCart);
   };
 
   const handleRemoveItem = (id) => {
-    dispatch(removeFromCart(id));
+    const updatedItems = cart.items.filter(item => item.id !== id);
+    setCart({
+      ...cart,
+      items: updatedItems,
+      ...calculateCartTotals(updatedItems)
+    });
+  };
+
+  const handleClearCart = () => {
+    setCart({
+      items: [],
+      subtotal: 0,
+      discountAmount: 0,
+      taxAmount: 0,
+      total: 0
+    });
   };
 
   const formatPhoneNumber = (phone) => {
@@ -114,7 +155,7 @@ const Cart = () => {
   const checkPaymentStatus = async (requestId) => {
     try {
       const response = await fetch(
-        `https://https://inventorymanagementsystem-latest-37zl.onrender.com/mpesa/payment-status?checkout_id=${requestId}`,
+        `https://inventorymanagementsystem-latest-37zl.onrender.com/mpesa/payment-status?checkout_id=${requestId}`,
         { headers: getAuthHeader() }
       );
 
@@ -184,7 +225,7 @@ const Cart = () => {
         throw new Error('Invalid phone number format. Use 07XXXXXXXX or 2547XXXXXXXX');
       }
 
-      const amount = Math.round(total || 0);
+      const amount = Math.round(cart.total || 0);
       if (amount <= 0) {
         throw new Error('Invalid payment amount');
       }
@@ -252,7 +293,7 @@ const Cart = () => {
       return;
     }
 
-    if (cartItems.length === 0) {
+    if (cart.items.length === 0) {
       alert('Cart is empty');
       return;
     }
@@ -283,7 +324,7 @@ const Cart = () => {
         paymentMethod: paymentMethod,
         mpesaNumber: paymentMethod === 'MPESA' ? formatPhoneNumber(mpesaNumber) : null,
         mpesaTransactionId: paymentMethod === 'MPESA' ? checkoutRequestId : null,
-        items: cartItems.map(item => ({
+        items: cart.items.map(item => ({
           productId: item.id,
           quantity: item.quantity,
           price: item.price,
@@ -316,13 +357,13 @@ const Cart = () => {
         console.error("Failed to print receipt:", printError);
       }
       
-      dispatch(clearCart());
+      handleClearCart();
       
       alert(
         `Order #${sale?.id || 'N/A'} completed successfully!\n\n` +
         `Payment Method: ${paymentMethod}\n` +
         `${paymentMethod === 'MPESA' ? 'M-Pesa Transaction ID: ' + (checkoutRequestId || 'N/A') : ''}\n` +
-        `Total Amount: Ksh ${(total || 0).toFixed(2)}`
+        `Total Amount: Ksh ${(cart.total || 0).toFixed(2)}`
       );
       
       resetPaymentState();
@@ -347,7 +388,7 @@ const Cart = () => {
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Your Shopping Cart</h1>
       
-      {cartItems.length === 0 ? (
+      {cart.items.length === 0 ? (
         <div className="text-center py-12">
           <h2 className="text-2xl font-medium mb-4">Your cart is empty</h2>
           <Link 
@@ -400,66 +441,48 @@ const Cart = () => {
             <div className="lg:col-span-2">
               <div className="bg-white rounded-lg shadow overflow-hidden">
                 <div className="divide-y divide-gray-200">
-                  {cartItems.map((item) => (
-                    <div key={item.id} className="p-4 flex">
-                      {item.imageUrl && (
-                        <div className="flex-shrink-0">
-                          <img 
-                            src={item.imageUrl} 
-                            alt={item.name}
-                            className="h-20 w-20 object-cover rounded"
-                          />
-                        </div>
+                  {cart.items.map((item) => (
+                    <div key={item.id} className="p-4">
+                      <div className="flex justify-between">
+                        <h3 className="text-lg font-medium">
+                          {item.name || 'Product'}
+                        </h3>
+                        <p className="ml-4">
+                          Unit Price: Ksh {item.price ? item.price.toFixed(2) : '0.00'}
+                        </p>
+                      </div>
+                      {item.discount > 0 && (
+                        <p className="text-green-600">
+                          Discount: Ksh {item.discount.toFixed(2)}
+                        </p>
                       )}
-                      <div className="ml-4 flex-1 flex flex-col">
-                        <div className="flex justify-between">
-                          <h3 className="text-lg font-medium">
-                            {item.name || 'Product'}
-                          </h3>
-                          <p className="ml-4 font-bold">
-                            Ksh {((item.price - (item.discount || 0)) * item.quantity).toFixed(2)}
-                          </p>
-                        </div>
+                      <div className="flex justify-between items-center mt-2">
                         <div className="flex items-center">
-                          <p className="text-gray-600">
-                            Unit Price: Ksh {item.price ? item.price.toFixed(2) : '0.00'}
-                          </p>
-                          {item.discount > 0 && (
-                            <span className="ml-2 text-green-600">
-                              (Discount: Ksh {item.discount.toFixed(2)})
-                            </span>
-                          )}
-                        </div>
-                        {item.sku && (
-                          <p className="text-gray-500 text-xs">SKU: {item.sku}</p>
-                        )}
-                        
-                        <div className="flex-1 flex items-end justify-between mt-2">
-                          <div className="flex items-center">
-                            <button
-                              onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                              className="px-3 py-1 border rounded-l-md bg-gray-100 hover:bg-gray-200"
-                            >
-                              -
-                            </button>
-                            <span className="px-4 py-1 border-t border-b text-center">
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                              className="px-3 py-1 border rounded-r-md bg-gray-100 hover:bg-gray-200"
-                            >
-                              +
-                            </button>
-                          </div>
-                          
                           <button
-                            onClick={() => handleRemoveItem(item.id)}
-                            className="text-red-500 hover:text-red-700"
+                            onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
+                            className="px-3 py-1 border rounded-l-md bg-gray-100 hover:bg-gray-200"
                           >
-                            Remove
+                            -
+                          </button>
+                          <span className="px-4 py-1 border-t border-b text-center">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                            className="px-3 py-1 border rounded-r-md bg-gray-100 hover:bg-gray-200"
+                          >
+                            +
                           </button>
                         </div>
+                        <p className="font-bold">
+                          Ksh {((item.price - (item.discount || 0)) * item.quantity).toFixed(2)}
+                        </p>
+                        <button
+                          onClick={() => handleRemoveItem(item.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          Remove
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -536,21 +559,21 @@ const Cart = () => {
                 <div className="space-y-3 mb-6">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subtotal:</span>
-                    <span>Ksh {subtotal.toFixed(2)}</span>
+                    <span>Ksh {cart.subtotal.toFixed(2)}</span>
                   </div>
-                  {discountAmount > 0 && (
+                  {cart.discountAmount > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Discount:</span>
-                      <span>-Ksh {discountAmount.toFixed(2)}</span>
+                      <span>-Ksh {cart.discountAmount.toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tax (16%):</span>
-                    <span>Ksh {taxAmount.toFixed(2)}</span>
+                    <span>Ksh {cart.taxAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-lg pt-3 border-t">
                     <span>Total:</span>
-                    <span>Ksh {total.toFixed(2)}</span>
+                    <span>Ksh {cart.total.toFixed(2)}</span>
                   </div>
                 </div>
                 
@@ -572,7 +595,7 @@ const Cart = () => {
                 )}
                 
                 <button
-                  onClick={() => dispatch(clearCart())}
+                  onClick={handleClearCart}
                   className="w-full mb-4 bg-gray-200 text-gray-800 py-3 px-4 rounded-md hover:bg-gray-300 transition duration-150 ease-in-out"
                 >
                   Clear Cart

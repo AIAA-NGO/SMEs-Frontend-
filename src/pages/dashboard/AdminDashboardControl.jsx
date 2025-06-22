@@ -12,7 +12,7 @@ import {
   Legend,
   Filler
 } from "chart.js";
-import { FaBell, FaSearch, FaBoxes, FaExclamationTriangle, FaHistory, FaCalendarAlt, FaTag } from "react-icons/fa";
+import { FaBoxes, FaExclamationTriangle, FaHistory, FaCalendarAlt, FaTag } from "react-icons/fa";
 import { FiTrendingUp } from "react-icons/fi";
 import { getSales } from '../../services/salesService';
 import { InventoryService } from '../../services/InventoryService';
@@ -613,24 +613,13 @@ const Dashboard = () => {
 
   return (
     <div className="p-4 md:p-6">
-      {/* Top Bar with Greeting and Search - Responsive */}
+      {/* Top Bar with Greeting - Responsive */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
         <div>
           <h1 className="text-xl md:text-2xl font-bold">
             {getTimeOfDay()}, {userName} 👋
           </h1>
           <p className="text-gray-600 text-sm md:text-base">Track your sales and performance here!</p>
-        </div>
-        <div className="flex items-center w-full md:w-auto gap-3">
-          <div className="relative flex-grow md:flex-grow-0">
-            <input
-              type="text"
-              placeholder="Search..."
-              className="pl-10 pr-4 py-2 border rounded-lg shadow-sm focus:outline-none w-full md:w-64"
-            />
-            <FaSearch className="absolute left-3 top-2.5 text-gray-500" />
-          </div>
-          <FaBell className="text-xl text-gray-600 cursor-pointer" />
         </div>
       </div>
 
