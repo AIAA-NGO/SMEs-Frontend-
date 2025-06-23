@@ -8,10 +8,6 @@ const getAuthHeader = () => {
   };
 };
 
-/**
- * Fetch all purchases
- * @returns {Promise<Array>} - Array of purchases
- */
 export const getAllPurchases = async () => {
   try {
     const response = await fetch(API_BASE_URL, {
@@ -30,11 +26,6 @@ export const getAllPurchases = async () => {
   }
 };
 
-/**
- * Create new purchase
- * @param {Object} purchaseData - Purchase data
- * @returns {Promise<Object>} - Created purchase
- */
 export const createPurchase = async (purchaseData) => {
   try {
     const response = await fetch(API_BASE_URL, {
@@ -55,11 +46,6 @@ export const createPurchase = async (purchaseData) => {
   }
 };
 
-/**
- * Get purchase by ID
- * @param {number|string} id - Purchase ID
- * @returns {Promise<Object>} - Purchase details
- */
 export const getPurchaseById = async (id) => {
   try {
     const response = await fetch(`${API_BASE_URL}/${id}`, {
@@ -78,11 +64,6 @@ export const getPurchaseById = async (id) => {
   }
 };
 
-/**
- * Mark purchase as received
- * @param {number|string} id - Purchase ID
- * @returns {Promise<Object>} - Updated purchase
- */
 export const receivePurchase = async (id) => {
   try {
     const response = await fetch(`${API_BASE_URL}/${id}/receive`, {
@@ -102,11 +83,6 @@ export const receivePurchase = async (id) => {
   }
 };
 
-/**
- * Delete purchase
- * @param {number|string} id - Purchase ID
- * @returns {Promise<void>}
- */
 export const deletePurchase = async (id) => {
   try {
     const response = await fetch(`${API_BASE_URL}/${id}`, {
@@ -124,12 +100,6 @@ export const deletePurchase = async (id) => {
   }
 };
 
-/**
- * Update purchase
- * @param {number|string} id - Purchase ID
- * @param {Object} purchaseData - Updated purchase data
- * @returns {Promise<Object>} - Updated purchase
- */
 export const updatePurchase = async (id, purchaseData) => {
   try {
     const response = await fetch(`${API_BASE_URL}/${id}`, {
@@ -150,12 +120,6 @@ export const updatePurchase = async (id, purchaseData) => {
   }
 };
 
-/**
- * Apply discount to purchase
- * @param {number|string} id - Purchase ID
- * @param {Object} discountData - Discount data
- * @returns {Promise<Object>} - Updated purchase
- */
 export const applyDiscount = async (id, discountData) => {
   try {
     const response = await fetch(`${API_BASE_URL}/${id}/discount`, {
@@ -175,10 +139,7 @@ export const applyDiscount = async (id, discountData) => {
     throw error;
   }
 };
-/**
- * Fetch pending purchases
- * @returns {Promise<Array>} - Array of pending purchases
- */
+
 export const getPendingPurchases = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/pending`, {
@@ -197,11 +158,6 @@ export const getPendingPurchases = async () => {
   }
 };
 
-/**
- * Cancel purchase
- * @param {number|string} id - Purchase ID
- * @returns {Promise<Object>} - Cancelled purchase
- */
 export const cancelPurchase = async (id) => {
   try {
     const response = await fetch(`${API_BASE_URL}/${id}/cancel`, {

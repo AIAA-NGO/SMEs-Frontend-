@@ -69,7 +69,7 @@ const ReceivePurchases = () => {
       setLoading(true);
       if (actionType === 'receive') {
         await receivePurchase(selectedPurchase.id);
-        message.success('Purchase received successfully!');
+        message.success('Purchase received successfully and inventory updated!');
       } else {
         await cancelPurchase(selectedPurchase.id);
         message.success('Purchase cancelled successfully!');
@@ -259,7 +259,7 @@ const ReceivePurchases = () => {
                   <div style={{ textAlign: 'center', marginTop: 16 }}>
                     <Text strong>
                       {actionType === 'receive' 
-                        ? 'Are you sure you want to receive this purchase?' 
+                        ? 'Are you sure you want to receive this purchase and update inventory?' 
                         : 'Are you sure you want to cancel this purchase?'}
                     </Text>
                   </div>

@@ -1,4 +1,3 @@
-// src/services/InventoryService.js
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -12,7 +11,6 @@ const apiClient = axios.create({
   }
 });
 
-// Add auth token interceptor if needed
 apiClient.interceptors.request.use(config => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -22,7 +20,6 @@ apiClient.interceptors.request.use(config => {
 });
 
 export const InventoryService = {
-  // Main inventory endpoints
   async getInventoryStatus(search, categoryId, brandId, lowStockOnly, expiredOnly, pageable) {
     try {
       const params = {
@@ -44,7 +41,8 @@ export const InventoryService = {
 
   async adjustInventory(request) {
     try {
-      await apiClient.post('/inventory/adjust', request);
+      const response = await apiClient.post('/inventory/adjust', request);
+      return response.data;
     } catch (error) {
       console.error('Error adjusting inventory:', error);
       throw error;
@@ -53,7 +51,8 @@ export const InventoryService = {
 
   async removeExpiredProducts() {
     try {
-      await apiClient.post('/inventory/remove-expired');
+      const response = await apiClient.post('/inventory/remove-expired');
+      return response.data;
     } catch (error) {
       console.error('Error removing expired products:', error);
       throw error;
@@ -70,7 +69,6 @@ export const InventoryService = {
     }
   },
 
-  // Low stock endpoints
   async getLowStockSuggestions() {
     try {
       const response = await apiClient.get('/inventory/low-stock-suggestions');
@@ -91,7 +89,6 @@ export const InventoryService = {
     }
   },
 
-  // Expired products endpoints
   async getExpiringProducts() {
     try {
       const response = await apiClient.get('/products/expiring');
@@ -102,7 +99,6 @@ export const InventoryService = {
     }
   },
 
-  // Search endpoint
   async searchProducts(query) {
     try {
       const response = await apiClient.get('/products/search', {
@@ -115,7 +111,6 @@ export const InventoryService = {
     }
   },
 
-  // Additional utility methods
   async getInventoryValuation() {
     try {
       const response = await apiClient.get('/inventory/valuation');
@@ -132,6 +127,16 @@ export const InventoryService = {
       return response.data;
     } catch (error) {
       console.error('Error fetching product details:', error);
+      throw error;
+    }
+  },
+
+  async updateProductStock(productId, quantity) {
+    try {
+      const response = await apiClient.post(`/products/${productId}/stock`, { quantity });
+      return response.data;
+    } catch (error) {
+      console.error('Error updating product stock:', error);
       throw error;
     }
   }

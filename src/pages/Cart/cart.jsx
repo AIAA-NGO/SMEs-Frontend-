@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { printReceipt } from '../../components/utils/printUtils';
-import { FaMoneyBillWave, FaCreditCard, FaMobileAlt, FaUniversity } from 'react-icons/fa';
+import { FaMoneyBillWave, FaCreditCard, FaMobileAlt, FaUniversity, FaSpinner } from 'react-icons/fa';
+import { MdCheckCircle, MdError, MdPending } from 'react-icons/md';
 
 // Helper functions for session storage
 const getCartFromSession = () => {
@@ -52,22 +53,23 @@ const Cart = () => {
   const [checkoutRequestId, setCheckoutRequestId] = useState(null);
   const [merchantRequestId, setMerchantRequestId] = useState(null);
   const [mpesaReceiptNumber, setMpesaReceiptNumber] = useState(null);
-  const [pollingInterval, setPollingInterval] = useState(null);
   const [lastStatusCheck, setLastStatusCheck] = useState(null);
+  const [paymentStatus, setPaymentStatus] = useState(null); // 'pending', 'completed', 'failed'
+  const [activeTimer, setActiveTimer] = useState(null);
 
   // Update session storage whenever cart changes
   useEffect(() => {
     saveCartToSession(cart);
   }, [cart]);
 
-  // Cleanup polling interval on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
+      if (activeTimer) {
+        clearInterval(activeTimer);
       }
     };
-  }, [pollingInterval]);
+  }, [activeTimer]);
 
   // Fetch customers on component mount
   useEffect(() => {
@@ -99,50 +101,6 @@ const Cart = () => {
     fetchCustomers();
   }, []);
 
-  const handleQuantityChange = (id, newQuantity) => {
-    if (newQuantity < 1) {
-      handleRemoveItem(id);
-      return;
-    }
-    
-    const updatedItems = cart.items.map(item => {
-      if (item.id === id) {
-        return { ...item, quantity: newQuantity };
-      }
-      return item;
-    });
-    
-    const item = cart.items.find(item => item.id === id);
-    if (!item) return;
-    
-    const newCart = {
-      ...cart,
-      items: updatedItems,
-      ...calculateCartTotals(updatedItems)
-    };
-    
-    setCart(newCart);
-  };
-
-  const handleRemoveItem = (id) => {
-    const updatedItems = cart.items.filter(item => item.id !== id);
-    setCart({
-      ...cart,
-      items: updatedItems,
-      ...calculateCartTotals(updatedItems)
-    });
-  };
-
-  const handleClearCart = () => {
-    setCart({
-      items: [],
-      subtotal: 0,
-      discountAmount: 0,
-      taxAmount: 0,
-      total: 0
-    });
-  };
-
   const formatPhoneNumber = (phone) => {
     if (!phone) return null;
     
@@ -171,11 +129,10 @@ const Cart = () => {
         throw new Error('Invalid response format from server');
       }
       
-      return statusData.status.toUpperCase(); // Normalize to uppercase
+      return statusData;
     } catch (error) {
       console.error("Status check error:", error);
-      // Return PENDING to allow retry
-      return 'PENDING';
+      return { status: 'PENDING', error: error.message };
     }
   };
 
@@ -188,41 +145,40 @@ const Cart = () => {
     const maxRetries = 24; // 2 minutes at 5s intervals
     const startTime = Date.now();
 
-    while (retries < maxRetries) {
-      try {
-        const status = await checkPaymentStatus(checkoutId, merchantId);
-        setLastStatusCheck(new Date().toLocaleTimeString());
-        
-        switch (status) {
-          case 'COMPLETED':
-            setMpesaStatus('Payment confirmed successfully!');
-            return true;
-          case 'FAILED':
-            setMpesaStatus('Payment failed. Please try again.');
-            return false;
-          default:
-            setMpesaStatus(`Payment status: ${status}. Waiting for confirmation... (Attempt ${retries + 1}/${maxRetries})`);
-        }
-        
-        // Wait 5 seconds before next check
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        retries++;
-        
-      } catch (error) {
-        console.error("Payment verification error:", error);
-        setMpesaStatus(`Error checking status: ${error.message}. Retrying...`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        retries++;
-      }
+    // Immediate first check
+    let statusData = await checkPaymentStatus(checkoutId, merchantId);
+    setLastStatusCheck(new Date().toLocaleTimeString());
+    
+    while (retries < maxRetries && statusData.status.toUpperCase() === 'PENDING') {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      statusData = await checkPaymentStatus(checkoutId, merchantId);
+      setLastStatusCheck(new Date().toLocaleTimeString());
+      retries++;
     }
 
-    setMpesaStatus('Payment verification timeout. Please check your M-Pesa messages.');
-    return false;
+    // Handle final status
+    switch (statusData.status.toUpperCase()) {
+      case 'COMPLETED':
+        setMpesaReceiptNumber(statusData.transaction?.mpesaReceiptNumber || 'N/A');
+        setMpesaStatus('Payment confirmed successfully!');
+        setPaymentStatus('completed');
+        return true;
+      case 'FAILED':
+      case 'CANCELLED':
+        setMpesaStatus(statusData.transaction?.stkResponseDescription || 'Payment failed. Please try again.');
+        setPaymentStatus('failed');
+        return false;
+      default:
+        setMpesaStatus('Payment verification timeout. Please check your M-Pesa messages.');
+        setPaymentStatus('failed');
+        return false;
+    }
   };
 
   const initiateMpesaPayment = async () => {
     try {
       setMpesaLoading(true);
+      setPaymentStatus('pending');
       setMpesaStatus('Initiating M-Pesa payment...');
       
       const formattedPhone = formatPhoneNumber(mpesaNumber);
@@ -262,22 +218,17 @@ const Cart = () => {
       setMerchantRequestId(mpesaResponse.MerchantRequestID);
       setMpesaStatus('Payment initiated. Please check your phone to complete payment...');
       
-      // Verify payment status with both IDs
+      // Start polling for status
       const paymentVerified = await verifyMpesaPayment(
         mpesaResponse.CheckoutRequestID,
         mpesaResponse.MerchantRequestID
       );
       
-      if (paymentVerified) {
-        setMpesaStatus('Payment confirmed successfully!');
-        return true;
-      } else {
-        throw new Error('Payment not confirmed. Please check your M-Pesa messages.');
-      }
+      return paymentVerified;
     } catch (error) {
       console.error("M-Pesa payment error:", error);
       setMpesaStatus(`Payment failed: ${error.message}`);
-      setMpesaLoading(false);
+      setPaymentStatus('failed');
       throw error;
     } finally {
       setMpesaLoading(false);
@@ -291,10 +242,53 @@ const Cart = () => {
     setMpesaReceiptNumber(null);
     setCheckoutRequestId(null);
     setMerchantRequestId(null);
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
-      setPollingInterval(null);
+    setPaymentStatus(null);
+    if (activeTimer) {
+      clearInterval(activeTimer);
+      setActiveTimer(null);
     }
+  };
+
+  const handleQuantityChange = (id, newQuantity) => {
+    if (newQuantity < 1) {
+      handleRemoveItem(id);
+      return;
+    }
+    
+    const updatedItems = cart.items.map(item => {
+      if (item.id === id) {
+        return { ...item, quantity: newQuantity };
+      }
+      return item;
+    });
+    
+    const newCart = {
+      ...cart,
+      items: updatedItems,
+      ...calculateCartTotals(updatedItems)
+    };
+    
+    setCart(newCart);
+  };
+
+  const handleRemoveItem = (id) => {
+    const updatedItems = cart.items.filter(item => item.id !== id);
+    setCart({
+      ...cart,
+      items: updatedItems,
+      ...calculateCartTotals(updatedItems)
+    });
+  };
+
+  const handleClearCart = () => {
+    setCart({
+      items: [],
+      subtotal: 0,
+      discountAmount: 0,
+      taxAmount: 0,
+      total: 0
+    });
+    resetPaymentState();
   };
 
   const handleCheckout = async () => {
@@ -318,15 +312,13 @@ const Cart = () => {
       setCheckoutError(null);
       
       let paymentSuccess = true;
-      let mpesaTransactionId = null;
       
       if (paymentMethod === 'MPESA') {
         paymentSuccess = await initiateMpesaPayment();
-        mpesaTransactionId = checkoutRequestId;
       }
 
-      if (!paymentSuccess) {
-        throw new Error('Payment not completed successfully');
+      if (!paymentSuccess && paymentMethod === 'MPESA') {
+        throw new Error('M-Pesa payment was not completed successfully');
       }
 
       const checkoutData = {
@@ -334,6 +326,7 @@ const Cart = () => {
         paymentMethod: paymentMethod,
         mpesaNumber: paymentMethod === 'MPESA' ? formatPhoneNumber(mpesaNumber) : null,
         mpesaTransactionId: paymentMethod === 'MPESA' ? checkoutRequestId : null,
+        mpesaReceiptNumber: paymentMethod === 'MPESA' ? mpesaReceiptNumber : null,
         items: cart.items.map(item => ({
           productId: item.id,
           quantity: item.quantity,
@@ -360,8 +353,6 @@ const Cart = () => {
       try {
         if (sale?.id) {
           await printReceipt(sale);
-        } else {
-          console.warn('Invalid sale data for printing');
         }
       } catch (printError) {
         console.error("Failed to print receipt:", printError);
@@ -372,17 +363,28 @@ const Cart = () => {
       alert(
         `Order #${sale?.id || 'N/A'} completed successfully!\n\n` +
         `Payment Method: ${paymentMethod}\n` +
-        `${paymentMethod === 'MPESA' ? 'M-Pesa Transaction ID: ' + (checkoutRequestId || 'N/A') : ''}\n` +
+        `${paymentMethod === 'MPESA' ? 'M-Pesa Receipt: ' + (mpesaReceiptNumber || checkoutRequestId || 'N/A') : ''}\n` +
         `Total Amount: Ksh ${(cart.total || 0).toFixed(2)}`
       );
-      
-      resetPaymentState();
       
     } catch (err) {
       console.error("Checkout failed:", err);
       setCheckoutError(err.message || 'Checkout failed. Please try again.');
     } finally {
       setIsCheckingOut(false);
+    }
+  };
+
+  const renderStatusIcon = () => {
+    switch (paymentStatus) {
+      case 'completed':
+        return <MdCheckCircle className="text-green-500 text-xl mr-2" />;
+      case 'failed':
+        return <MdError className="text-red-500 text-xl mr-2" />;
+      case 'pending':
+        return <MdPending className="text-yellow-500 text-xl mr-2" />;
+      default:
+        return null;
     }
   };
 
@@ -512,29 +514,49 @@ const Cart = () => {
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => setPaymentMethod('CASH')}
-                      className={`flex items-center justify-center p-3 rounded-md border ${paymentMethod === 'CASH' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+                      onClick={() => {
+                        resetPaymentState();
+                        setPaymentMethod('CASH');
+                      }}
+                      className={`flex items-center justify-center p-3 rounded-md border ${
+                        paymentMethod === 'CASH' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                      }`}
                     >
                       <FaMoneyBillWave className="mr-2" />
                       <span>Cash</span>
                     </button>
                     <button
-                      onClick={() => setPaymentMethod('CARD')}
-                      className={`flex items-center justify-center p-3 rounded-md border ${paymentMethod === 'CARD' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+                      onClick={() => {
+                        resetPaymentState();
+                        setPaymentMethod('CARD');
+                      }}
+                      className={`flex items-center justify-center p-3 rounded-md border ${
+                        paymentMethod === 'CARD' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                      }`}
                     >
                       <FaCreditCard className="mr-2" />
                       <span>Card</span>
                     </button>
                     <button
-                      onClick={() => setPaymentMethod('MPESA')}
-                      className={`flex items-center justify-center p-3 rounded-md border ${paymentMethod === 'MPESA' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+                      onClick={() => {
+                        resetPaymentState();
+                        setPaymentMethod('MPESA');
+                      }}
+                      className={`flex items-center justify-center p-3 rounded-md border ${
+                        paymentMethod === 'MPESA' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                      }`}
                     >
                       <FaMobileAlt className="mr-2" />
                       <span>M-Pesa</span>
                     </button>
                     <button
-                      onClick={() => setPaymentMethod('BANK_TRANSFER')}
-                      className={`flex items-center justify-center p-3 rounded-md border ${paymentMethod === 'BANK_TRANSFER' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+                      onClick={() => {
+                        resetPaymentState();
+                        setPaymentMethod('BANK_TRANSFER');
+                      }}
+                      className={`flex items-center justify-center p-3 rounded-md border ${
+                        paymentMethod === 'BANK_TRANSFER' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                      }`}
                     >
                       <FaUniversity className="mr-2" />
                       <span>Bank</span>
@@ -550,15 +572,18 @@ const Cart = () => {
                         className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       />
                       {mpesaStatus && (
-                        <div className={`mt-2 text-sm p-2 rounded ${
+                        <div className={`mt-2 text-sm p-2 rounded flex items-start ${
                           mpesaStatus.includes('failed') || mpesaStatus.includes('Error') ? 'bg-red-100 text-red-700' : 
                           mpesaStatus.includes('completed') || mpesaStatus.includes('confirmed') ? 'bg-green-100 text-green-700' :
                           'bg-blue-100 text-blue-700'
                         }`}>
-                          {mpesaStatus}
-                          {lastStatusCheck && (
-                            <div className="text-xs mt-1">Last checked: {lastStatusCheck}</div>
-                          )}
+                          {renderStatusIcon()}
+                          <div>
+                            {mpesaStatus}
+                            {lastStatusCheck && (
+                              <div className="text-xs mt-1">Last checked: {lastStatusCheck}</div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -614,14 +639,25 @@ const Cart = () => {
                 <button
                   onClick={handleCheckout}
                   disabled={isCheckingOut || mpesaLoading}
-                  className={`w-full py-3 px-4 rounded-md font-medium transition duration-150 ease-in-out ${
+                  className={`w-full py-3 px-4 rounded-md font-medium transition duration-150 ease-in-out flex items-center justify-center ${
                     isCheckingOut || mpesaLoading
                       ? 'bg-gray-300 cursor-not-allowed'
                       : 'bg-green-600 hover:bg-green-700 text-white'
                   }`}
                 >
-                  {mpesaLoading ? 'Processing M-Pesa...' : 
-                   isCheckingOut ? 'Completing Sale...' : 'Complete Sale'}
+                  {mpesaLoading ? (
+                    <>
+                      <FaSpinner className="animate-spin mr-2" />
+                      Processing M-Pesa...
+                    </>
+                  ) : isCheckingOut ? (
+                    <>
+                      <FaSpinner className="animate-spin mr-2" />
+                      Completing Sale...
+                    </>
+                  ) : (
+                    'Complete Sale'
+                  )}
                 </button>
               </div>
             </div>

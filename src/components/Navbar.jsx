@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FaShoppingCart, FaUser, FaChevronDown, FaSignOutAlt } from "react-icons/fa";
-import { logout } from "../features/auth/authSlice";
 import { fetchCurrentUser, logoutUser } from "../services/api";
 
 const Navbar = () => {
@@ -27,7 +26,6 @@ const Navbar = () => {
     const checkAuthState = () => {
       const storedToken = localStorage.getItem("token");
       const storedUser = localStorage.getItem("userName");
-      const storedRole = localStorage.getItem("userRole");
 
       if (storedToken && storedUser) {
         setIsAuthenticated(true);
@@ -75,7 +73,6 @@ const Navbar = () => {
       await logoutUser();
       // Clear local storage
       localStorage.removeItem("token");
-      localStorage.removeItem("userRole");
       localStorage.removeItem("userName");
       
       setIsAuthenticated(false);
