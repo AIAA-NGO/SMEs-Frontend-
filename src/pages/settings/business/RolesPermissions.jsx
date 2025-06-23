@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
+import {
+  fetchAllRoles,
+  fetchRolePermissions,
+  assignRolePermissions
+} from '../../../services/permissionServices';
 
 const PermissionManagement = () => {
-  // Sample roles data - replace with your actual data from backend
-  const [roles, setRoles] = useState([
-    { id: 1, name: 'ADMIN' },
-    { id: 2, name: 'MANAGER' },
-    { id: 3, name: 'CASHIER' },
-    { id: 4, name: 'RECEIVING_CLERK' }
-  ]);
-
-  // Selected role state
-  const [selectedRole, setSelectedRole] = useState(roles[0]?.id || null);
+  const [roles, setRoles] = useState([]);
+  const [selectedRole, setSelectedRole] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   
-  // Permission categories
+  // Permission categories structure
   const permissionCategories = [
     { name: 'Dashboard', permissions: ['dashboard_view'] },
     { 
@@ -74,22 +73,70 @@ const PermissionManagement = () => {
     }
   ];
 
-  // State for role permissions (initialize with all false)
-  const [rolePermissions, setRolePermissions] = useState(() => {
-    const allPermissions = permissionCategories.flatMap(cat => cat.permissions);
-    return Object.fromEntries(allPermissions.map(perm => [perm, false]));
-  });
+  // State for role permissions
+  const [rolePermissions, setRolePermissions] = useState({});
 
-  // Load permissions for selected role
-  useEffect(() => {
-    if (selectedRole) {
-      // Replace this with actual API call to fetch role permissions
-      // For now, we'll just initialize with all false (no permissions assigned)
-      const allPermissions = permissionCategories.flatMap(cat => cat.permissions);
-      const newPermissions = Object.fromEntries(allPermissions.map(perm => [perm, false]));
-      setRolePermissions(newPermissions);
+  // Fetch all roles
+  const loadRoles = async () => {
+    try {
+      const rolesData = await fetchAllRoles();
+      setRoles(rolesData);
+      if (rolesData.length > 0 && !selectedRole) {
+        setSelectedRole(rolesData[0].id);
+      }
+    } catch (error) {
+      setError('Failed to fetch roles');
+      console.error('Roles load error:', error);
     }
-  }, [selectedRole]);
+  };
+
+  // Fetch permissions for a role
+  const loadRolePermissions = async (roleId) => {
+    try {
+      setLoading(true);
+      const permissions = await fetchRolePermissions(roleId);
+      
+      // Create an object with all permissions set to false initially
+      const allPermissions = permissionCategories.flatMap(cat => cat.permissions);
+      const initialPermissions = Object.fromEntries(
+        allPermissions.map(perm => [perm, false])
+      );
+      
+      // Update with the actual permissions from the backend
+      permissions.forEach(perm => {
+        initialPermissions[perm.name] = true;
+      });
+      
+      setRolePermissions(initialPermissions);
+    } catch (error) {
+      setError(`Failed to fetch permissions for role ${roleId}`);
+      console.error('Permissions load error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Save permissions to backend
+  const savePermissions = async () => {
+    if (!selectedRole) return;
+    
+    try {
+      setLoading(true);
+      
+      // Get the list of permissions that are enabled
+      const enabledPermissions = Object.entries(rolePermissions)
+        .filter(([_, value]) => value)
+        .map(([key]) => key);
+      
+      await assignRolePermissions(selectedRole, enabledPermissions);
+      toast.success('Permissions updated successfully!');
+    } catch (error) {
+      toast.error('Failed to update permissions');
+      console.error('Permissions save error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle permission toggle
   const handlePermissionToggle = (permission) => {
@@ -99,17 +146,25 @@ const PermissionManagement = () => {
     }));
   };
 
-  // Save permissions to backend
-  const savePermissions = async () => {
-    try {
-      // Replace with actual API call to save permissions
-      // await saveRolePermissions(selectedRole, rolePermissions);
-      toast.success('Permissions updated successfully!');
-    } catch (error) {
-      toast.error('Failed to update permissions');
-      console.error(error);
+  // Load roles and permissions when component mounts
+  useEffect(() => {
+    loadRoles();
+  }, []);
+
+  // Load permissions when selected role changes
+  useEffect(() => {
+    if (selectedRole) {
+      loadRolePermissions(selectedRole);
     }
-  };
+  }, [selectedRole]);
+
+  if (loading && !selectedRole) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
+  if (error) {
+    return <div className="min-h-screen flex items-center justify-center text-red-500">{error}</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
@@ -133,6 +188,7 @@ const PermissionManagement = () => {
                   className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                   value={selectedRole || ''}
                   onChange={(e) => setSelectedRole(Number(e.target.value))}
+                  disabled={loading}
                 >
                   {roles.map(role => (
                     <option key={role.id} value={role.id}>{role.name}</option>
@@ -142,49 +198,59 @@ const PermissionManagement = () => {
               
               <button
                 onClick={savePermissions}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md transition duration-200 self-end"
+                disabled={loading}
+                className={`bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md transition duration-200 self-end ${
+                  loading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
-                Save Permissions
+                {loading ? 'Saving...' : 'Save Permissions'}
               </button>
             </div>
           </div>
 
           {/* Permissions Grid */}
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {permissionCategories.map(category => (
-                <div key={category.name} className="bg-gray-50 rounded-lg shadow-sm overflow-hidden">
-                  <div className="bg-gray-200 px-4 py-2">
-                    <h3 className="font-semibold text-gray-800">{category.name}</h3>
-                  </div>
-                  <div className="p-4 space-y-3">
-                    {category.permissions.map(permission => (
-                      <div key={permission} className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <span 
-                            className={`inline-block w-3 h-3 rounded-full mr-2 ${
-                              rolePermissions[permission] ? 'bg-green-500' : 'bg-gray-300'
-                            }`}
-                          ></span>
-                          <span className="text-sm text-gray-700">
-                            {permission.replace(/_/g, ' ')}
-                          </span>
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {permissionCategories.map(category => (
+                  <div key={category.name} className="bg-gray-50 rounded-lg shadow-sm overflow-hidden">
+                    <div className="bg-gray-200 px-4 py-2">
+                      <h3 className="font-semibold text-gray-800">{category.name}</h3>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {category.permissions.map(permission => (
+                        <div key={permission} className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <span 
+                              className={`inline-block w-3 h-3 rounded-full mr-2 ${
+                                rolePermissions[permission] ? 'bg-green-500' : 'bg-gray-300'
+                              }`}
+                            ></span>
+                            <span className="text-sm text-gray-700">
+                              {permission.replace(/_/g, ' ')}
+                            </span>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={rolePermissions[permission] || false}
+                              onChange={() => handlePermissionToggle(permission)}
+                              disabled={loading}
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                          </label>
                         </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            checked={rolePermissions[permission] || false}
-                            onChange={() => handlePermissionToggle(permission)}
-                          />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                        </label>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

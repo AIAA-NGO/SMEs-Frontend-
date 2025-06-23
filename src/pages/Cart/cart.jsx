@@ -50,6 +50,7 @@ const Cart = () => {
   const [mpesaStatus, setMpesaStatus] = useState(null);
   const [mpesaLoading, setMpesaLoading] = useState(false);
   const [checkoutRequestId, setCheckoutRequestId] = useState(null);
+  const [merchantRequestId, setMerchantRequestId] = useState(null);
   const [mpesaReceiptNumber, setMpesaReceiptNumber] = useState(null);
   const [pollingInterval, setPollingInterval] = useState(null);
   const [lastStatusCheck, setLastStatusCheck] = useState(null);
@@ -152,67 +153,71 @@ const Cart = () => {
     return null;
   };
 
-  const checkPaymentStatus = async (requestId) => {
+  const checkPaymentStatus = async (checkoutId, merchantId) => {
     try {
       const response = await fetch(
-        `https://inventorymanagementsystem-latest-37zl.onrender.com/mpesa/payment-status?checkout_id=${requestId}`,
+        `${process.env.REACT_APP_API_BASE_URL}/mpesa/payment-status?checkout_id=${checkoutId}&merchant_id=${merchantId}`,
         { headers: getAuthHeader() }
       );
 
       if (!response.ok) {
-        throw new Error('Failed to check payment status');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
 
       const statusData = await response.json();
-      return statusData?.status || 'PENDING';
+      
+      if (!statusData || !statusData.status) {
+        throw new Error('Invalid response format from server');
+      }
+      
+      return statusData.status.toUpperCase(); // Normalize to uppercase
     } catch (error) {
       console.error("Status check error:", error);
-      return 'UNKNOWN';
+      // Return PENDING to allow retry
+      return 'PENDING';
     }
   };
 
-  const verifyMpesaPayment = async (requestId) => {
-    if (!requestId) {
-      throw new Error('Missing request ID for payment verification');
+  const verifyMpesaPayment = async (checkoutId, merchantId) => {
+    if (!checkoutId || !merchantId) {
+      throw new Error('Missing request IDs for payment verification');
     }
 
-    // First immediate check
-    let status = await checkPaymentStatus(requestId);
-    setLastStatusCheck(new Date().toLocaleTimeString());
-    
-    if (status === 'COMPLETED') return true;
-    if (status === 'FAILED') return false;
+    let retries = 0;
+    const maxRetries = 24; // 2 minutes at 5s intervals
+    const startTime = Date.now();
 
-    // Set up polling if still pending
-    return new Promise((resolve) => {
-      const interval = setInterval(async () => {
-        try {
-          const currentStatus = await checkPaymentStatus(requestId);
-          setLastStatusCheck(new Date().toLocaleTimeString());
-          setMpesaStatus(`Payment status: ${currentStatus}. Waiting for confirmation...`);
-          
-          if (currentStatus === 'COMPLETED') {
-            clearInterval(interval);
-            resolve(true);
-          } else if (currentStatus === 'FAILED') {
-            clearInterval(interval);
-            resolve(false);
-          }
-          
-          // Timeout after 2 minutes (24 checks at 5s interval)
-          if (Date.now() - startTime > 120000) {
-            clearInterval(interval);
-            setMpesaStatus('Payment verification timeout. Please check your M-Pesa messages.');
-            resolve(false);
-          }
-        } catch (error) {
-          console.error("Polling error:", error);
+    while (retries < maxRetries) {
+      try {
+        const status = await checkPaymentStatus(checkoutId, merchantId);
+        setLastStatusCheck(new Date().toLocaleTimeString());
+        
+        switch (status) {
+          case 'COMPLETED':
+            setMpesaStatus('Payment confirmed successfully!');
+            return true;
+          case 'FAILED':
+            setMpesaStatus('Payment failed. Please try again.');
+            return false;
+          default:
+            setMpesaStatus(`Payment status: ${status}. Waiting for confirmation... (Attempt ${retries + 1}/${maxRetries})`);
         }
-      }, 5000);
-      
-      setPollingInterval(interval);
-      const startTime = Date.now();
-    });
+        
+        // Wait 5 seconds before next check
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        retries++;
+        
+      } catch (error) {
+        console.error("Payment verification error:", error);
+        setMpesaStatus(`Error checking status: ${error.message}. Retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        retries++;
+      }
+    }
+
+    setMpesaStatus('Payment verification timeout. Please check your M-Pesa messages.');
+    return false;
   };
 
   const initiateMpesaPayment = async () => {
@@ -237,7 +242,7 @@ const Cart = () => {
         transactionDesc: `Payment for ${selectedCustomer?.name || 'guest'}`
       };
 
-      const response = await fetch('https://inventorymanagementsystem-latest-37zl.onrender.com/mpesa/stkpush/initiate', {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/mpesa/stkpush/initiate`, {
         method: 'POST',
         headers: getAuthHeader(),
         body: JSON.stringify(mpesaRequest)
@@ -249,15 +254,19 @@ const Cart = () => {
       }
 
       const mpesaResponse = await response.json();
-      if (!mpesaResponse?.CheckoutRequestID) {
-        throw new Error('Invalid M-Pesa response: Missing CheckoutRequestID');
+      if (!mpesaResponse?.CheckoutRequestID || !mpesaResponse?.MerchantRequestID) {
+        throw new Error('Invalid M-Pesa response: Missing required fields');
       }
 
       setCheckoutRequestId(mpesaResponse.CheckoutRequestID);
+      setMerchantRequestId(mpesaResponse.MerchantRequestID);
       setMpesaStatus('Payment initiated. Please check your phone to complete payment...');
       
-      // Verify payment status
-      const paymentVerified = await verifyMpesaPayment(mpesaResponse.CheckoutRequestID);
+      // Verify payment status with both IDs
+      const paymentVerified = await verifyMpesaPayment(
+        mpesaResponse.CheckoutRequestID,
+        mpesaResponse.MerchantRequestID
+      );
       
       if (paymentVerified) {
         setMpesaStatus('Payment confirmed successfully!');
@@ -281,6 +290,7 @@ const Cart = () => {
     setPaymentMethod('CASH');
     setMpesaReceiptNumber(null);
     setCheckoutRequestId(null);
+    setMerchantRequestId(null);
     if (pollingInterval) {
       clearInterval(pollingInterval);
       setPollingInterval(null);
