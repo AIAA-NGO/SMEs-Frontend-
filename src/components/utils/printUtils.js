@@ -1,7 +1,7 @@
+// src/components/utils/printUtils.js
 export const printReceipt = async (receipt, paymentMethod, cashierName) => {
   const printWindow = window.open('', '_blank');
   
-  // Get current date and format it properly
   const now = new Date();
   const formattedDate = now.toLocaleDateString('en-US', {
     year: 'numeric',
@@ -11,16 +11,15 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
     minute: '2-digit'
   });
 
-  // Determine receipt number - check various possible fields
-  const receiptNumber = receipt.receiptNumber || 
-                      receipt.id || 
-                      receipt.mpesaReceiptNumber || 
-                      `TEMP-${Date.now().toString().slice(-6)}`;
+  const receiptNumber = receipt.receiptNumber || receipt.id || receipt.mpesaReceiptNumber || `TEMP-${Date.now().toString().slice(-6)}`;
+  const formattedPaymentMethod = paymentMethod ? paymentMethod.replace('_', ' ') : (receipt.paymentMethod || 'CASH');
 
-  // Format payment method for display
-  const formattedPaymentMethod = paymentMethod ? 
-    paymentMethod.replace('_', ' ') : 
-    (receipt.paymentMethod || 'CASH');
+  // Calculate totals if not provided
+  const subtotal = receipt.subtotal || receipt.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const discount = receipt.discount || receipt.items.reduce((sum, item) => sum + ((item.discount || 0) * item.quantity), 0);
+  const taxableAmount = subtotal - discount;
+  const tax = receipt.tax || taxableAmount * 0.16;
+  const total = receipt.total || taxableAmount + tax;
 
   const receiptContent = `
     <!DOCTYPE html>
@@ -72,35 +71,43 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
           <div class="col-span-2 text-right">TOTAL</div>
         </div>
         
-        ${(receipt.items || []).map(item => `
+        ${(receipt.items || []).map(item => {
+          const itemPrice = item.price - (item.discount || 0);
+          const itemTotal = itemPrice * item.quantity;
+          return `
           <div class="grid grid-cols-12 gap-1 text-xs border-b border-dashed py-1">
             <div class="col-span-6 truncate">${item.productName || item.name || 'Item'}</div>
             <div class="col-span-2 text-right">${item.quantity || 0}</div>
-            <div class="col-span-2 text-right">${(item.unitPrice || item.price || 0).toFixed(2)}</div>
-            <div class="col-span-2 text-right font-medium">${(item.totalPrice || (item.quantity * (item.unitPrice || item.price)) || 0).toFixed(2)}</div>
+            <div class="col-span-2 text-right">${itemPrice.toFixed(2)}</div>
+            <div class="col-span-2 text-right font-medium">${itemTotal.toFixed(2)}</div>
           </div>
-        `).join('')}
+          ${item.discount > 0 ? `
+          <div class="grid grid-cols-12 gap-1 text-xs text-green-600">
+            <div class="col-span-8">- Discount (${item.name})</div>
+            <div class="col-span-4 text-right">- ${(item.discount * item.quantity).toFixed(2)}</div>
+          </div>
+          ` : ''}
+          `;
+        }).join('')}
       </div>
 
       <!-- Totals -->
       <div class="text-sm mt-4 space-y-1">
         <div class="flex justify-between">
           <span>Subtotal:</span>
-          <span class="font-medium">Ksh ${(receipt.subtotal || 0).toFixed(2)}</span>
+          <span class="font-medium">Ksh ${subtotal.toFixed(2)}</span>
         </div>
-        ${(receipt.discountAmount || 0) > 0 ? `
-          <div class="flex justify-between text-green-600">
-            <span>Discount:</span>
-            <span class="font-medium">- Ksh ${(receipt.discountAmount || 0).toFixed(2)}</span>
-          </div>
-        ` : ''}
+        <div class="flex justify-between text-green-600">
+          <span>Discount:</span>
+          <span class="font-medium">- Ksh ${discount.toFixed(2)}</span>
+        </div>
         <div class="flex justify-between">
-          <span>Tax:</span>
-          <span class="font-medium">Ksh ${(receipt.taxAmount || 0).toFixed(2)}</span>
+          <span>Tax (16%):</span>
+          <span class="font-medium">Ksh ${tax.toFixed(2)}</span>
         </div>
         <div class="flex justify-between border-t pt-1 font-bold text-base">
           <span>TOTAL:</span>
-          <span>Ksh ${(receipt.total || 0).toFixed(2)}</span>
+          <span>Ksh ${total.toFixed(2)}</span>
         </div>
         <div class="flex justify-between text-xs mt-2">
           <span class="font-semibold">Payment Method:</span>

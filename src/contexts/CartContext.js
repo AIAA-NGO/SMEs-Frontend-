@@ -9,8 +9,8 @@ export const CartProvider = ({ children }) => {
     return cartData ? JSON.parse(cartData) : {
       items: [],
       subtotal: 0,
-      discountAmount: 0,
-      taxAmount: 0,
+      discount: 0,
+      tax: 0,
       total: 0
     };
   };
@@ -21,11 +21,17 @@ export const CartProvider = ({ children }) => {
 
   const calculateCartTotals = (items) => {
     const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const discountAmount = items.reduce((sum, item) => sum + ((item.discount || 0) * item.quantity), 0);
-    const taxableAmount = subtotal - discountAmount;
-    const taxAmount = taxableAmount * 0.16;
-    const total = taxableAmount + taxAmount;
-    return { subtotal, discountAmount, taxAmount, total };
+    const discount = items.reduce((sum, item) => sum + ((item.discount || 0) * item.quantity), 0);
+    const taxableAmount = subtotal - discount;
+    const tax = taxableAmount * 0.16; // Assuming 16% tax rate
+    const total = taxableAmount + tax;
+    
+    return { 
+      subtotal: parseFloat(subtotal.toFixed(2)),
+      discount: parseFloat(discount.toFixed(2)),
+      tax: parseFloat(tax.toFixed(2)),
+      total: parseFloat(total.toFixed(2))
+    };
   };
 
   const [cart, setCart] = useState(getCartFromSession());
@@ -39,7 +45,7 @@ export const CartProvider = ({ children }) => {
     saveCartToSession(cartWithTotals);
   };
 
-  const addToCart = (product, quantity = 1) => {
+  const addToCart = (product, quantity = 1, discount = 0) => {
     const productStock = product.quantity_in_stock || 0;
     const existingItem = cart.items.find(item => item.id === product.id);
 
@@ -52,7 +58,11 @@ export const CartProvider = ({ children }) => {
       }
       updatedItems = cart.items.map(item => 
         item.id === product.id 
-          ? { ...item, quantity: item.quantity + quantity }
+          ? { 
+              ...item, 
+              quantity: item.quantity + quantity,
+              discount: discount || item.discount
+            }
           : item
       );
     } else {
@@ -63,11 +73,11 @@ export const CartProvider = ({ children }) => {
           name: product.name,
           price: product.price,
           quantity: quantity,
+          discount: discount || 0,
           imageUrl: product.hasImage ? `/api/products/${product.id}/image` : null,
           stock: product.quantity_in_stock,
           sku: product.sku || '',
-          barcode: product.barcode || '',
-          discount: 0
+          barcode: product.barcode || ''
         }
       ];
     }
@@ -102,18 +112,38 @@ export const CartProvider = ({ children }) => {
     });
   };
 
+  const updateDiscount = (id, discount) => {
+    const updatedItems = cart.items.map(item => {
+      if (item.id === id) {
+        return { ...item, discount: parseFloat(discount) };
+      }
+      return item;
+    });
+    
+    updateCart({
+      items: updatedItems
+    });
+  };
+
   const clearCart = () => {
     updateCart({
       items: [],
       subtotal: 0,
-      discountAmount: 0,
-      taxAmount: 0,
+      discount: 0,
+      tax: 0,
       total: 0
     });
   };
 
   return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart }}>
+    <CartContext.Provider value={{ 
+      cart, 
+      addToCart, 
+      removeFromCart, 
+      updateQuantity, 
+      updateDiscount,
+      clearCart 
+    }}>
       {children}
     </CartContext.Provider>
   );

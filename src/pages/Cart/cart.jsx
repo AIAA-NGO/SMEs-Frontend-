@@ -1,4 +1,3 @@
-// src/components/Cart/cart.js
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { printReceipt } from '../../components/utils/printUtils';
@@ -33,7 +32,6 @@ const Cart = ({ onCloseCart }) => {
   const [paymentStatus, setPaymentStatus] = useState(null);
   const [activeTimer, setActiveTimer] = useState(null);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (activeTimer) {
@@ -42,7 +40,6 @@ const Cart = ({ onCloseCart }) => {
     };
   }, [activeTimer]);
 
-  // Fetch customers on component mount
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
@@ -252,7 +249,11 @@ const Cart = ({ onCloseCart }) => {
           name: item.name,
           sku: item.sku,
           discount: item.discount || 0
-        }))
+        })),
+        subtotal: cart.subtotal,
+        discount: cart.discount,
+        tax: cart.tax,
+        total: cart.total
       };
 
       const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/sales`, {
@@ -270,7 +271,13 @@ const Cart = ({ onCloseCart }) => {
       
       try {
         if (sale?.id) {
-          await printReceipt(sale);
+          await printReceipt({
+            ...sale,
+            subtotal: cart.subtotal,
+            discount: cart.discount,
+            tax: cart.tax,
+            total: cart.total
+          });
         }
       } catch (printError) {
         console.error("Failed to print receipt:", printError);
@@ -388,9 +395,9 @@ const Cart = ({ onCloseCart }) => {
                     </p>
                   </div>
                   {item.discount > 0 && (
-                    <p className="text-green-600 text-xs">
-                      Discount: Ksh {item.discount.toFixed(2)}
-                    </p>
+                    <div className="text-sm text-green-600">
+                      Discount: Ksh {item.discount.toFixed(2)} ({(item.discount / item.price * 100).toFixed(0)}%)
+                    </div>
                   )}
                   <div className="flex justify-between items-center mt-1">
                     <div className="flex items-center">
@@ -424,6 +431,7 @@ const Cart = ({ onCloseCart }) => {
               ))}
             </div>
           </div>
+
           {/* Payment Method Section */}
           <div className="bg-gray-50 rounded-lg p-3 mb-3">
             <h3 className="font-bold mb-2">Payment Method</h3>
@@ -500,13 +508,13 @@ const Cart = ({ onCloseCart }) => {
               <span>Subtotal:</span>
               <span>Ksh {cart.subtotal?.toFixed(2) || '0.00'}</span>
             </div>
-            <div className="flex justify-between mb-1">
-              <span>Tax:</span>
-              <span>Ksh {cart.tax?.toFixed(2) || '0.00'}</span>
+            <div className="flex justify-between mb-1 text-green-600">
+              <span>Discount:</span>
+              <span>- Ksh {cart.discount?.toFixed(2) || '0.00'}</span>
             </div>
             <div className="flex justify-between mb-1">
-              <span>Discount:</span>
-              <span>Ksh {cart.discount?.toFixed(2) || '0.00'}</span>
+              <span>Tax (16%):</span>
+              <span>Ksh {cart.tax?.toFixed(2) || '0.00'}</span>
             </div>
             <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-gray-200">
               <span>Total:</span>
@@ -544,4 +552,3 @@ const Cart = ({ onCloseCart }) => {
 };
 
 export default Cart;
-          
