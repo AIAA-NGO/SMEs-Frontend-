@@ -1,34 +1,10 @@
+// src/components/Cart/cart.js
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { printReceipt } from '../../components/utils/printUtils';
 import { FaMoneyBillWave, FaCreditCard, FaMobileAlt, FaUniversity, FaSpinner } from 'react-icons/fa';
 import { MdCheckCircle, MdError, MdPending } from 'react-icons/md';
-
-// Helper functions for session storage
-const getCartFromSession = () => {
-  const cartData = sessionStorage.getItem('cart');
-  return cartData ? JSON.parse(cartData) : {
-    items: [],
-    subtotal: 0,
-    discountAmount: 0,
-    taxAmount: 0,
-    total: 0
-  };
-};
-
-const saveCartToSession = (cart) => {
-  sessionStorage.setItem('cart', JSON.stringify(cart));
-};
-
-const calculateCartTotals = (items) => {
-  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const discountAmount = items.reduce((sum, item) => sum + ((item.discount || 0) * item.quantity), 0);
-  const taxableAmount = subtotal - discountAmount;
-  const taxAmount = taxableAmount * 0.16; // Assuming 16% tax rate
-  const total = taxableAmount + taxAmount;
-  
-  return { subtotal, discountAmount, taxAmount, total };
-};
+import { useCart } from '../../contexts/CartContext';
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');
@@ -38,8 +14,8 @@ const getAuthHeader = () => {
   };
 };
 
-const Cart = () => {
-  const [cart, setCart] = useState(getCartFromSession());
+const Cart = ({ onCloseCart }) => {
+  const { cart, removeFromCart, updateQuantity, clearCart } = useCart();
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
@@ -54,13 +30,8 @@ const Cart = () => {
   const [merchantRequestId, setMerchantRequestId] = useState(null);
   const [mpesaReceiptNumber, setMpesaReceiptNumber] = useState(null);
   const [lastStatusCheck, setLastStatusCheck] = useState(null);
-  const [paymentStatus, setPaymentStatus] = useState(null); // 'pending', 'completed', 'failed'
+  const [paymentStatus, setPaymentStatus] = useState(null);
   const [activeTimer, setActiveTimer] = useState(null);
-
-  // Update session storage whenever cart changes
-  useEffect(() => {
-    saveCartToSession(cart);
-  }, [cart]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -103,7 +74,6 @@ const Cart = () => {
 
   const formatPhoneNumber = (phone) => {
     if (!phone) return null;
-    
     const digits = phone.replace(/\D/g, '');
     if (digits.startsWith('0')) return `254${digits.substring(1)}`;
     if (digits.startsWith('7') && digits.length === 9) return `254${digits}`;
@@ -124,11 +94,6 @@ const Cart = () => {
       }
 
       const statusData = await response.json();
-      
-      if (!statusData || !statusData.status) {
-        throw new Error('Invalid response format from server');
-      }
-      
       return statusData;
     } catch (error) {
       console.error("Status check error:", error);
@@ -142,10 +107,7 @@ const Cart = () => {
     }
 
     let retries = 0;
-    const maxRetries = 24; // 2 minutes at 5s intervals
-    const startTime = Date.now();
-
-    // Immediate first check
+    const maxRetries = 24;
     let statusData = await checkPaymentStatus(checkoutId, merchantId);
     setLastStatusCheck(new Date().toLocaleTimeString());
     
@@ -156,7 +118,6 @@ const Cart = () => {
       retries++;
     }
 
-    // Handle final status
     switch (statusData.status.toUpperCase()) {
       case 'COMPLETED':
         setMpesaReceiptNumber(statusData.transaction?.mpesaReceiptNumber || 'N/A');
@@ -205,7 +166,7 @@ const Cart = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = await response.json();
         throw new Error(errorData?.message || 'M-Pesa payment initiation failed');
       }
 
@@ -218,7 +179,6 @@ const Cart = () => {
       setMerchantRequestId(mpesaResponse.MerchantRequestID);
       setMpesaStatus('Payment initiated. Please check your phone to complete payment...');
       
-      // Start polling for status
       const paymentVerified = await verifyMpesaPayment(
         mpesaResponse.CheckoutRequestID,
         mpesaResponse.MerchantRequestID
@@ -247,48 +207,6 @@ const Cart = () => {
       clearInterval(activeTimer);
       setActiveTimer(null);
     }
-  };
-
-  const handleQuantityChange = (id, newQuantity) => {
-    if (newQuantity < 1) {
-      handleRemoveItem(id);
-      return;
-    }
-    
-    const updatedItems = cart.items.map(item => {
-      if (item.id === id) {
-        return { ...item, quantity: newQuantity };
-      }
-      return item;
-    });
-    
-    const newCart = {
-      ...cart,
-      items: updatedItems,
-      ...calculateCartTotals(updatedItems)
-    };
-    
-    setCart(newCart);
-  };
-
-  const handleRemoveItem = (id) => {
-    const updatedItems = cart.items.filter(item => item.id !== id);
-    setCart({
-      ...cart,
-      items: updatedItems,
-      ...calculateCartTotals(updatedItems)
-    });
-  };
-
-  const handleClearCart = () => {
-    setCart({
-      items: [],
-      subtotal: 0,
-      discountAmount: 0,
-      taxAmount: 0,
-      total: 0
-    });
-    resetPaymentState();
   };
 
   const handleCheckout = async () => {
@@ -358,7 +276,8 @@ const Cart = () => {
         console.error("Failed to print receipt:", printError);
       }
       
-      handleClearCart();
+      clearCart();
+      resetPaymentState();
       
       alert(
         `Order #${sale?.id || 'N/A'} completed successfully!\n\n` +
@@ -390,43 +309,51 @@ const Cart = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen">
+      <div className="flex justify-center items-center h-full">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Your Shopping Cart</h1>
+    <div className="bg-white rounded-lg shadow-md p-4 h-full flex flex-col">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-bold">Current Order</h2>
+        <button 
+          onClick={onCloseCart}
+          className="lg:hidden text-gray-500 hover:text-gray-700"
+        >
+          ×
+        </button>
+      </div>
       
       {cart.items.length === 0 ? (
-        <div className="text-center py-12">
-          <h2 className="text-2xl font-medium mb-4">Your cart is empty</h2>
+        <div className="flex flex-col items-center justify-center flex-grow">
+          <h3 className="text-lg font-medium mb-2">Your cart is empty</h3>
           <Link 
             to="/pos" 
-            className="inline-block bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition duration-150 ease-in-out"
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
           >
             Continue Shopping
           </Link>
         </div>
       ) : (
-        <>
+        <div className="flex flex-col flex-grow">
           {/* Customer Information Section */}
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-xl font-bold mb-4">Customer Information</h2>
+          <div className="bg-gray-50 rounded-lg p-3 mb-3">
+            <h3 className="font-bold mb-2">Customer Information</h3>
             {customerError && (
-              <div className="text-red-500 text-sm mb-4">{customerError}</div>
+              <div className="text-red-500 text-sm mb-2">{customerError}</div>
             )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm text-gray-700 mb-1">
                   Select Customer
                 </label>
                 <select
                   value={selectedCustomer || ''}
                   onChange={(e) => setSelectedCustomer(e.target.value ? Number(e.target.value) : null)}
-                  className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-2 border border-gray-300 rounded-md"
                 >
                   <option value="">Select Customer</option>
                   {customers.map((customer) => (
@@ -439,7 +366,7 @@ const Cart = () => {
               <div className="flex items-end">
                 <Link
                   to="/customers"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-md text-center transition duration-150 ease-in-out"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-md text-center text-sm"
                 >
                   + Add New Customer
                 </Link>
@@ -447,225 +374,174 @@ const Cart = () => {
             </div>
           </div>
 
-          {/* Cart Items and Order Summary */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Cart Items List */}
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="divide-y divide-gray-200">
-                  {cart.items.map((item) => (
-                    <div key={item.id} className="p-4">
-                      <div className="flex justify-between">
-                        <h3 className="text-lg font-medium">
-                          {item.name || 'Product'}
-                        </h3>
-                        <p className="ml-4">
-                          Unit Price: Ksh {item.price ? item.price.toFixed(2) : '0.00'}
-                        </p>
-                      </div>
-                      {item.discount > 0 && (
-                        <p className="text-green-600">
-                          Discount: Ksh {item.discount.toFixed(2)}
-                        </p>
-                      )}
-                      <div className="flex justify-between items-center mt-2">
-                        <div className="flex items-center">
-                          <button
-                            onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                            className="px-3 py-1 border rounded-l-md bg-gray-100 hover:bg-gray-200"
-                          >
-                            -
-                          </button>
-                          <span className="px-4 py-1 border-t border-b text-center">
-                            {item.quantity}
-                          </span>
-                          <button
-                            onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                            className="px-3 py-1 border rounded-r-md bg-gray-100 hover:bg-gray-200"
-                          >
-                            +
-                          </button>
-                        </div>
-                        <p className="font-bold">
-                          Ksh {((item.price - (item.discount || 0)) * item.quantity).toFixed(2)}
-                        </p>
-                        <button
-                          onClick={() => handleRemoveItem(item.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            {/* Order Summary */}
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-xl font-bold mb-4">Order Summary</h2>
-
-                {/* Payment Method Section */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Payment Method
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => {
-                        resetPaymentState();
-                        setPaymentMethod('CASH');
-                      }}
-                      className={`flex items-center justify-center p-3 rounded-md border ${
-                        paymentMethod === 'CASH' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-                      }`}
-                    >
-                      <FaMoneyBillWave className="mr-2" />
-                      <span>Cash</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        resetPaymentState();
-                        setPaymentMethod('CARD');
-                      }}
-                      className={`flex items-center justify-center p-3 rounded-md border ${
-                        paymentMethod === 'CARD' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-                      }`}
-                    >
-                      <FaCreditCard className="mr-2" />
-                      <span>Card</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        resetPaymentState();
-                        setPaymentMethod('MPESA');
-                      }}
-                      className={`flex items-center justify-center p-3 rounded-md border ${
-                        paymentMethod === 'MPESA' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-                      }`}
-                    >
-                      <FaMobileAlt className="mr-2" />
-                      <span>M-Pesa</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        resetPaymentState();
-                        setPaymentMethod('BANK_TRANSFER');
-                      }}
-                      className={`flex items-center justify-center p-3 rounded-md border ${
-                        paymentMethod === 'BANK_TRANSFER' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-                      }`}
-                    >
-                      <FaUniversity className="mr-2" />
-                      <span>Bank</span>
-                    </button>
-                  </div>
-                  {paymentMethod === 'MPESA' && (
-                    <div className="mt-2">
-                      <input
-                        type="tel"
-                        value={mpesaNumber}
-                        onChange={(e) => setMpesaNumber(e.target.value)}
-                        placeholder="Enter M-Pesa phone (07XXXXXXXX)"
-                        className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
-                      {mpesaStatus && (
-                        <div className={`mt-2 text-sm p-2 rounded flex items-start ${
-                          mpesaStatus.includes('failed') || mpesaStatus.includes('Error') ? 'bg-red-100 text-red-700' : 
-                          mpesaStatus.includes('completed') || mpesaStatus.includes('confirmed') ? 'bg-green-100 text-green-700' :
-                          'bg-blue-100 text-blue-700'
-                        }`}>
-                          {renderStatusIcon()}
-                          <div>
-                            {mpesaStatus}
-                            {lastStatusCheck && (
-                              <div className="text-xs mt-1">Last checked: {lastStatusCheck}</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Order Totals */}
-                <div className="space-y-3 mb-6">
+          {/* Cart Items List */}
+          <div className="flex-grow overflow-y-auto mb-3">
+            <div className="divide-y divide-gray-200">
+              {cart.items.map((item) => (
+                <div key={item.id} className="py-3">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Subtotal:</span>
-                    <span>Ksh {cart.subtotal.toFixed(2)}</span>
+                    <h4 className="font-medium">
+                      {item.name || 'Product'}
+                    </h4>
+                    <p className="text-sm">
+                      Unit Price: Ksh {item.price ? item.price.toFixed(2) : '0.00'}
+                    </p>
                   </div>
-                  {cart.discountAmount > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Discount:</span>
-                      <span>-Ksh {cart.discountAmount.toFixed(2)}</span>
-                    </div>
+                  {item.discount > 0 && (
+                    <p className="text-green-600 text-xs">
+                      Discount: Ksh {item.discount.toFixed(2)}
+                    </p>
                   )}
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Tax (16%):</span>
-                    <span>Ksh {cart.taxAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-lg pt-3 border-t">
-                    <span>Total:</span>
-                    <span>Ksh {cart.total.toFixed(2)}</span>
+                  <div className="flex justify-between items-center mt-1">
+                    <div className="flex items-center">
+                      <button
+                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        className="px-2 py-1 border rounded-l-md bg-gray-100 hover:bg-gray-200"
+                      >
+                        -
+                      </button>
+                      <span className="px-2 py-1 border-t border-b text-sm">
+                        {item.quantity}
+                      </span>
+                      <button
+                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        className="px-2 py-1 border rounded-r-md bg-gray-100 hover:bg-gray-200"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <p className="font-bold text-sm">
+                      Ksh {((item.price - (item.discount || 0)) * item.quantity).toFixed(2)}
+                    </p>
+                    <button
+                      onClick={() => removeFromCart(item.id)}
+                      className="text-red-500 hover:text-red-700 text-xs"
+                    >
+                      Remove
+                    </button>
                   </div>
                 </div>
-                
-                {checkoutError && (
-                  <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm text-red-700">
-                          {checkoutError}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <button
-                  onClick={handleClearCart}
-                  className="w-full mb-4 bg-gray-200 text-gray-800 py-3 px-4 rounded-md hover:bg-gray-300 transition duration-150 ease-in-out"
-                >
-                  Clear Cart
-                </button>
-                
-                <button
-                  onClick={handleCheckout}
-                  disabled={isCheckingOut || mpesaLoading}
-                  className={`w-full py-3 px-4 rounded-md font-medium transition duration-150 ease-in-out flex items-center justify-center ${
-                    isCheckingOut || mpesaLoading
-                      ? 'bg-gray-300 cursor-not-allowed'
-                      : 'bg-green-600 hover:bg-green-700 text-white'
-                  }`}
-                >
-                  {mpesaLoading ? (
-                    <>
-                      <FaSpinner className="animate-spin mr-2" />
-                      Processing M-Pesa...
-                    </>
-                  ) : isCheckingOut ? (
-                    <>
-                      <FaSpinner className="animate-spin mr-2" />
-                      Completing Sale...
-                    </>
-                  ) : (
-                    'Complete Sale'
-                  )}
-                </button>
-              </div>
+              ))}
             </div>
           </div>
-        </>
+          {/* Payment Method Section */}
+          <div className="bg-gray-50 rounded-lg p-3 mb-3">
+            <h3 className="font-bold mb-2">Payment Method</h3>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <button
+                onClick={() => setPaymentMethod('CASH')}
+                className={`flex items-center justify-center p-2 rounded-md border ${paymentMethod === 'CASH' ? 'bg-blue-100 border-blue-500' : 'bg-white border-gray-300'}`}
+              >
+                <FaMoneyBillWave className="mr-2" />
+                <span>Cash</span>
+              </button>
+              <button
+                onClick={() => setPaymentMethod('MPESA')}
+                className={`flex items-center justify-center p-2 rounded-md border ${paymentMethod === 'MPESA' ? 'bg-blue-100 border-blue-500' : 'bg-white border-gray-300'}`}
+              >
+                <FaMobileAlt className="mr-2" />
+                <span>M-Pesa</span>
+              </button>
+              <button
+                onClick={() => setPaymentMethod('CARD')}
+                className={`flex items-center justify-center p-2 rounded-md border ${paymentMethod === 'CARD' ? 'bg-blue-100 border-blue-500' : 'bg-white border-gray-300'}`}
+              >
+                <FaCreditCard className="mr-2" />
+                <span>Card</span>
+              </button>
+              <button
+                onClick={() => setPaymentMethod('BANK')}
+                className={`flex items-center justify-center p-2 rounded-md border ${paymentMethod === 'BANK' ? 'bg-blue-100 border-blue-500' : 'bg-white border-gray-300'}`}
+              >
+                <FaUniversity className="mr-2" />
+                <span>Bank</span>
+              </button>
+            </div>
+
+            {paymentMethod === 'MPESA' && (
+              <div className="mt-2">
+                <label className="block text-sm text-gray-700 mb-1">
+                  M-Pesa Phone Number
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 07XXXXXXXX"
+                  value={mpesaNumber}
+                  onChange={(e) => setMpesaNumber(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                />
+              </div>
+            )}
+
+            {mpesaStatus && (
+              <div className={`mt-2 p-2 rounded-md text-sm flex items-center ${
+                paymentStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                paymentStatus === 'failed' ? 'bg-red-100 text-red-800' :
+                'bg-yellow-100 text-yellow-800'
+              }`}>
+                {renderStatusIcon()}
+                <div>
+                  <p>{mpesaStatus}</p>
+                  {lastStatusCheck && (
+                    <p className="text-xs mt-1">Last checked: {lastStatusCheck}</p>
+                  )}
+                  {mpesaReceiptNumber && (
+                    <p className="text-xs mt-1">Receipt: {mpesaReceiptNumber}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Order Summary */}
+          <div className="bg-gray-50 rounded-lg p-3 mb-3">
+            <h3 className="font-bold mb-2">Order Summary</h3>
+            <div className="flex justify-between mb-1">
+              <span>Subtotal:</span>
+              <span>Ksh {cart.subtotal?.toFixed(2) || '0.00'}</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span>Tax:</span>
+              <span>Ksh {cart.tax?.toFixed(2) || '0.00'}</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span>Discount:</span>
+              <span>Ksh {cart.discount?.toFixed(2) || '0.00'}</span>
+            </div>
+            <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-gray-200">
+              <span>Total:</span>
+              <span>Ksh {cart.total?.toFixed(2) || '0.00'}</span>
+            </div>
+          </div>
+
+          {/* Checkout Button */}
+          <button
+            onClick={handleCheckout}
+            disabled={isCheckingOut || mpesaLoading}
+            className={`w-full py-3 px-4 rounded-md text-white font-bold ${
+              isCheckingOut || mpesaLoading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            {isCheckingOut || mpesaLoading ? (
+              <div className="flex items-center justify-center">
+                <FaSpinner className="animate-spin mr-2" />
+                Processing...
+              </div>
+            ) : (
+              `Complete Order (Ksh ${cart.total?.toFixed(2) || '0.00'})`
+            )}
+          </button>
+
+          {checkoutError && (
+            <div className="mt-3 p-2 bg-red-100 text-red-800 rounded-md text-sm">
+              {checkoutError}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
 };
 
 export default Cart;
+          

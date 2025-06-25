@@ -1,46 +1,89 @@
 import React, { useState } from "react";
 import { loginUser } from "../../services/api";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 const Signin = () => {
   const [username, setUsername] = useState("");  
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setIsLoading(true);
 
     try {
-      const response = await loginUser({ username, password });
-      const token = response.data.token;
-      const roles = response.data.roles; // roles is an array like ["ROLE_ADMIN"]
-      const userRole = roles && roles.length > 0 ? roles[0] : null;
-      const userName = response.data.username;
-
-      if (token && userRole && userName) {
-        // Save info in localStorage for auth and personalization
-        localStorage.setItem("token", token);
-        localStorage.setItem("userRole", userRole);
-        localStorage.setItem("userName", userName);
-
-        // Navigate based on role
-        if (userRole === "ADMIN") {
-          navigate("/dashboard/admin");
-        } else if (userRole === "MANAGER") {
-          navigate("/dashboard/manager");
-        } else if (userRole === "CASHIER") {
-          navigate("/dashboard/cashier");
-        } else {
-          navigate("/home");
-        }
-        
-      } else {
-        setError("Invalid login response");
+      // Basic validation
+      if (!username.trim() || !password.trim()) {
+        setError("Please enter both username and password");
+        setIsLoading(false);
+        return;
       }
+
+      const response = await loginUser({ username, password });
+      
+      if (!response.data) {
+        setError("Invalid server response");
+        setIsLoading(false);
+        return;
+      }
+
+      const { token, roles, username: userName } = response.data;
+      
+      if (!token) {
+        setError("Authentication failed. No token received.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (!roles || roles.length === 0) {
+        setError("Your account has no assigned roles. Please contact administrator.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Save info in localStorage
+      localStorage.setItem("token", token);
+      localStorage.setItem("userRole", roles[0]); // Using the first role
+      localStorage.setItem("userName", userName);
+
+      // Redirect based on role
+      switch(roles[0].toLowerCase()) {
+        case 'admin':
+          navigate("/dashboard/admin");
+          break;
+        case 'manager':
+          navigate("/dashboard/manager");
+          break;
+        case 'user':
+          navigate("/dashboard/user");
+          break;
+        default:
+          navigate("/dashboard");
+      }
+
     } catch (err) {
-      setError("Login failed. Please check your credentials.");
+      setIsLoading(false);
+      
+      // Handle different error cases
+      if (err.response) {
+        // The request was made and the server responded with a status code
+        if (err.response.status === 401) {
+          setError("Invalid username or password");
+        } else if (err.response.status === 404) {
+          setError("User not found");
+        } else {
+          setError("Login failed. Please try again later.");
+        }
+      } else if (err.request) {
+        // The request was made but no response was received
+        setError("Network error. Please check your connection.");
+      } else {
+        // Something happened in setting up the request
+        setError("An unexpected error occurred.");
+      }
     }
   };
 
@@ -101,23 +144,12 @@ const Signin = () => {
 
               <button
                 type="submit"
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition"
+                disabled={isLoading}
+                className={`w-full ${isLoading ? 'bg-blue-400' : 'bg-blue-600'} text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition`}
               >
-                Sign In
+                {isLoading ? 'Signing In...' : 'Sign In'}
               </button>
             </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                Don't have an account?{" "}
-                <Link
-                  to="/signup"
-                  className="text-blue-600 hover:text-blue-700 font-medium hover:underline"
-                >
-                  Sign up
-                </Link>
-              </p>
-            </div>
           </div>
         </div>
       </div>

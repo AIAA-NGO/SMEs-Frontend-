@@ -91,9 +91,9 @@ const Navbar = () => {
       <div className="flex items-center justify-end w-full">
         {/* Right Side Actions */}
         <div className="flex items-center space-x-4">
-          {/* Cart */}
+          {/* Cart - Now links to /pos instead of /cart */}
           <Link
-            to="/cart"
+            to="/pos"
             className="relative flex items-center p-2 text-gray-700 hover:text-blue-600"
           >
             <FaShoppingCart className="text-lg" />
@@ -160,25 +160,13 @@ const Navbar = () => {
                       Logout
                     </button>
                   ) : (
-                    <>
-                      <Link
-                        to="/signin"
-                        onClick={() => setShowDropdown(false)}
-                        className="block w-full text-center bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 font-medium transition-colors"
-                      >
-                        Sign In
-                      </Link>
-                      <div className="mt-2 text-center text-sm text-gray-600">
-                        New user?{" "}
-                        <Link
-                          to="/signup"
-                          onClick={() => setShowDropdown(false)}
-                          className="text-blue-600 hover:underline"
-                        >
-                          Sign Up
-                        </Link>
-                      </div>
-                    </>
+                    <Link
+                      to="/signin"
+                      onClick={() => setShowDropdown(false)}
+                      className="block w-full text-center bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 font-medium transition-colors"
+                    >
+                      Sign In
+                    </Link>
                   )}
                 </div>
               </div>

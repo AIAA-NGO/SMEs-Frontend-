@@ -8,6 +8,56 @@ import {
   exportSalesToCSV
 } from '../../services/salesService';
 
+// Date formatting utilities
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  
+  if (isNaN(date.getTime())) {
+    console.error('Invalid date:', dateString);
+    return 'Invalid Date';
+  }
+  
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+};
+
+const formatDateOnly = (dateString) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  
+  if (isNaN(date.getTime())) {
+    console.error('Invalid date:', dateString);
+    return 'Invalid Date';
+  }
+  
+  return date.toLocaleDateString('en-US');
+};
+
+const formatDateForInput = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  
+  if (isNaN(date.getTime())) {
+    console.error('Invalid date:', dateString);
+    return '';
+  }
+  
+  // Convert to YYYY-MM-DD format for date inputs
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}`;
+};
+
 export default function SalesList() {
   const [sales, setSales] = useState([]);
   const [filteredSales, setFilteredSales] = useState([]);
@@ -31,7 +81,14 @@ export default function SalesList() {
         setLoading(true);
         let data;
         if (startDate && endDate) {
-          data = await getSalesByDateRange(new Date(startDate), new Date(endDate));
+          // Create dates at start and end of day
+          const start = new Date(startDate);
+          start.setHours(0, 0, 0, 0);
+          
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          
+          data = await getSalesByDateRange(start, end);
         } else if (statusFilter) {
           data = await getSalesByStatus(statusFilter);
         } else {
@@ -240,12 +297,14 @@ export default function SalesList() {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
+              max={endDate || undefined}
               className="p-2 border rounded w-full"
             />
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
+              min={startDate || undefined}
               className="p-2 border rounded w-full"
             />
           </div>
@@ -317,7 +376,7 @@ export default function SalesList() {
                           {sale.customerName || sale.customer?.name || 'Walk-in Customer'}
                         </div>
                         <div className="text-xs text-gray-500 sm:hidden">
-                          {new Date(sale.saleDate).toLocaleDateString()}
+                          {formatDateOnly(sale.saleDate)}
                         </div>
                       </td>
                       <td className="p-3 border hidden sm:table-cell">
@@ -337,7 +396,7 @@ export default function SalesList() {
                         </span>
                       </td>
                       <td className="p-3 border hidden md:table-cell">
-                        {new Date(sale.saleDate).toLocaleString()}
+                        {formatDate(sale.saleDate)}
                       </td>
                       <td className="p-3 border">
                         <div className="flex flex-col gap-1">
@@ -444,7 +503,7 @@ export default function SalesList() {
                       </div>
                       <div>
                         <p className="font-semibold">Date:</p>
-                        <p>{new Date(modalSale.saleDate).toLocaleString()}</p>
+                        <p>{formatDate(modalSale.saleDate)}</p>
                       </div>
                       <div>
                         <p className="font-semibold">Customer:</p>
@@ -537,7 +596,7 @@ export default function SalesList() {
                       </div>
                       <div className="flex justify-between mb-1">
                         <span className="font-semibold">Date:</span>
-                        <span>{new Date(modalSale.saleDate).toLocaleString()}</span>
+                        <span>{formatDate(modalSale.saleDate)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="font-semibold">Customer:</span>

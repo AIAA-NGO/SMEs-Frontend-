@@ -1,4 +1,4 @@
-export const printReceipt = async (sale, paymentMethod, cashierName) => {
+export const printReceipt = async (receipt, paymentMethod, cashierName) => {
   const printWindow = window.open('', '_blank');
   
   // Get current date and format it properly
@@ -10,6 +10,17 @@ export const printReceipt = async (sale, paymentMethod, cashierName) => {
     hour: '2-digit',
     minute: '2-digit'
   });
+
+  // Determine receipt number - check various possible fields
+  const receiptNumber = receipt.receiptNumber || 
+                      receipt.id || 
+                      receipt.mpesaReceiptNumber || 
+                      `TEMP-${Date.now().toString().slice(-6)}`;
+
+  // Format payment method for display
+  const formattedPaymentMethod = paymentMethod ? 
+    paymentMethod.replace('_', ' ') : 
+    (receipt.paymentMethod || 'CASH');
 
   const receiptContent = `
     <!DOCTYPE html>
@@ -43,12 +54,12 @@ export const printReceipt = async (sale, paymentMethod, cashierName) => {
       <div class="flex justify-between text-xs mb-4 border-b pb-2">
         <div>
           <div class="font-semibold">Date:</div>
-          <div>${formattedDate}</div>
+          <div>${receipt.date ? new Date(receipt.date).toLocaleString() : formattedDate}</div>
           ${cashierName ? `<div class="font-semibold mt-1">Cashier:</div><div>${cashierName}</div>` : ''}
         </div>
         <div class="text-right">
           <div class="font-semibold">Receipt #:</div>
-          <div>${sale.id}</div>
+          <div>${receiptNumber}</div>
         </div>
       </div>
 
@@ -61,12 +72,12 @@ export const printReceipt = async (sale, paymentMethod, cashierName) => {
           <div class="col-span-2 text-right">TOTAL</div>
         </div>
         
-        ${sale.items.map(item => `
+        ${(receipt.items || []).map(item => `
           <div class="grid grid-cols-12 gap-1 text-xs border-b border-dashed py-1">
-            <div class="col-span-6 truncate">${item.productName}</div>
-            <div class="col-span-2 text-right">${item.quantity}</div>
-            <div class="col-span-2 text-right">${item.unitPrice.toFixed(2)}</div>
-            <div class="col-span-2 text-right font-medium">${(item.unitPrice * item.quantity).toFixed(2)}</div>
+            <div class="col-span-6 truncate">${item.productName || item.name || 'Item'}</div>
+            <div class="col-span-2 text-right">${item.quantity || 0}</div>
+            <div class="col-span-2 text-right">${(item.unitPrice || item.price || 0).toFixed(2)}</div>
+            <div class="col-span-2 text-right font-medium">${(item.totalPrice || (item.quantity * (item.unitPrice || item.price)) || 0).toFixed(2)}</div>
           </div>
         `).join('')}
       </div>
@@ -75,31 +86,37 @@ export const printReceipt = async (sale, paymentMethod, cashierName) => {
       <div class="text-sm mt-4 space-y-1">
         <div class="flex justify-between">
           <span>Subtotal:</span>
-          <span class="font-medium">Ksh ${sale.subtotal.toFixed(2)}</span>
+          <span class="font-medium">Ksh ${(receipt.subtotal || 0).toFixed(2)}</span>
         </div>
-        ${sale.discountAmount > 0 ? `
+        ${(receipt.discountAmount || 0) > 0 ? `
           <div class="flex justify-between text-green-600">
             <span>Discount:</span>
-            <span class="font-medium">- Ksh ${sale.discountAmount.toFixed(2)}</span>
+            <span class="font-medium">- Ksh ${(receipt.discountAmount || 0).toFixed(2)}</span>
           </div>
         ` : ''}
         <div class="flex justify-between">
-          <span>Tax (16%):</span>
-          <span class="font-medium">Ksh ${sale.taxAmount.toFixed(2)}</span>
+          <span>Tax:</span>
+          <span class="font-medium">Ksh ${(receipt.taxAmount || 0).toFixed(2)}</span>
         </div>
         <div class="flex justify-between border-t pt-1 font-bold text-base">
           <span>TOTAL:</span>
-          <span>Ksh ${sale.total.toFixed(2)}</span>
+          <span>Ksh ${(receipt.total || 0).toFixed(2)}</span>
         </div>
         <div class="flex justify-between text-xs mt-2">
           <span class="font-semibold">Payment Method:</span>
-          <span class="uppercase">${paymentMethod || 'CASH'}</span>
+          <span class="uppercase">${formattedPaymentMethod}</span>
         </div>
+        ${receipt.mpesaReceiptNumber ? `
+          <div class="flex justify-between text-xs">
+            <span class="font-semibold">M-Pesa Receipt:</span>
+            <span>${receipt.mpesaReceiptNumber}</span>
+          </div>
+        ` : ''}
       </div>
 
       <!-- Footer -->
       <div class="text-center text-xs mt-6 pt-2 border-t border-dashed">
-        ${sale.customer ? `<div class="mb-1">Customer: ${sale.customer.name}</div>` : ''}
+        ${receipt.customerName ? `<div class="mb-1">Customer: ${receipt.customerName}</div>` : ''}
         <div class="font-semibold">Thank you for your business!</div>
         <div class="text-gray-600 mt-1">* Items cannot be returned/exchanged *</div>
         <div class="text-[10px] mt-2">

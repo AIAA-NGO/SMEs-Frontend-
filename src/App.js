@@ -3,24 +3,23 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { Navigate } from "react-router-dom";
 import DashboardLayout from "./layouts/DashboardLayout";
 import Signin from "./pages/auth/Signin";
-import SignUp from './pages/auth/Signup';
 import Profile from './pages/account/Profile';
 import CategoriesPage from './pages/Categories/CategoriesPage';
 import BrandsPage from './pages/Brands/BrandsPage';
 import UnitsPage from "./pages/Unit/UnitsPage";
 import CreateProduct from './pages/products/CreateProduct';
-import Cart from "./pages/Cart/cart";
+
 import SuppliersPage from './pages/suppliers/SuppliersPage';
 import CustomersPage from './pages/Customers/CustomersPage';
 import ProductPage from './pages/products/ProductPage';
 import AdminDashboardControl from "./pages/dashboard/AdminDashboardControl";
-import PosPage from "./pages/Pos/PosPage";
+import PosWithCart from "./pages/Pos/PosWithCart";
 import NotFound from "./pages/NotFound"; 
 import UsersList from './pages/Users/UsersList';
 import CreateUser from './pages/Users/CreateUser';
 import EditUser from './pages/Users/EditUser';
 import UserChangePassword from './pages/Users/UserChangePassword';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
 import SalesList from "./pages/sales/SalesList";
 import SalesHistory from "./pages/sales/SalesHistory";
 import SalesReturnPage from './pages/sales/SalesReturnPage';
@@ -52,7 +51,6 @@ function App() {
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard/admin" replace />} />
               <Route path="/signin" element={<Signin />} />
-              <Route path="/signup" element={<SignUp />} />
               <Route path="/Users/create" element={<CreateUser />} />
               <Route path="/Users/edit/:id" element={<EditUser />} />
               <Route path="/Users/change-password/:id" element={<UserChangePassword />} />
@@ -67,8 +65,7 @@ function App() {
               <Route path="/categories" element={<DashboardLayout><CategoriesPage /></DashboardLayout>} />
               <Route path="/brands" element={<DashboardLayout><BrandsPage /></DashboardLayout>} />
               <Route path="/Unit" element={<DashboardLayout><UnitsPage /></DashboardLayout>} />
-              <Route path="/pos" element={<DashboardLayout><PosPage /></DashboardLayout>} />
-              <Route path="/cart" element={<DashboardLayout><Cart /></DashboardLayout>} />
+              <Route path="/pos" element={<DashboardLayout><PosWithCart /></DashboardLayout>} />
               <Route path="/suppliers/*" element={<DashboardLayout><SuppliersPage /></DashboardLayout>} />
               <Route path="/customers" element={<DashboardLayout><CustomersPage /></DashboardLayout>} />
               <Route path="/users" element={<DashboardLayout>{<UsersList />}</DashboardLayout>} />
