@@ -45,7 +45,7 @@ export const CartProvider = ({ children }) => {
     saveCartToSession(cartWithTotals);
   };
 
-  const addToCart = (product, quantity = 1, discount = 0) => {
+  const addToCart = (product, quantity = 1) => {
     const productStock = product.quantity_in_stock || 0;
     const existingItem = cart.items.find(item => item.id === product.id);
 
@@ -61,7 +61,7 @@ export const CartProvider = ({ children }) => {
           ? { 
               ...item, 
               quantity: item.quantity + quantity,
-              discount: discount || item.discount
+              discount: product.discount || item.discount // Use product discount
             }
           : item
       );
@@ -73,7 +73,7 @@ export const CartProvider = ({ children }) => {
           name: product.name,
           price: product.price,
           quantity: quantity,
-          discount: discount || 0,
+          discount: product.discount || 0, // Use product discount
           imageUrl: product.hasImage ? `/api/products/${product.id}/image` : null,
           stock: product.quantity_in_stock,
           sku: product.sku || '',
@@ -112,19 +112,6 @@ export const CartProvider = ({ children }) => {
     });
   };
 
-  const updateDiscount = (id, discount) => {
-    const updatedItems = cart.items.map(item => {
-      if (item.id === id) {
-        return { ...item, discount: parseFloat(discount) };
-      }
-      return item;
-    });
-    
-    updateCart({
-      items: updatedItems
-    });
-  };
-
   const clearCart = () => {
     updateCart({
       items: [],
@@ -141,7 +128,6 @@ export const CartProvider = ({ children }) => {
       addToCart, 
       removeFromCart, 
       updateQuantity, 
-      updateDiscount,
       clearCart 
     }}>
       {children}
