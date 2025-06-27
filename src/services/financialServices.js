@@ -1,18 +1,59 @@
 import axios from 'axios';
 
-const API_BASE_URL =`${process.env.REACT_APP_API_BASE_URL}/reports`;
+// Configure API base URL
+const API_BASE_URL = `${process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com/api'}/financial`;
 
+// Create axios instance with default configuration
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 10000, // 10 seconds timeout
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
 });
 
+// Request interceptor for adding auth token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
+}, (error) => {
+  return Promise.reject(error);
 });
+
+// Response interceptor for handling errors
+api.interceptors.response.use((response) => {
+  return response;
+}, (error) => {
+  if (error.response) {
+    // Server responded with a status other than 2xx
+    console.error('API Error:', {
+      status: error.response.status,
+      data: error.response.data,
+      headers: error.response.headers,
+    });
+  } else if (error.request) {
+    // Request was made but no response received
+    console.error('No response received:', error.request);
+  } else {
+    // Something happened in setting up the request
+    console.error('Request setup error:', error.message);
+  }
+  return Promise.reject(error);
+});
+
+/**
+ * Formats date to YYYY-MM-DD string
+ * @param {Date} date - Date object to format
+ * @returns {string} Formatted date string
+ */
+const formatDate = (date) => {
+  if (!date) return null;
+  return date.toISOString().split('T')[0];
+};
 
 /**
  * Fetches profit and loss report data
@@ -22,15 +63,30 @@ api.interceptors.request.use((config) => {
  */
 export const getProfitLossReport = async (startDate, endDate) => {
   try {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
-    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    const params = {
+      startDate: formatDate(startDate),
+      endDate: formatDate(endDate)
+    };
 
-    const response = await api.get('/profit-loss', { params });
+    // Remove undefined/null parameters
+    Object.keys(params).forEach(key => params[key] == null && delete params[key]);
+
+    const response = await api.get('/profit-loss', { 
+      params,
+      paramsSerializer: {
+        indexes: null // Properly serialize array-like params if needed
+      }
+    });
+
+    // Validate response structure
+    if (!response.data || typeof response.data !== 'object') {
+      throw new Error('Invalid response structure from server');
+    }
+
     return response.data;
   } catch (error) {
     console.error('Error fetching profit/loss report:', error);
-    throw error;
+    throw new Error(error.response?.data?.message || 'Failed to fetch profit/loss report');
   }
 };
 
@@ -42,15 +98,18 @@ export const getProfitLossReport = async (startDate, endDate) => {
  */
 export const getSupplierPurchaseReport = async (startDate, endDate) => {
   try {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
-    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    const params = {
+      startDate: formatDate(startDate),
+      endDate: formatDate(endDate)
+    };
+
+    Object.keys(params).forEach(key => params[key] == null && delete params[key]);
 
     const response = await api.get('/suppliers', { params });
-    return response.data;
+    return response.data || [];
   } catch (error) {
     console.error('Error fetching supplier purchase report:', error);
-    throw error;
+    throw new Error(error.response?.data?.message || 'Failed to fetch supplier purchases');
   }
 };
 
@@ -62,15 +121,18 @@ export const getSupplierPurchaseReport = async (startDate, endDate) => {
  */
 export const getSalesReport = async (startDate, endDate) => {
   try {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
-    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    const params = {
+      startDate: formatDate(startDate),
+      endDate: formatDate(endDate)
+    };
+
+    Object.keys(params).forEach(key => params[key] == null && delete params[key]);
 
     const response = await api.get('/sales', { params });
-    return response.data;
+    return response.data || [];
   } catch (error) {
     console.error('Error fetching sales report:', error);
-    throw error;
+    throw new Error(error.response?.data?.message || 'Failed to fetch sales report');
   }
 };
 
@@ -82,15 +144,18 @@ export const getSalesReport = async (startDate, endDate) => {
  */
 export const getProductPerformanceReport = async (startDate, endDate) => {
   try {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
-    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    const params = {
+      startDate: formatDate(startDate),
+      endDate: formatDate(endDate)
+    };
+
+    Object.keys(params).forEach(key => params[key] == null && delete params[key]);
 
     const response = await api.get('/products', { params });
-    return response.data;
+    return response.data || [];
   } catch (error) {
     console.error('Error fetching product performance report:', error);
-    throw error;
+    throw new Error(error.response?.data?.message || 'Failed to fetch product performance');
   }
 };
 
@@ -101,10 +166,10 @@ export const getProductPerformanceReport = async (startDate, endDate) => {
 export const getInventoryValuationReport = async () => {
   try {
     const response = await api.get('/inventory');
-    return response.data;
+    return response.data || [];
   } catch (error) {
     console.error('Error fetching inventory valuation report:', error);
-    throw error;
+    throw new Error(error.response?.data?.message || 'Failed to fetch inventory valuation');
   }
 };
 
@@ -116,15 +181,18 @@ export const getInventoryValuationReport = async () => {
  */
 export const getTaxReport = async (startDate, endDate) => {
   try {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
-    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    const params = {
+      startDate: formatDate(startDate),
+      endDate: formatDate(endDate)
+    };
+
+    Object.keys(params).forEach(key => params[key] == null && delete params[key]);
 
     const response = await api.get('/tax', { params });
-    return response.data;
+    return response.data || {};
   } catch (error) {
     console.error('Error fetching tax report:', error);
-    throw error;
+    throw new Error(error.response?.data?.message || 'Failed to fetch tax report');
   }
 };
 
@@ -139,13 +207,25 @@ export const getTaxReport = async (startDate, endDate) => {
  */
 export const exportReport = async (exportRequest) => {
   try {
-    const response = await api.post('/export', exportRequest, {
+    const params = {
+      reportType: exportRequest.reportType,
+      startDate: formatDate(exportRequest.startDate),
+      endDate: formatDate(exportRequest.endDate),
+      format: exportRequest.format
+    };
+
+    const response = await api.post('/export', params, {
       responseType: 'blob',
     });
+
+    if (!response.data) {
+      throw new Error('No data received in export response');
+    }
+
     return response.data;
   } catch (error) {
     console.error('Error exporting report:', error);
-    throw error;
+    throw new Error(error.response?.data?.message || 'Failed to export report');
   }
 };
 
@@ -157,15 +237,16 @@ export const exportReport = async (exportRequest) => {
 export const getDailySummary = async (date = new Date()) => {
   try {
     const response = await api.get('/daily-summary', {
-      params: { date: date.toISOString().split('T')[0] },
+      params: { date: formatDate(date) }
     });
-    return response.data;
+    return response.data || {};
   } catch (error) {
     console.error('Error fetching daily summary:', error);
-    throw error;
+    throw new Error(error.response?.data?.message || 'Failed to fetch daily summary');
   }
 };
 
+// Export all services
 export default {
   getProfitLossReport,
   getSupplierPurchaseReport,

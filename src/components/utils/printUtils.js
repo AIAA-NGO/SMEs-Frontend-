@@ -1,4 +1,3 @@
-// src/components/utils/printUtils.js
 export const printReceipt = async (receipt, paymentMethod, cashierName) => {
   const printWindow = window.open('', '_blank');
   
@@ -11,13 +10,24 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
     minute: '2-digit'
   });
 
-  const receiptNumber = receipt.receiptNumber || receipt.id || receipt.mpesaReceiptNumber || `TEMP-${Date.now().toString().slice(-6)}`;
+  const receiptNumber = receipt.receiptNumber || receipt.id || `TEMP-${Date.now().toString().slice(-6)}`;
   const formattedPaymentMethod = paymentMethod ? paymentMethod.replace('_', ' ') : (receipt.paymentMethod || 'CASH');
 
-  // Calculate totals if not provided
-  const subtotal = receipt.subtotal || receipt.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const discount = receipt.discount || receipt.items.reduce((sum, item) => sum + ((item.discount || 0) * item.quantity), 0);
-  const taxableAmount = subtotal - discount;
+  // Process items with better name fallback
+  const items = (receipt.items || []).map(item => ({
+    id: item.id,
+    name: item.name || item.productName || (item.sku ? `SKU: ${item.sku}` : `Item ${item.id}`),
+    quantity: item.quantity || 1,
+    price: item.price || 0,
+    discountAmount: item.discountAmount || item.discount || 0,
+    discountPercentage: item.discountPercentage || 0,
+    isSoldOut: item.isSoldOut || false
+  }));
+
+  // Calculate totals
+  const subtotal = receipt.subtotal || items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const discount = receipt.discount || items.reduce((sum, item) => sum + (item.discountAmount * item.quantity), 0);
+  const taxableAmount = Math.max(0, subtotal - discount);
   const tax = receipt.tax || taxableAmount * 0.16;
   const total = receipt.total || taxableAmount + tax;
 
@@ -39,6 +49,21 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
             padding: 0;
           }
         }
+        .sold-out {
+          color: #ef4444;
+          text-decoration: line-through;
+        }
+        .item-row {
+          display: grid;
+          grid-template-columns: 50% 15% 15% 20%;
+          gap: 2px;
+        }
+        .discount-row {
+          display: grid;
+          grid-template-columns: 70% 30%;
+          gap: 2px;
+          padding-left: 10px;
+        }
       </style>
     </head>
     <body class="font-sans p-4 w-full max-w-[80mm] mx-auto">
@@ -53,7 +78,7 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
       <div class="flex justify-between text-xs mb-4 border-b pb-2">
         <div>
           <div class="font-semibold">Date:</div>
-          <div>${receipt.date ? new Date(receipt.date).toLocaleString() : formattedDate}</div>
+          <div>${formattedDate}</div>
           ${cashierName ? `<div class="font-semibold mt-1">Cashier:</div><div>${cashierName}</div>` : ''}
         </div>
         <div class="text-right">
@@ -64,29 +89,38 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
 
       <!-- Items Table -->
       <div class="mb-2">
-        <div class="grid grid-cols-12 gap-1 text-xs font-semibold border-b pb-1 mb-1">
-          <div class="col-span-6">ITEM</div>
-          <div class="col-span-2 text-right">QTY</div>
-          <div class="col-span-2 text-right">PRICE</div>
-          <div class="col-span-2 text-right">TOTAL</div>
+        <div class="item-row text-xs font-semibold border-b pb-1 mb-1">
+          <div>ITEM</div>
+          <div class="text-right">QTY</div>
+          <div class="text-right">PRICE</div>
+          <div class="text-right">TOTAL</div>
         </div>
         
-        ${(receipt.items || []).map(item => {
-          const itemPrice = item.price - (item.discount || 0);
+        ${items.map(item => {
+          const itemPrice = item.price;
           const itemTotal = itemPrice * item.quantity;
+          const discountAmount = item.discountAmount * item.quantity;
+          const discountedPrice = itemPrice - item.discountAmount;
+          const soldOutClass = item.isSoldOut ? 'sold-out' : '';
+          
           return `
-          <div class="grid grid-cols-12 gap-1 text-xs border-b border-dashed py-1">
-            <div class="col-span-6 truncate">${item.productName || item.name || 'Item'}</div>
-            <div class="col-span-2 text-right">${item.quantity || 0}</div>
-            <div class="col-span-2 text-right">${itemPrice.toFixed(2)}</div>
-            <div class="col-span-2 text-right font-medium">${itemTotal.toFixed(2)}</div>
+          <div class="item-row text-xs border-b border-dashed py-1 ${soldOutClass}">
+            <div class="truncate">
+              ${item.name}
+              ${item.isSoldOut ? ' (SOLD OUT)' : ''}
+            </div>
+            <div class="text-right">${item.quantity}</div>
+            <div class="text-right">${itemPrice.toFixed(2)}</div>
+            <div class="text-right font-medium">${itemTotal.toFixed(2)}</div>
           </div>
-          ${item.discount > 0 ? `
-          <div class="grid grid-cols-12 gap-1 text-xs text-green-600">
-            <div class="col-span-8">- Discount (${item.name})</div>
-            <div class="col-span-4 text-right">- ${(item.discount * item.quantity).toFixed(2)}</div>
-          </div>
-          ` : ''}
+          ${
+            item.discountAmount > 0 ? `
+            <div class="discount-row text-xs text-green-600 ${soldOutClass}">
+              <div>- Discount ${item.discountPercentage > 0 ? `(${item.discountPercentage}%)` : ''}</div>
+              <div class="text-right">- ${discountAmount.toFixed(2)}</div>
+            </div>
+            ` : ''
+          }
           `;
         }).join('')}
       </div>
@@ -113,12 +147,6 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
           <span class="font-semibold">Payment Method:</span>
           <span class="uppercase">${formattedPaymentMethod}</span>
         </div>
-        ${receipt.mpesaReceiptNumber ? `
-          <div class="flex justify-between text-xs">
-            <span class="font-semibold">M-Pesa Receipt:</span>
-            <span>${receipt.mpesaReceiptNumber}</span>
-          </div>
-        ` : ''}
       </div>
 
       <!-- Footer -->
@@ -126,6 +154,8 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
         ${receipt.customerName ? `<div class="mb-1">Customer: ${receipt.customerName}</div>` : ''}
         <div class="font-semibold">Thank you for your business!</div>
         <div class="text-gray-600 mt-1">* Items cannot be returned/exchanged *</div>
+        ${items.some(item => item.isSoldOut) ? 
+          `<div class="text-red-500 mt-1">* Some items were sold out but included in calculations *</div>` : ''}
         <div class="text-[10px] mt-2">
           <div>Powered by Inventory Management System</div>
           <div>${now.getFullYear()} © All Rights Reserved</div>

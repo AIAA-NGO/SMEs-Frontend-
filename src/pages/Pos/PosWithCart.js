@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { FaShoppingCart } from 'react-icons/fa';
 import PosPage from './PosPage';
 import Cart from '../Cart/cart';
-import { CartProvider } from '../../contexts/CartContext';
+import { CartProvider } from '../../context/CartContext';
 
 const PosWithCart = () => {
   const [showCart, setShowCart] = useState(false);

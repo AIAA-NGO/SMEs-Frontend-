@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { printReceipt } from '../../components/utils/printUtils';
 import { FaMoneyBillWave, FaCreditCard, FaMobileAlt, FaUniversity, FaSpinner } from 'react-icons/fa';
 import { MdCheckCircle, MdError, MdPending } from 'react-icons/md';
-import { useCart } from '../../contexts/CartContext';
+import { useCart } from '../../context/CartContext';
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');
@@ -325,7 +325,7 @@ const Cart = ({ onCloseCart }) => {
   return (
     <div className="bg-white rounded-lg shadow-md p-4 h-full flex flex-col">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-bold">Current Order</h2>
+        <h2 className="text-lg font-bold">Cart Details</h2>
         <button 
           onClick={onCloseCart}
           className="lg:hidden text-gray-500 hover:text-gray-700"
@@ -369,14 +369,6 @@ const Cart = ({ onCloseCart }) => {
                     </option>
                   ))}
                 </select>
-              </div>
-              <div className="flex items-end">
-                <Link
-                  to="/customers"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-md text-center text-sm"
-                >
-                  + Add New Customer
-                </Link>
               </div>
             </div>
           </div>
@@ -501,16 +493,12 @@ const Cart = ({ onCloseCart }) => {
             )}
           </div>
 
-          {/* Order Summary */}
+          {/* Order Summary - Removed discount line */}
           <div className="bg-gray-50 rounded-lg p-3 mb-3">
-            <h3 className="font-bold mb-2">Order Summary</h3>
+            <h3 className="font-bold mb-2">Cart Summary</h3>
             <div className="flex justify-between mb-1">
               <span>Subtotal:</span>
               <span>Ksh {cart.subtotal?.toFixed(2) || '0.00'}</span>
-            </div>
-            <div className="flex justify-between mb-1 text-green-600">
-              <span>Discount:</span>
-              <span>- Ksh {cart.discount?.toFixed(2) || '0.00'}</span>
             </div>
             <div className="flex justify-between mb-1">
               <span>Tax (16%):</span>
@@ -536,7 +524,7 @@ const Cart = ({ onCloseCart }) => {
                 Processing...
               </div>
             ) : (
-              `Complete Order (Ksh ${cart.total?.toFixed(2) || '0.00'})`
+              `Complete Sales (Ksh ${cart.total?.toFixed(2) || '0.00'})`
             )}
           </button>
 

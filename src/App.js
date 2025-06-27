@@ -19,7 +19,7 @@ import UsersList from './pages/Users/UsersList';
 import CreateUser from './pages/Users/CreateUser';
 import EditUser from './pages/Users/EditUser';
 import UserChangePassword from './pages/Users/UserChangePassword';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 import SalesList from "./pages/sales/SalesList";
 import SalesHistory from "./pages/sales/SalesHistory";
 import SalesReturnPage from './pages/sales/SalesReturnPage';

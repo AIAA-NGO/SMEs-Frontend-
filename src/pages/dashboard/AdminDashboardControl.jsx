@@ -12,7 +12,7 @@ import {
   Legend,
   Filler
 } from "chart.js";
-import { FaBoxes, FaExclamationTriangle, FaHistory, FaCalendarAlt, FaTag } from "react-icons/fa";
+import { FaBoxes, FaExclamationTriangle, FaHistory, FaCalendarAlt } from "react-icons/fa";
 import { FiTrendingUp } from "react-icons/fi";
 import { getSales } from '../../services/salesService';
 import { InventoryService } from '../../services/InventoryService';
@@ -32,7 +32,6 @@ ChartJS.register(
 );
 const API_BASE_URL = `${process.env.REACT_APP_API_BASE_URL}/sales`;
 const REPORTS_BASE_URL = `${process.env.REACT_APP_API_BASE_URL}/reports`;
-const DISCOUNTS_BASE_URL = `${process.env.REACT_APP_API_BASE_URL}/discounts`;
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');
@@ -54,8 +53,7 @@ const Dashboard = () => {
     salesTrend: true,
     customers: true,
     inventory: true,
-    profit: true,
-    discounts: true
+    profit: true
   });
   const [error, setError] = useState({
     sales: null,
@@ -67,8 +65,7 @@ const Dashboard = () => {
     salesTrend: null,
     customers: null,
     inventory: null,
-    profit: null,
-    discounts: null
+    profit: null
   });
   
   const [sales, setSales] = useState([]);
@@ -92,7 +89,6 @@ const Dashboard = () => {
   const [lowStockItems, setLowStockItems] = useState([]);
   const [recentSales, setRecentSales] = useState([]);
   const [expiringAndExpiredItems, setExpiringAndExpiredItems] = useState([]);
-  const [activeDiscounts, setActiveDiscounts] = useState([]);
   const [salesTrend, setSalesTrend] = useState({ 
     daily: [], 
     monthly: [],
@@ -229,41 +225,6 @@ const Dashboard = () => {
     };
   };
 
-  const fetchActiveDiscounts = async () => {
-    try {
-      setLoading(prev => ({ ...prev, discounts: true }));
-      setError(prev => ({ ...prev, discounts: null }));
-      
-      const response = await fetch(`${DISCOUNTS_BASE_URL}/active`, {
-        headers: getAuthHeader()
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch active discounts');
-      
-      let data;
-      try {
-        data = await response.json();
-        if (!Array.isArray(data)) {
-          if (data.data && Array.isArray(data.data)) {
-            data = data.data;
-          } else {
-            data = [];
-          }
-        }
-      } catch (parseError) {
-        console.error("Failed to parse discounts response:", parseError);
-        data = [];
-      }
-      
-      setActiveDiscounts(data);
-    } catch (err) {
-      console.error("Failed to fetch active discounts:", err);
-      setError(prev => ({ ...prev, discounts: err.message }));
-    } finally {
-      setLoading(prev => ({ ...prev, discounts: false }));
-    }
-  };
-
   const calculateSaleProfit = (sale) => {
     if (!sale.saleItems || sale.saleItems.length === 0) return 0;
     
@@ -298,11 +259,15 @@ const Dashboard = () => {
         monthlyLabels: monthlySales.months
       });
       
-      // Process recent sales with profit calculation (kept but not displayed)
+      // Process recent sales with profit calculation and sort by date (newest first)
       const salesWithProfit = data.map(sale => ({
         ...sale,
         profit: calculateSaleProfit(sale)
-      }));
+      })).sort((a, b) => {
+        const dateA = new Date(a.saleDate || a.createdAt);
+        const dateB = new Date(b.saleDate || b.createdAt);
+        return dateB - dateA; // Sort in descending order (newest first)
+      });
       
       setRecentSales(salesWithProfit.slice(0, 5));
       
@@ -478,7 +443,6 @@ const Dashboard = () => {
           fetchLowStockItems(),
           fetchExpiringAndExpiredItems(),
           fetchCustomerCount(),
-          fetchActiveDiscounts(),
           fetchProfitData()
         ]);
       } catch (err) {
@@ -596,21 +560,6 @@ const Dashboard = () => {
     }
   };
 
-  const formatDiscountDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return 'N/A';
-      return date.toLocaleDateString('en-KE', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
-      });
-    } catch (e) {
-      return 'N/A';
-    }
-  };
-
   return (
     <div className="p-4 md:p-6">
       {/* Top Bar with Greeting - Responsive */}
@@ -637,11 +586,6 @@ const Dashboard = () => {
           <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2 text-red-500">
             {formatKES(summary.discount)}
           </p>
-          {!loading.discounts && activeDiscounts.length > 0 && (
-            <p className="text-xs md:text-sm mt-1 text-gray-500">
-              {activeDiscounts.length} active discount{activeDiscounts.length !== 1 ? 's' : ''}
-            </p>
-          )}
         </div>
         
         <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200">
@@ -784,64 +728,7 @@ const Dashboard = () => {
       </div>
 
       {/* Bottom Section - Responsive Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-10">
-        {/* Active Discounts */}
-        <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          <div className="flex items-center justify-between mb-3 md:mb-4">
-            <h2 className="text-lg md:text-xl font-semibold">Active Discounts</h2>
-            <FaTag className="text-purple-500" />
-          </div>
-          
-          {loading.discounts ? (
-            <div className="space-y-3 md:space-y-4">
-              {[1, 2, 3].map((item) => (
-                <div key={item} className="flex justify-between items-center">
-                  <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-4 w-1/4 bg-gray-200 rounded animate-pulse"></div>
-                </div>
-              ))}
-            </div>
-          ) : error.discounts ? (
-            <div className="text-red-500">Error: {error.discounts}</div>
-          ) : activeDiscounts.length > 0 ? (
-            <div className="space-y-3 md:space-y-4">
-              {activeDiscounts.slice(0, 5).map((discount, index) => (
-                <div key={index} className="border-b pb-3 last:border-b-0 last:pb-0">
-                  <div className="flex justify-between items-center mb-1">
-                    <p className="font-medium text-sm md:text-base">{discount.code || discount.name || 'Discount'}</p>
-                    <span className="text-purple-600 font-semibold text-sm md:text-base">
-                      {discount.percentage || discount.value || 0}% off
-                    </span>
-                  </div>
-                  <p className="text-xs md:text-sm text-gray-500 mb-1">{discount.description || 'No description'}</p>
-                  <div className="text-xs text-gray-500 mb-2">
-                    Valid until: {formatDiscountDate(discount.validTo)}
-                  </div>
-                  {discount.applicableProducts && discount.applicableProducts.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs font-medium text-gray-600 mb-1">Applicable Products:</p>
-                      <div className="space-y-1">
-                        {discount.applicableProducts.slice(0, 3).map((product, idx) => (
-                          <div key={idx} className="flex items-center text-xs">
-                            <span className="text-gray-700">• {product.name || product.productName || 'Product'}</span>
-                          </div>
-                        ))}
-                        {discount.applicableProducts.length > 3 && (
-                          <span className="text-xs text-gray-500">
-                            +{discount.applicableProducts.length - 3} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-gray-500">No active discounts</div>
-          )}
-        </div>
-
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-10">
         {/* Top Products */}
         <div className="p-4 md:p-6 bg-white rounded-xl shadow-md border border-gray-200">
           <div className="flex items-center justify-between mb-3 md:mb-4">
@@ -959,6 +846,7 @@ const Dashboard = () => {
                   <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
                   <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
                   <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                  <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profit</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -978,6 +866,7 @@ const Dashboard = () => {
                     <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-500">{formatKES(sale.subtotal)}</td>
                     <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-500">{formatKES(sale.discountAmount)}</td>
                     <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold text-green-600">{formatKES(sale.total)}</td>
+                    <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold text-purple-600">{formatKES(sale.profit)}</td>
                   </tr>
                 ))}
               </tbody>

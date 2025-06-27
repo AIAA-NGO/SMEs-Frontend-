@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { FiShoppingCart, FiRefreshCw, FiAlertCircle, FiSearch, FiPlus, FiMinus } from 'react-icons/fi';
 import { BsCartPlus, BsStarFill, BsStarHalf, BsStar } from 'react-icons/bs';
 import { getAllProducts, getCategories, getProductImage } from '../../services/productServices';
-import { useCart } from '../../contexts/CartContext';
+import { useCart } from '../../context/CartContext';
 
 const ProductCard = ({ product, cartQuantity }) => {
   const { addToCart } = useCart();

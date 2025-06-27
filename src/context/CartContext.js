@@ -1,5 +1,5 @@
 // src/contexts/CartContext.js
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 const CartContext = createContext();
 
@@ -21,9 +21,9 @@ export const CartProvider = ({ children }) => {
 
   const calculateCartTotals = (items) => {
     const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const discount = items.reduce((sum, item) => sum + ((item.discount || 0) * item.quantity), 0);
+    const discount = items.reduce((sum, item) => sum + ((item.discountAmount || 0) * item.quantity), 0);
     const taxableAmount = subtotal - discount;
-    const tax = taxableAmount * 0.16; // Assuming 16% tax rate
+    const tax = taxableAmount * 0.16; // 16% tax rate
     const total = taxableAmount + tax;
     
     return { 
@@ -51,6 +51,11 @@ export const CartProvider = ({ children }) => {
 
     if (productStock < 1) return;
 
+    // Calculate discount amount if percentage exists
+    const discountAmount = product.discountPercentage 
+      ? (product.price * product.discountPercentage / 100)
+      : 0;
+
     let updatedItems;
     if (existingItem) {
       if (existingItem.quantity + quantity > productStock) {
@@ -61,7 +66,8 @@ export const CartProvider = ({ children }) => {
           ? { 
               ...item, 
               quantity: item.quantity + quantity,
-              discount: product.discount || item.discount // Use product discount
+              discountPercentage: product.discountPercentage,
+              discountAmount
             }
           : item
       );
@@ -73,7 +79,8 @@ export const CartProvider = ({ children }) => {
           name: product.name,
           price: product.price,
           quantity: quantity,
-          discount: product.discount || 0, // Use product discount
+          discountPercentage: product.discountPercentage,
+          discountAmount,
           imageUrl: product.hasImage ? `/api/products/${product.id}/image` : null,
           stock: product.quantity_in_stock,
           sku: product.sku || '',
