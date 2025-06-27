@@ -152,7 +152,7 @@ const Signin = () => {
 
             <div className="mt-6 text-center">
               <a href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-500">
-                Forgot password?
+                
               </a>
             </div>
           </div>
