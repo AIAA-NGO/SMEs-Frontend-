@@ -3,7 +3,9 @@ import { toast } from 'react-toastify';
 import {
   fetchAllRoles,
   fetchRolePermissions,
-  assignRolePermissions
+  assignRolePermissions,
+  fetchAllPermissions,
+  getDefaultPermissionsForRole
 } from '../../../services/permissionServices';
 
 const PermissionManagement = () => {
@@ -11,6 +13,7 @@ const PermissionManagement = () => {
   const [selectedRole, setSelectedRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [allPermissions, setAllPermissions] = useState([]);
   
   // Permission categories structure
   const permissionCategories = [
@@ -73,44 +76,88 @@ const PermissionManagement = () => {
     }
   ];
 
-  // State for role permissions
   const [rolePermissions, setRolePermissions] = useState({});
 
-  // Fetch all roles
-  const loadRoles = async () => {
-    try {
-      const rolesData = await fetchAllRoles();
-      setRoles(rolesData);
-      if (rolesData.length > 0 && !selectedRole) {
-        setSelectedRole(rolesData[0].id);
+  // Load initial data
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        setLoading(true);
+        const [rolesData, permissionsData] = await Promise.all([
+          fetchAllRoles(),
+          fetchAllPermissions()
+        ]);
+        
+        setRoles(rolesData);
+        setAllPermissions(permissionsData);
+        
+        if (rolesData.length > 0) {
+          setSelectedRole(rolesData[0].id);
+        }
+      } catch (error) {
+        setError('Failed to load initial data');
+        console.error('Initialization error:', error);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      setError('Failed to fetch roles');
-      console.error('Roles load error:', error);
-    }
-  };
+    };
 
-  // Fetch permissions for a role
-  const loadRolePermissions = async (roleId) => {
+    loadInitialData();
+  }, []);
+
+  // Load permissions when role changes
+  useEffect(() => {
+    if (selectedRole) {
+      const loadPermissions = async () => {
+        try {
+          setLoading(true);
+          const permissions = await fetchRolePermissions(selectedRole);
+          
+          // Initialize all permissions to false
+          const allPermissionNames = permissionCategories.flatMap(cat => cat.permissions);
+          const initialPermissions = Object.fromEntries(
+            allPermissionNames.map(perm => [perm, false])
+          );
+          
+          // Set to true for permissions the role has
+          permissions.forEach(perm => {
+            initialPermissions[perm] = true;
+          });
+          
+          setRolePermissions(initialPermissions);
+        } catch (error) {
+          setError(`Failed to load permissions for role ${selectedRole}`);
+          console.error('Permission load error:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      loadPermissions();
+    }
+  }, [selectedRole]);
+
+  // Apply default permissions for the selected role
+  const applyDefaultPermissions = async () => {
+    if (!selectedRole) return;
+    
     try {
       setLoading(true);
-      const permissions = await fetchRolePermissions(roleId);
+      const role = roles.find(r => r.id === selectedRole);
+      if (!role) return;
       
-      // Create an object with all permissions set to false initially
-      const allPermissions = permissionCategories.flatMap(cat => cat.permissions);
-      const initialPermissions = Object.fromEntries(
-        allPermissions.map(perm => [perm, false])
-      );
+      const defaultPermissions = getDefaultPermissionsForRole(role.name);
       
-      // Update with the actual permissions from the backend
-      permissions.forEach(perm => {
-        initialPermissions[perm.name] = true;
+      const newPermissions = {};
+      Object.keys(rolePermissions).forEach(perm => {
+        newPermissions[perm] = defaultPermissions.includes(perm);
       });
       
-      setRolePermissions(initialPermissions);
+      setRolePermissions(newPermissions);
+      toast.success(`Loaded default permissions for ${role.name}`);
     } catch (error) {
-      setError(`Failed to fetch permissions for role ${roleId}`);
-      console.error('Permissions load error:', error);
+      toast.error('Failed to load default permissions');
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -123,103 +170,122 @@ const PermissionManagement = () => {
     try {
       setLoading(true);
       
-      // Get the list of permissions that are enabled
+      // Get enabled permissions
       const enabledPermissions = Object.entries(rolePermissions)
         .filter(([_, value]) => value)
         .map(([key]) => key);
       
       await assignRolePermissions(selectedRole, enabledPermissions);
-      toast.success('Permissions updated successfully!');
+      toast.success('Permissions saved successfully!');
     } catch (error) {
-      toast.error('Failed to update permissions');
-      console.error('Permissions save error:', error);
+      toast.error('Failed to save permissions');
+      console.error('Save error:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle permission toggle
-  const handlePermissionToggle = (permission) => {
+  // Toggle single permission
+  const togglePermission = (permission) => {
     setRolePermissions(prev => ({
       ...prev,
       [permission]: !prev[permission]
     }));
   };
 
-  // Load roles and permissions when component mounts
-  useEffect(() => {
-    loadRoles();
-  }, []);
-
-  // Load permissions when selected role changes
-  useEffect(() => {
-    if (selectedRole) {
-      loadRolePermissions(selectedRole);
-    }
-  }, [selectedRole]);
+  // Toggle all permissions in a category
+  const toggleCategory = (category, enable) => {
+    setRolePermissions(prev => {
+      const newPermissions = {...prev};
+      category.permissions.forEach(perm => {
+        newPermissions[perm] = enable;
+      });
+      return newPermissions;
+    });
+  };
 
   if (loading && !selectedRole) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
 
   if (error) {
-    return <div className="min-h-screen flex items-center justify-center text-red-500">{error}</div>;
+    return <div className="flex justify-center items-center h-screen text-red-500">{error}</div>;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          {/* Header */}
-          <div className="bg-indigo-600 px-6 py-4">
-            <h1 className="text-2xl font-bold text-white">Permission Management</h1>
-            <p className="text-indigo-100">Assign permissions to roles</p>
-          </div>
+    <div className="container mx-auto p-4">
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="bg-blue-600 px-6 py-4">
+          <h1 className="text-2xl font-bold text-white">Role Permissions</h1>
+          <p className="text-blue-100">Manage permissions for each role</p>
+        </div>
 
-          {/* Role Selection */}
-          <div className="p-6 border-b">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
-                  Select Role
-                </label>
-                <select
-                  id="role"
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  value={selectedRole || ''}
-                  onChange={(e) => setSelectedRole(Number(e.target.value))}
-                  disabled={loading}
-                >
-                  {roles.map(role => (
-                    <option key={role.id} value={role.id}>{role.name}</option>
-                  ))}
-                </select>
-              </div>
-              
+        <div className="p-6 border-b">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="w-full md:w-1/3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Select Role
+              </label>
+              <select
+                className="w-full p-2 border rounded-md"
+                value={selectedRole || ''}
+                onChange={(e) => setSelectedRole(Number(e.target.value))}
+                disabled={loading}
+              >
+                {roles.map(role => (
+                  <option key={role.id} value={role.id}>{role.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex gap-2">
+              <button
+                onClick={applyDefaultPermissions}
+                disabled={loading}
+                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md disabled:opacity-50"
+              >
+                Load Defaults
+              </button>
               <button
                 onClick={savePermissions}
                 disabled={loading}
-                className={`bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md transition duration-200 self-end ${
-                  loading ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-50"
               >
                 {loading ? 'Saving...' : 'Save Permissions'}
               </button>
             </div>
           </div>
+        </div>
 
-          {/* Permissions Grid */}
-          <div className="p-6">
-            {loading ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {permissionCategories.map(category => (
+        <div className="p-6">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {permissionCategories.map(category => {
+                const allEnabled = category.permissions.every(perm => rolePermissions[perm]);
+                const someEnabled = category.permissions.some(perm => rolePermissions[perm]);
+                
+                return (
                   <div key={category.name} className="bg-gray-50 rounded-lg shadow-sm overflow-hidden">
-                    <div className="bg-gray-200 px-4 py-2">
+                    <div className="bg-gray-200 px-4 py-2 flex justify-between items-center">
                       <h3 className="font-semibold text-gray-800">{category.name}</h3>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => toggleCategory(category, true)}
+                          className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded"
+                        >
+                          All
+                        </button>
+                        <button
+                          onClick={() => toggleCategory(category, false)}
+                          className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded"
+                        >
+                          None
+                        </button>
+                      </div>
                     </div>
                     <div className="p-4 space-y-3">
                       {category.permissions.map(permission => (
@@ -239,19 +305,19 @@ const PermissionManagement = () => {
                               type="checkbox"
                               className="sr-only peer"
                               checked={rolePermissions[permission] || false}
-                              onChange={() => handlePermissionToggle(permission)}
+                              onChange={() => togglePermission(permission)}
                               disabled={loading}
                             />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-blue-600 after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                           </label>
                         </div>
                       ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

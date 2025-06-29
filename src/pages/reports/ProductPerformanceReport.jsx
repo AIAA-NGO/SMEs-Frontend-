@@ -4,7 +4,7 @@ import { Download } from 'lucide-react';
 import dayjs from 'dayjs';
 import { getAllProducts } from '../../services/productServices';
 import { getCategories } from '../../services/productServices';
-import { getProductPerformanceReport, exportReport } from '../../services/financialServices';
+import { getProfitLossReport } from '../../services/profitService'; // Updated import
 
 const ProductPerformanceReport = () => {
   const [startDate, setStartDate] = useState(dayjs().subtract(1, 'month'));
@@ -16,6 +16,7 @@ const ProductPerformanceReport = () => {
   const [summaryData, setSummaryData] = useState({
     totalProducts: 0,
     totalRevenue: 0,
+    totalCosts: 0,
     totalProfit: 0,
     avgProfitMargin: 0
   });
@@ -134,19 +135,6 @@ const ProductPerformanceReport = () => {
     },
   ];
 
-  // Fetch categories from backend
-  const fetchCategories = async () => {
-    try {
-      const categoriesData = await getCategories();
-      setCategories(categoriesData);
-      return categoriesData;
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      message.error('Failed to fetch categories');
-      return [];
-    }
-  };
-
   // Fetch product performance report
   const fetchProductReport = async () => {
     if (!startDate || !endDate) {
@@ -156,76 +144,78 @@ const ProductPerformanceReport = () => {
 
     setLoading(true);
     try {
-      // Fetch categories and products in parallel
-      const [categoriesData, products] = await Promise.all([
-        fetchCategories(),
-        getAllProducts()
+      // Fetch all necessary data in parallel
+      const [categoriesData, products, profitData] = await Promise.all([
+        getCategories(),
+        getAllProducts(),
+        getProfitLossReport(startDate.toDate(), endDate.toDate())
       ]);
 
-      // Fetch sales data for the period
-      const salesData = await getProductPerformanceReport(
-        startDate.toDate(),
-        endDate.toDate()
-      );
+      // Set categories
+      setCategories(categoriesData || []);
 
-      // Combine product data with sales data
-      const processedData = products.map(product => {
-        const salesInfo = salesData.find(item => item.productId === product.id) || {};
-        
-        const unitsSold = salesInfo.unitsSold || 0;
-        const costPrice = product.cost_price || 0;
-        const sellingPrice = product.price || 0;
-        const revenue = unitsSold * sellingPrice;
-        const cost = unitsSold * costPrice;
-        const profit = revenue - cost;
-        const profitMargin = (revenue > 0) ? (profit / revenue) * 100 : 0;
+      // Process the profit data with products
+      if (profitData && products) {
+        const processedData = products.map(product => {
+          const productRevenue = (profitData.productBreakdown || []).find(
+            item => item.productId === product.id
+          )?.revenue || 0;
+          
+          const productCost = (profitData.productBreakdown || []).find(
+            item => item.productId === product.id
+          )?.cost || 0;
 
-        // Find category name from categories data
-        const productCategory = categoriesData.find(cat => cat.id === product.category_id);
-        const categoryName = productCategory ? productCategory.name : 'Uncategorized';
+          const unitsSold = (profitData.productBreakdown || []).find(
+            item => item.productId === product.id
+          )?.quantity || 0;
 
-        return {
-          productId: product.id,
-          productName: product.name || 'Unknown Product',
-          categoryName,
-          costPrice,
-          sellingPrice,
-          unitsSold,
-          revenue,
-          cost,
-          profit,
-          profitMargin
-        };
-      });
+          const profit = productRevenue - productCost;
+          const profitMargin = productRevenue > 0 ? (profit / productRevenue) * 100 : 0;
 
-      setData(processedData);
-      
-      // Calculate summary statistics
-      calculateSummary(processedData);
-      
-      // Update category filters
-      updateCategoryFilters(processedData);
-      
+          // Find category name from categories data
+          const productCategory = categoriesData.find(cat => cat.id === product.category_id);
+          const categoryName = productCategory ? productCategory.name : 'Uncategorized';
+
+          return {
+            productId: product.id,
+            productName: product.name || `Product ${product.id}`,
+            categoryName,
+            costPrice: product.cost_price || 0,
+            sellingPrice: product.price || 0,
+            unitsSold,
+            revenue: productRevenue,
+            cost: productCost,
+            profit,
+            profitMargin
+          };
+        });
+
+        setData(processedData);
+        calculateSummary(processedData, profitData);
+        updateCategoryFilters(processedData);
+      } else {
+        message.error('No profit data available for the selected period');
+      }
     } catch (error) {
       console.error('Error fetching product report:', error);
-      message.error('Failed to fetch product performance data');
+      message.error(error.message || 'Failed to fetch product performance data');
     } finally {
       setLoading(false);
     }
   };
 
   // Calculate summary statistics
-  const calculateSummary = (reportData) => {
-    const totalRevenue = reportData.reduce((sum, item) => sum + (item.revenue || 0), 0);
-    const totalCost = reportData.reduce((sum, item) => sum + (item.cost || 0), 0);
-    const totalProfit = totalRevenue - totalCost;
-    const avgProfitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+  const calculateSummary = (reportData, profitData) => {
+    if (!profitData) return;
 
     setSummaryData({
       totalProducts: reportData.length,
-      totalRevenue,
-      totalProfit,
-      avgProfitMargin
+      totalRevenue: profitData.totalRevenue || 0,
+      totalCosts: profitData.totalCosts || 0,
+      totalProfit: profitData.netProfit || 0,
+      avgProfitMargin: profitData.totalRevenue > 0 
+        ? (profitData.netProfit / profitData.totalRevenue) * 100 
+        : 0
     });
   };
 
@@ -250,24 +240,30 @@ const ProductPerformanceReport = () => {
 
     setExportLoading(true);
     try {
-      const blob = await exportReport({
-        reportType: 'PRODUCT_PERFORMANCE',
-        startDate: startDate.toDate(),
-        endDate: endDate.toDate(),
-        format: 'PDF'
-      });
+      // Generate CSV content
+      const headers = columns.map(col => col.title).join(',');
+      const rows = data.map(item => 
+        columns.map(col => {
+          const value = item[col.dataIndex];
+          if (col.render) {
+            if (col.dataIndex === 'profitMargin') return formatPercentage(value);
+            if (['costPrice', 'sellingPrice', 'revenue', 'cost', 'profit'].includes(col.dataIndex)) {
+              return formatCurrency(value).replace(/[^\d.,-]/g, '');
+            }
+          }
+          return `"${value}"`;
+        }).join(',')
+      ).join('\n');
 
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
+      const csvContent = `${headers}\n${rows}`;
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute(
-        'download',
-        `product-performance-${dayjs().format('YYYY-MM-DD')}.pdf`
-      );
+      link.setAttribute('download', `product-performance-${dayjs().format('YYYY-MM-DD')}.csv`);
       document.body.appendChild(link);
       link.click();
-      link.parentNode.removeChild(link);
+      document.body.removeChild(link);
 
       message.success('Report exported successfully');
     } catch (error) {
@@ -351,25 +347,21 @@ const ProductPerformanceReport = () => {
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic 
-              title="Total Profit" 
-              value={formatCurrency(summaryData.totalProfit)} 
-              valueStyle={{ 
-                fontSize: '18px', 
-                fontWeight: 'bold', 
-                color: summaryData.totalProfit >= 0 ? '#16a34a' : '#dc2626' 
-              }}
+              title="Total Costs" 
+              value={formatCurrency(summaryData.totalCosts)} 
+              valueStyle={{ fontSize: '18px', fontWeight: 'bold', color: '#dc2626' }}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic 
-              title="Avg Profit Margin" 
-              value={formatPercentage(summaryData.avgProfitMargin)} 
+              title="Total Profit" 
+              value={formatCurrency(summaryData.totalProfit)} 
               valueStyle={{ 
                 fontSize: '18px', 
                 fontWeight: 'bold', 
-                color: summaryData.avgProfitMargin >= 0 ? '#16a34a' : '#dc2626' 
+                color: summaryData.totalProfit >= 0 ? '#16a34a' : '#dc2626' 
               }}
             />
           </Card>

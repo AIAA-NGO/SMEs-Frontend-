@@ -1,27 +1,14 @@
-// src/hooks/usePermissions.js
-import { useState, useEffect } from 'react';
-import { 
-  getAvailablePermissions, 
-  getPermissionCategories 
-} from '../services/permissionServices';
+// hooks/usePermissions.js
+import { useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
 
-const usePermissions = () => {
-  const [permissions, setPermissions] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const load = () => {
-      setPermissions(getAvailablePermissions());
-      setCategories(getPermissionCategories());
-      setLoading(false);
-    };
-    load();
-    window.addEventListener('storage', load);
-    return () => window.removeEventListener('storage', load);
-  }, []);
-
-  return { permissions, categories, loading };
+export const usePermissions = () => {
+  const { user } = useContext(AuthContext);
+  
+  const hasPermission = (requiredPermission) => {
+    if (!user || !user.permissions) return false;
+    return user.permissions.includes(requiredPermission);
+  };
+  
+  return { hasPermission };
 };
-
-export default usePermissions;

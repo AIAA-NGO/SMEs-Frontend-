@@ -106,24 +106,30 @@ export const getProfitLossReport = async (startDate, endDate, options = {}) => {
       throw new Error('Start date must be before end date');
     }
 
-    const response = await api.get('/api/reports/financial/profit-loss', {
+    const response = await api.get('/reports/financial/profit-loss', {
       params,
       signal: options.signal
     });
 
-    // Validate response structure
+    // Validate response structure with more flexible handling
     if (!response.data || typeof response.data !== 'object') {
       throw new Error('Invalid response format from server');
     }
 
-    const requiredFields = ['totalRevenue', 'totalCosts', 'netProfit'];
-    for (const field of requiredFields) {
-      if (typeof response.data[field] !== 'number') {
-        throw new Error(`Missing or invalid ${field} in response`);
-      }
-    }
+    // Set default values if fields are missing
+    const result = {
+      totalRevenue: response.data.totalRevenue || 0,
+      totalCosts: response.data.totalCosts || 0,
+      netProfit: response.data.netProfit || 0,
+      ...response.data // Include any additional fields from the response
+    };
 
-    return response.data;
+    // Convert all numeric fields to numbers
+    result.totalRevenue = Number(result.totalRevenue);
+    result.totalCosts = Number(result.totalCosts);
+    result.netProfit = Number(result.netProfit);
+
+    return result;
   } catch (error) {
     if (error.message.includes('date') || error.message.includes('Date')) {
       throw new Error(`Invalid date range: ${error.message}`);
