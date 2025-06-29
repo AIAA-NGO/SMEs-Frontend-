@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { fetchRoles as fetchRolesService, deleteRole as deleteRoleService, updateRole } from '../../../services/rolesServices';
+import { fetchRoles, deleteRole ,updateRole} from '../../../services/rolesServices';
 import Modal from '../../../components/Modal';
 
 const RolesList = () => {
@@ -18,11 +18,11 @@ const RolesList = () => {
     const loadRoles = async () => {
       try {
         setLoading(true);
-        const data = await fetchRolesService();
+        const data = await fetchRoles();
         setRoles(data || []);
       } catch (err) {
         setError(err.message || 'Failed to load roles');
-        toast.error('Failed to fetch roles');
+        toast.error(err.message || 'Failed to fetch roles');
       } finally {
         setLoading(false);
       }
@@ -34,7 +34,7 @@ const RolesList = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this role? This action cannot be undone.')) {
       try {
-        await deleteRoleService(id);
+        await deleteRole(id);
         toast.success('Role deleted successfully');
         setRoles(prevRoles => prevRoles.filter(role => role.id !== id));
       } catch (err) {
@@ -64,7 +64,7 @@ const RolesList = () => {
   };
 
   const handlePermissionsClick = (roleId) => {
-    navigate(`/settings/business/roles-permissions/${roleId}`);
+    navigate(`/settings/roles/${roleId}/permissions`);
   };
 
   const filteredRoles = roles.filter(role =>
@@ -119,16 +119,10 @@ const RolesList = () => {
       </Modal>
 
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Roles & Permissions Management</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Roles Management</h1>
         <div className="flex space-x-4">
           <Link
-            to="/settings/business/roles-permissions"
-            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md"
-          >
-            View All Permissions
-          </Link>
-          <Link
-            to="/roles/create"
+            to="/settings/roles/create"
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
           >
             Create New Role
@@ -165,7 +159,12 @@ const RolesList = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-4">
-                     
+                      <button
+                        onClick={() => handlePermissionsClick(role.id)}
+                        className="text-green-600 hover:text-green-900 hover:underline"
+                      >
+                        Permissions
+                      </button>
                       <button
                         onClick={() => handleEditClick(role)}
                         className="text-yellow-600 hover:text-yellow-900 hover:underline"

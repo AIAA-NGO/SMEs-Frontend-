@@ -31,7 +31,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Handle token expiration or unauthorized access
       localStorage.removeItem("token");
-      window.location.href = "/login";
+      window.location.href = "/signin";
     }
     return Promise.reject(error);
   }

@@ -20,7 +20,9 @@ import {
   TableRow,
   useMediaQuery,
   useTheme,
-  Tooltip
+  Tooltip,
+  Chip,
+  Avatar
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -30,13 +32,15 @@ import {
   Refresh as RefreshIcon,
   Search as SearchIcon,
   FilterAlt as FilterIcon,
-  Clear as ClearIcon
+  Clear as ClearIcon,
+  Person as PersonIcon
 } from "@mui/icons-material";
 import { CSVLink } from "react-csv";
 import * as XLSX from "xlsx";
 import { useReactToPrint } from "react-to-print";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { getAuthData, hasRole } from "../../components/utils/auth";
 
 const UsersList = () => {
   const [users, setUsers] = useState([]);
@@ -52,6 +56,7 @@ const UsersList = () => {
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const isMediumScreen = useMediaQuery(theme.breakpoints.down('md'));
+  const { userId: currentUserId } = getAuthData();
 
   const fetchUsers = async () => {
     try {
@@ -153,7 +158,7 @@ const UsersList = () => {
       Username: user.username,
       Email: user.email || 'N/A',
       'Full Name': user.fullName || 'N/A',
-      Role: user.roles?.join(', ') || 'N/A',
+      Roles: user.roles?.join(', ') || 'N/A',
       Status: user.active ? 'Active' : 'Inactive',
       'Created At': formatCreatedAt(user.createdAt || user.created_at)
     })));
@@ -281,7 +286,7 @@ const UsersList = () => {
                 Username: user.username,
                 Email: user.email || 'N/A',
                 'Full Name': user.fullName || 'N/A',
-                Role: user.roles?.join(', ') || 'N/A',
+                Roles: user.roles?.join(', ') || 'N/A',
                 Status: user.active ? 'Active' : 'Inactive',
                 'Created At': formatCreatedAt(user.createdAt || user.created_at)
               }))} 
@@ -375,14 +380,16 @@ const UsersList = () => {
         </Box>
 
         <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreateUser}
-            size="small"
-          >
-            Create User
-          </Button>
+          {hasRole('ADMIN') && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleCreateUser}
+              size="small"
+            >
+              Create User
+            </Button>
+          )}
         </Box>
 
         {error && (
@@ -435,10 +442,10 @@ const UsersList = () => {
               <TableHead sx={{ bgcolor: 'grey.100' }}>
                 <TableRow>
                   <TableCell sx={{ width: '60px' }}>ID</TableCell>
-                  <TableCell>Username</TableCell>
+                  <TableCell>User</TableCell>
                   {!isSmallScreen && <TableCell>Email</TableCell>}
                   {!isMediumScreen && <TableCell>Full Name</TableCell>}
-                  <TableCell>Role</TableCell>
+                  <TableCell>Roles</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell align="right" className="no-print" sx={{ width: '60px' }}>Actions</TableCell>
                 </TableRow>
@@ -466,7 +473,12 @@ const UsersList = () => {
                   filteredUsers.map((user) => (
                     <TableRow key={user.id} hover>
                       <TableCell>{user.id}</TableCell>
-                      <TableCell>{user.username}</TableCell>
+                      <TableCell sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Avatar sx={{ width: 32, height: 32, mr: 1.5, bgcolor: 'primary.main' }}>
+                          <PersonIcon fontSize="small" />
+                        </Avatar>
+                        {user.username}
+                      </TableCell>
                       {!isSmallScreen && (
                         <TableCell>{user.email || 'N/A'}</TableCell>
                       )}
@@ -475,62 +487,31 @@ const UsersList = () => {
                       )}
                       <TableCell>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {user.roles?.slice(0, 2).map(role => (
-                            <Box 
-                              key={role} 
-                              component="span"
-                              sx={{
-                                px: 1,
-                                py: 0.25,
-                                bgcolor: 'primary.light',
-                                color: 'primary.contrastText',
-                                borderRadius: 1,
-                                fontSize: '0.7rem',
-                                lineHeight: 1.5
-                              }}
-                            >
-                              {role}
-                            </Box>
+                          {user.roles?.map(role => (
+                            <Chip
+                              key={role}
+                              label={role}
+                              size="small"
+                              color={
+                                role === 'ADMIN' ? 'primary' : 
+                                role === 'MANAGER' ? 'secondary' : 'default'
+                              }
+                            />
                           ))}
-                          {user.roles?.length > 2 && (
-                            <Tooltip title={user.roles.slice(2).join(', ')}>
-                              <Box 
-                                component="span"
-                                sx={{
-                                  px: 1,
-                                  py: 0.25,
-                                  bgcolor: 'primary.light',
-                                  color: 'primary.contrastText',
-                                  borderRadius: 1,
-                                  fontSize: '0.7rem'
-                                }}
-                              >
-                                +{user.roles.length - 2}
-                              </Box>
-                            </Tooltip>
-                          )}
                         </Box>
                       </TableCell>
                       <TableCell>
-                        <Box
-                          component="span"
-                          sx={{
-                            px: 1,
-                            py: 0.25,
-                            borderRadius: 1,
-                            bgcolor: user.active ? 'success.light' : 'error.light',
-                            color: user.active ? 'success.contrastText' : 'error.contrastText',
-                            fontSize: '0.75rem',
-                            display: 'inline-block'
-                          }}
-                        >
-                          {user.active ? 'Active' : 'Inactive'}
-                        </Box>
+                        <Chip
+                          label={user.active ? 'Active' : 'Inactive'}
+                          color={user.active ? 'success' : 'error'}
+                          size="small"
+                        />
                       </TableCell>
                       <TableCell align="right" className="no-print">
                         <IconButton
                           size="small"
                           onClick={(e) => handleMenuOpen(e, user.id)}
+                          disabled={!hasRole('ADMIN') && user.id !== currentUserId}
                         >
                           <MoreIcon fontSize="small" />
                         </IconButton>
@@ -548,6 +529,14 @@ const UsersList = () => {
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
       >
         <MenuItem onClick={handleEditUser} dense>
           <EditIcon fontSize="small" sx={{ mr: 1 }} /> Edit

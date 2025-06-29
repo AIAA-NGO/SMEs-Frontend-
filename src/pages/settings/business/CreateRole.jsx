@@ -29,11 +29,9 @@ const CreateRole = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Trim and convert to uppercase to match common role naming conventions
-    const roleName = name.trim().toUpperCase();
+    const roleName = name.trim();
     
-    // Check if role already exists locally (additional client-side validation)
-    if (existingRoles.some(role => role.name === roleName)) {
+    if (existingRoles.some(role => role.name.toLowerCase() === roleName.toLowerCase())) {
       toast.error('Role already exists');
       return;
     }
@@ -43,8 +41,7 @@ const CreateRole = () => {
     try {
       const response = await createRole({ name: roleName });
       toast.success('Role created successfully');
-      // Navigate to assign permissions page with the new role ID
-      navigate(`/roles/${response.id}/permissions`);
+      navigate(`/settings/roles/${response.id}/permissions`);
     } catch (error) {
       if (error.message.includes('already exists') || error.response?.status === 409) {
         toast.error('Role already exists');
@@ -76,17 +73,12 @@ const CreateRole = () => {
               onChange={(e) => setName(e.target.value)}
               required
               placeholder="Enter role name (e.g., ADMIN, MANAGER)"
-              pattern="[A-Za-z_]+"
-              title="Role name should contain only letters and underscores"
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Common roles: ADMIN, CASHIER, MANAGER, RECEIVING_CLERK
-            </p>
           </div>
           <div className="flex items-center justify-end">
             <button
               type="button"
-              onClick={() => navigate('/roles')}
+              onClick={() => navigate('/settings/roles')}
               className="mr-2 bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded-md transition duration-300"
             >
               Cancel

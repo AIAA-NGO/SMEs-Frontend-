@@ -17,6 +17,7 @@ import { FiTrendingUp } from "react-icons/fi";
 import { getSales } from '../../services/salesService';
 import { InventoryService } from '../../services/InventoryService';
 import { getAllProducts } from '../../services/productServices';
+import { getProfitLossReport } from '../../services/financialServices';
 
 ChartJS.register(
   CategoryScale,
@@ -69,11 +70,9 @@ const Dashboard = () => {
   
   const [sales, setSales] = useState([]);
   const [profitData, setProfitData] = useState({
-    netProfit: 0,
+    totalProfit: 0,
     totalRevenue: 0,
-    totalCost: 0,
-    grossProfit: 0,
-    operatingExpenses: 0
+    totalCost: 0
   });
   const [summary, setSummary] = useState({
     subtotal: 0,
@@ -123,23 +122,12 @@ const Dashboard = () => {
       const startDate = new Date();
       startDate.setDate(endDate.getDate() - 30);
       
-      const response = await fetch(
-        `${REPORTS_BASE_URL}/financial/profit-loss?startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`,
-        {
-          headers: getAuthHeader()
-        }
-      );
-      
-      if (!response.ok) throw new Error('Failed to fetch profit data');
-      
-      const profitReport = await response.json();
+      const profitReport = await getProfitLossReport(startDate, endDate);
       
       setProfitData({
-        netProfit: profitReport.netProfit || 0,
+        totalProfit: profitReport.netProfit || 0,
         totalRevenue: profitReport.totalRevenue || 0,
-        totalCost: profitReport.totalCost || 0,
-        grossProfit: profitReport.grossProfit || 0,
-        operatingExpenses: profitReport.operatingExpenses || 0
+        totalCost: profitReport.totalCost || 0
       });
       
       setSummary(prev => ({
@@ -160,7 +148,7 @@ const Dashboard = () => {
         subtotal: 0,
         discount: 0,
         total: 0,
-        salesProfit: profitData.netProfit,
+        salesProfit: profitData.totalProfit,
         totalSales: 0,
         inventoryCount: 0,
         customerCount: 0,
@@ -178,7 +166,7 @@ const Dashboard = () => {
       subtotal,
       discount,
       total,
-      salesProfit: profitData.netProfit,
+      salesProfit: profitData.totalProfit,
       totalSales,
       inventoryCount: summary.inventoryCount,
       customerCount: summary.customerCount,
@@ -613,7 +601,7 @@ const Dashboard = () => {
             {loading.profit ? (
               <span className="inline-block h-8 w-24 bg-gray-200 rounded animate-pulse"></span>
             ) : (
-              formatKES(profitData.netProfit)
+              formatKES(profitData.totalProfit)
             )}
           </p>
         </div>

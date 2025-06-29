@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { loginUser } from "../../services/api";
 import { useNavigate } from "react-router-dom";
+import { setAuthData } from "../../components/utils/auth";
 
 const Signin = () => {
-  const [username, setUsername] = useState("");  
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -15,7 +16,6 @@ const Signin = () => {
     setIsLoading(true);
 
     try {
-      // Basic validation
       if (!username.trim() || !password.trim()) {
         setError("Please enter both username and password");
         setIsLoading(false);
@@ -30,7 +30,7 @@ const Signin = () => {
         return;
       }
 
-      const { token, roles, username: userName } = response.data;
+      const { token, roles, username: userName, id } = response.data;
       
       if (!token) {
         setError("Authentication failed. No token received.");
@@ -44,25 +44,26 @@ const Signin = () => {
         return;
       }
 
-      // Save info in localStorage
-      localStorage.setItem("token", token);
-      localStorage.setItem("userRole", roles[0]);
-      localStorage.setItem("userName", userName);
+      // Store authentication data
+      setAuthData({ token, roles, username: userName, userId: id });
 
-      // Redirect to single dashboard route
-      navigate("/dashboard/admin");
+      // Redirect based on primary role
+      const primaryRole = roles.includes('ADMIN') ? 'admin' : 
+                        roles.includes('MANAGER') ? 'manager' : 'user';
+      navigate(`/dashboard/${primaryRole}`);
 
     } catch (err) {
       setIsLoading(false);
       
-      // Handle different error cases
       if (err.response) {
         if (err.response.status === 401) {
           setError("Invalid username or password");
+        } else if (err.response.status === 403) {
+          setError("You don't have permission to access this resource");
         } else if (err.response.status === 404) {
           setError("User not found");
         } else {
-          setError("Login failed. Please try again later.");
+          setError(err.response.data?.message || "Login failed. Please try again later.");
         }
       } else if (err.request) {
         setError("Network error. Please check your connection.");
@@ -70,7 +71,6 @@ const Signin = () => {
         setError("An unexpected error occurred.");
       }
       
-      // Clear password field for security
       setPassword("");
     }
   };
@@ -149,12 +149,6 @@ const Signin = () => {
                 ) : 'Sign In'}
               </button>
             </form>
-
-            <div className="mt-6 text-center">
-              <a href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-500">
-                
-              </a>
-            </div>
           </div>
         </div>
       </div>
