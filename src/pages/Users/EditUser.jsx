@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -7,69 +7,43 @@ import {
   TextField,
   Typography,
   Alert,
-  AlertTitle,
   CircularProgress,
   Paper,
   Checkbox,
+  FormControlLabel,
+  Select,
+  MenuItem,
+  InputLabel,
   FormControl,
   Grid,
   Container,
-  IconButton,
-  InputLabel,
-  Select,
-  MenuItem,
-  Chip,
-  FormControlLabel,
-  Avatar,
-  ListItemText,
-  ListItemIcon
+  IconButton
 } from '@mui/material';
-import {
-  ArrowBack as BackIcon,
-  Save as SaveIcon,
-  Cancel as CancelIcon,
-  Person as PersonIcon,
-  AdminPanelSettings as AdminIcon,
-  ManageAccounts as ManagerIcon,
-  PointOfSale as CashierIcon
-} from '@mui/icons-material';
-import { getAuthData, hasRole } from '../../components/utils/auth';
-
-const roleIcons = {
-  ADMIN: <AdminIcon fontSize="small" />,
-  MANAGER: <ManagerIcon fontSize="small" />,
-  CASHIER: <CashierIcon fontSize="small" />
-};
+import { ArrowBack as BackIcon, Save as SaveIcon, Cancel as CancelIcon } from '@mui/icons-material';
 
 export default function EditUser() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { userId: currentUserId } = getAuthData();
 
-  const [availableRoles, setAvailableRoles] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     fullName: '',
-    roles: [],
+    role: '',
     active: true
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [passwordChange, setPasswordChange] = useState({
-    oldPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
 
-  const api = useMemo(() => axios.create({
+  // Configure axios instance
+  const api = axios.create({
     baseURL: process.env.REACT_APP_API_BASE_URL,
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
+      'Content-Type': 'application/json'
     }
-  }), []);
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -77,9 +51,23 @@ export default function EditUser() {
         setIsLoading(true);
         setError('');
 
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('Authentication token not found');
+        }
+
+        // Fetch user data and roles in parallel
         const [userResponse, rolesResponse] = await Promise.all([
-          api.get(`/users/${id}`),
-          api.get('/users/roles')
+          api.get(`/users/${id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }),
+          api.get('/users/roles', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          })
         ]);
 
         const user = userResponse.data;
@@ -87,18 +75,16 @@ export default function EditUser() {
           username: user.username,
           email: user.email,
           fullName: user.fullName,
-          roles: user.roles || [],
+          role: user.roles[0], // Assuming single role per user
           active: user.active
         });
 
-        setAvailableRoles(rolesResponse.data);
+        setRoles(rolesResponse.data);
       } catch (error) {
         console.error('Error fetching data:', error);
         if (error.response) {
           if (error.response.status === 401) {
             setError('Session expired. Please login again.');
-          } else if (error.response.status === 403) {
-            setError('You are not authorized to view this user');
           } else if (error.response.status === 404) {
             setError('User not found');
           } else {
@@ -113,29 +99,13 @@ export default function EditUser() {
     };
 
     fetchData();
-  }, [id, api]);
+  }, [id]);
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
-  };
-
-  const handleRoleChange = (event) => {
-    const { value } = event.target;
-    setFormData(prev => ({
-      ...prev,
-      roles: typeof value === 'string' ? value.split(',') : value,
-    }));
-  };
-
-  const handlePasswordChange = (e) => {
     const { name, value } = e.target;
-    setPasswordChange(prev => ({
+    setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: name === 'active' ? e.target.checked : value
     }));
   };
 
@@ -145,46 +115,45 @@ export default function EditUser() {
     setError('');
 
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
       const updateData = {
         username: formData.username,
         email: formData.email,
         fullName: formData.fullName,
-        roles: formData.roles,
+        role: formData.role,
         active: formData.active
       };
 
-      if (passwordChange.newPassword && passwordChange.newPassword === passwordChange.confirmPassword) {
-        updateData.oldPassword = passwordChange.oldPassword;
-        updateData.newPassword = passwordChange.newPassword;
-      } else if (passwordChange.newPassword) {
-        throw new Error("New passwords don't match");
-      }
-
-      await api.put(`/users/${id}`, updateData);
+      await api.put(`/users/${id}`, updateData, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
       navigate('/users', { state: { userUpdated: true } });
     } catch (error) {
       console.error('Error updating user:', error);
       if (error.response) {
         if (error.response.status === 400) {
-          setError(error.response.data?.message || 'Validation error');
+          setError(error.response.data || 'Validation error');
         } else if (error.response.status === 403) {
           setError('You are not authorized to perform this action');
         } else if (error.response.status === 401) {
           setError('Session expired. Please login again.');
         } else {
-          setError(error.response.data?.message || 'Failed to update user');
+          setError('Failed to update user. Please try again.');
         }
       } else {
-        setError(error.message || 'Failed to update user');
+        setError('Network error. Please check your connection.');
       }
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  const isCurrentUser = id === currentUserId;
-  const canEditRoles = hasRole('ADMIN');
-  const canEditStatus = hasRole('ADMIN') || hasRole('MANAGER');
 
   if (isLoading) {
     return (
@@ -200,7 +169,6 @@ export default function EditUser() {
     return (
       <Container maxWidth="md" sx={{ mt: 4 }}>
         <Alert severity="error" sx={{ mb: 3 }}>
-          <AlertTitle>Error</AlertTitle>
           {error}
         </Alert>
         <Button
@@ -226,32 +194,6 @@ export default function EditUser() {
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
-          <Avatar sx={{ width: 64, height: 64, mr: 3, bgcolor: 'primary.main' }}>
-            <PersonIcon fontSize="large" />
-          </Avatar>
-          <Box>
-            <Typography variant="h6">{formData.fullName || 'No name provided'}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              {formData.username}
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-              {formData.roles?.map(role => (
-                <Chip
-                  key={role}
-                  label={role}
-                  size="small"
-                  icon={roleIcons[role] || <PersonIcon fontSize="small" />}
-                  color={
-                    role === 'ADMIN' ? 'primary' : 
-                    role === 'MANAGER' ? 'secondary' : 'default'
-                  }
-                />
-              ))}
-            </Box>
-          </Box>
-        </Box>
-
         <form onSubmit={handleSubmit}>
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
@@ -264,7 +206,6 @@ export default function EditUser() {
                 required
                 variant="outlined"
                 margin="normal"
-                disabled={!canEditRoles && !isCurrentUser}
               />
             </Grid>
             
@@ -295,46 +236,28 @@ export default function EditUser() {
               />
             </Grid>
 
-            {canEditRoles && (
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth margin="normal">
-                  <InputLabel id="roles-label">Roles</InputLabel>
-                  <Select
-                    labelId="roles-label"
-                    id="roles"
-                    name="roles"
-                    multiple
-                    value={formData.roles}
-                    onChange={handleRoleChange}
-                    label="Roles"
-                    required
-                    renderValue={(selected) => (
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {selected.map((value) => (
-                          <Chip 
-                            key={value} 
-                            label={value} 
-                            size="small"
-                            icon={roleIcons[value]}
-                          />
-                        ))}
-                      </Box>
-                    )}
-                  >
-                    {availableRoles.map((role) => (
-                      <MenuItem key={role} value={role}>
-                        <ListItemIcon>
-                          {roleIcons[role] || <PersonIcon fontSize="small" />}
-                        </ListItemIcon>
-                        <ListItemText primary={role} />
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-            )}
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="role-label">Role</InputLabel>
+                <Select
+                  labelId="role-label"
+                  id="role"
+                  name="role"
+                  value={formData.role}
+                  onChange={handleChange}
+                  label="Role"
+                  required
+                >
+                  {roles.map((role) => (
+                    <MenuItem key={role} value={role}>
+                      {role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
 
-            <Grid item xs={12} md={canEditRoles ? 6 : 12}>
+            <Grid item xs={12} md={6} sx={{ display: 'flex', alignItems: 'center' }}>
               <FormControlLabel
                 control={
                   <Checkbox
@@ -342,58 +265,11 @@ export default function EditUser() {
                     onChange={handleChange}
                     name="active"
                     color="primary"
-                    disabled={!canEditStatus}
                   />
                 }
                 label="Active"
               />
             </Grid>
-
-            {isCurrentUser && (
-              <>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Change Password
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="Current Password"
-                    name="oldPassword"
-                    type="password"
-                    value={passwordChange.oldPassword}
-                    onChange={handlePasswordChange}
-                    variant="outlined"
-                    margin="normal"
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="New Password"
-                    name="newPassword"
-                    type="password"
-                    value={passwordChange.newPassword}
-                    onChange={handlePasswordChange}
-                    variant="outlined"
-                    margin="normal"
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="Confirm Password"
-                    name="confirmPassword"
-                    type="password"
-                    value={passwordChange.confirmPassword}
-                    onChange={handlePasswordChange}
-                    variant="outlined"
-                    margin="normal"
-                  />
-                </Grid>
-              </>
-            )}
 
             <Grid item xs={12}>
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>

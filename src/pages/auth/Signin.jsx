@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { loginUser } from "../../services/api";
 import { useNavigate } from "react-router-dom";
-import { setAuthData } from "../../components/utils/auth";
 
 const Signin = () => {
   const [username, setUsername] = useState("");
@@ -16,6 +15,7 @@ const Signin = () => {
     setIsLoading(true);
 
     try {
+      // Basic validation
       if (!username.trim() || !password.trim()) {
         setError("Please enter both username and password");
         setIsLoading(false);
@@ -23,54 +23,47 @@ const Signin = () => {
       }
 
       const response = await loginUser({ username, password });
-      
+
       if (!response.data) {
         setError("Invalid server response");
         setIsLoading(false);
         return;
       }
 
-      const { token, roles, username: userName, id } = response.data;
-      
+      const { token, username: userName } = response.data;
+
       if (!token) {
         setError("Authentication failed. No token received.");
         setIsLoading(false);
         return;
       }
 
-      if (!roles || roles.length === 0) {
-        setError("Your account has no assigned roles. Please contact administrator.");
-        setIsLoading(false);
-        return;
-      }
+      // Save info in localStorage
+      localStorage.setItem("token", token);
+      localStorage.setItem("userName", userName);
 
-      // Store authentication data
-      setAuthData({ token, roles, username: userName, userId: id });
-
-      // Redirect based on primary role
-      const primaryRole = roles.includes('ADMIN') ? 'admin' : 
-                        roles.includes('MANAGER') ? 'manager' : 'user';
-      navigate(`/dashboard/${primaryRole}`);
+      // Redirect ALL users to admin dashboard
+      navigate("/dashboard/admin");
 
     } catch (err) {
       setIsLoading(false);
-      
+
+      // Handle different error cases
       if (err.response) {
         if (err.response.status === 401) {
           setError("Invalid username or password");
-        } else if (err.response.status === 403) {
-          setError("You don't have permission to access this resource");
         } else if (err.response.status === 404) {
           setError("User not found");
         } else {
-          setError(err.response.data?.message || "Login failed. Please try again later.");
+          setError("Login failed. Please try again later.");
         }
       } else if (err.request) {
         setError("Network error. Please check your connection.");
       } else {
         setError("An unexpected error occurred.");
       }
-      
+
+      // Clear password field for security
       setPassword("");
     }
   };
@@ -84,7 +77,7 @@ const Signin = () => {
             src="./basket.jpg"
             alt="Login illustration"
             className="w-full h-full object-cover"
-            style={{ minHeight: '500px' }}
+            style={{ minHeight: "500px" }}
           />
         </div>
 
@@ -128,27 +121,49 @@ const Signin = () => {
               </div>
 
               {error && (
-                <div className="text-red-500 text-sm p-2 bg-red-50 rounded">
-                  {error}
-                </div>
+                <div className="text-red-500 text-sm p-2 bg-red-50 rounded">{error}</div>
               )}
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`w-full ${isLoading ? 'bg-blue-400' : 'bg-blue-600'} text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition`}
+                className={`w-full ${isLoading ? "bg-blue-400" : "bg-blue-600"} text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition`}
               >
                 {isLoading ? (
                   <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <svg
+                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
                     </svg>
                     Signing In...
                   </span>
-                ) : 'Sign In'}
+                ) : (
+                  "Sign In"
+                )}
               </button>
             </form>
+
+            <div className="mt-6 text-center">
+              <a href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-500">
+                Forgot Password?
+              </a>
+            </div>
           </div>
         </div>
       </div>

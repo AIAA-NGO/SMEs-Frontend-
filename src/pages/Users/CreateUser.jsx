@@ -3,26 +3,24 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeftIcon } from '@heroicons/react/24/solid';
 import { CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/solid';
-import { getAuthData } from '../../components/utils/auth';
 
 const CreateUser = () => {
   const navigate = useNavigate();
-  const { roles: currentUserRoles } = getAuthData();
-  
   const [formData, setFormData] = useState({
     username: '',
     fullName: '',
     email: '',
     password: '',
-    roles: ['CASHIER'],
+    role: 'ADMIN', // Default role as per your example
     active: true
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
-  const [availableRoles, setAvailableRoles] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [usernameAvailable, setUsernameAvailable] = useState(true);
 
+  // Configure axios instance
   const api = axios.create({
     baseURL: process.env.REACT_APP_API_BASE_URL,
     headers: {
@@ -31,11 +29,12 @@ const CreateUser = () => {
     }
   });
 
+  // Fetch available roles
   useEffect(() => {
     const fetchRoles = async () => {
       try {
         const response = await api.get('/users/roles');
-        setAvailableRoles(response.data);
+        setRoles(response.data);
       } catch (err) {
         console.error('Failed to fetch roles:', err);
         setError('Failed to load roles. Please try again.');
@@ -44,6 +43,7 @@ const CreateUser = () => {
     fetchRoles();
   }, []);
 
+  // Check username availability
   useEffect(() => {
     const checkUsernameAvailability = async () => {
       if (formData.username.length < 3) return;
@@ -74,14 +74,6 @@ const CreateUser = () => {
     setError(null);
   };
 
-  const handleRoleChange = (e) => {
-    const { value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      roles: Array.isArray(value) ? value : [value]
-    }));
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -101,19 +93,13 @@ const CreateUser = () => {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
-      setLoading(false);
-      return;
-    }
-
     try {
       const payload = {
         username: formData.username,
         fullName: formData.fullName,
         email: formData.email,
         password: formData.password,
-        roles: formData.roles,
+        role: formData.role,
         active: formData.active
       };
 
@@ -127,8 +113,6 @@ const CreateUser = () => {
           setError('Session expired. Please login again.');
         } else if (err.response.status === 400) {
           setError(err.response.data?.message || 'Validation failed');
-        } else if (err.response.status === 403) {
-          setError('You are not authorized to create users');
         } else {
           setError(err.response.data?.message || 'Failed to create user');
         }
@@ -247,32 +231,23 @@ const CreateUser = () => {
             </div>
 
             <div>
-              <label htmlFor="roles" className="block text-sm font-medium text-gray-700">
-                Roles *
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+                Role *
               </label>
               <select
-                id="roles"
-                name="roles"
-                multiple
-                value={formData.roles}
-                onChange={handleRoleChange}
+                id="role"
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                 required
-                disabled={!currentUserRoles.includes('ADMIN')}
               >
-                {availableRoles.map(role => (
+                {roles.map(role => (
                   <option key={role} value={role}>
                     {role}
                   </option>
                 ))}
               </select>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {formData.roles.map(role => (
-                  <span key={role} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    {role}
-                  </span>
-                ))}
-              </div>
             </div>
 
             <div className="flex items-center">

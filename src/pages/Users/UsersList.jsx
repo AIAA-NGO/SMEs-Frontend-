@@ -20,9 +20,7 @@ import {
   TableRow,
   useMediaQuery,
   useTheme,
-  Tooltip,
-  Chip,
-  Avatar
+  Tooltip
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -32,15 +30,14 @@ import {
   Refresh as RefreshIcon,
   Search as SearchIcon,
   FilterAlt as FilterIcon,
-  Clear as ClearIcon,
-  Person as PersonIcon
+  Clear as ClearIcon
 } from "@mui/icons-material";
 import { CSVLink } from "react-csv";
 import * as XLSX from "xlsx";
 import { useReactToPrint } from "react-to-print";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { getAuthData, hasRole } from "../../components/utils/auth";
+import { fetchAllUsers } from "../../services/userService";
 
 const UsersList = () => {
   const [users, setUsers] = useState([]);
@@ -56,54 +53,17 @@ const UsersList = () => {
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const isMediumScreen = useMediaQuery(theme.breakpoints.down('md'));
-  const { userId: currentUserId } = getAuthData();
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("No authentication token found");
-      }
-
-      const api = axios.create({
-        baseURL: process.env.REACT_APP_API_BASE_URL,
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        }
-      });
-
-      const response = await api.get("/users");
-      
-      let usersData = [];
-      if (Array.isArray(response.data)) {
-        usersData = response.data;
-      } else if (Array.isArray(response.data?.users)) {
-        usersData = response.data.users;
-      } else if (Array.isArray(response.data?.data)) {
-        usersData = response.data.data;
-      }
-
-      setUsers(usersData);
+      const response = await fetchAllUsers();
+      setUsers(response);
     } catch (error) {
       console.error("Failed to fetch users:", error);
-      
-      if (error.response) {
-        if (error.response.status === 500) {
-          setError("Server error. Please try again later.");
-        } else if (error.response.status === 401) {
-          setError("Session expired. Please login again.");
-        } else {
-          setError(error.response.data?.message || "Failed to load users");
-        }
-      } else if (error.request) {
-        setError("Network error. Please check your connection.");
-      } else {
-        setError(error.message || "Failed to load users");
-      }
+      setError(typeof error === 'string' ? error : error.message || "Failed to load users");
     } finally {
       setLoading(false);
     }
@@ -158,7 +118,7 @@ const UsersList = () => {
       Username: user.username,
       Email: user.email || 'N/A',
       'Full Name': user.fullName || 'N/A',
-      Roles: user.roles?.join(', ') || 'N/A',
+      Role: user.roles?.join(', ') || 'N/A',
       Status: user.active ? 'Active' : 'Inactive',
       'Created At': formatCreatedAt(user.createdAt || user.created_at)
     })));
@@ -286,7 +246,7 @@ const UsersList = () => {
                 Username: user.username,
                 Email: user.email || 'N/A',
                 'Full Name': user.fullName || 'N/A',
-                Roles: user.roles?.join(', ') || 'N/A',
+                Role: user.roles?.join(', ') || 'N/A',
                 Status: user.active ? 'Active' : 'Inactive',
                 'Created At': formatCreatedAt(user.createdAt || user.created_at)
               }))} 
@@ -380,16 +340,14 @@ const UsersList = () => {
         </Box>
 
         <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
-          {hasRole('ADMIN') && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleCreateUser}
-              size="small"
-            >
-              Create User
-            </Button>
-          )}
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleCreateUser}
+            size="small"
+          >
+            Create User
+          </Button>
         </Box>
 
         {error && (
@@ -442,10 +400,10 @@ const UsersList = () => {
               <TableHead sx={{ bgcolor: 'grey.100' }}>
                 <TableRow>
                   <TableCell sx={{ width: '60px' }}>ID</TableCell>
-                  <TableCell>User</TableCell>
+                  <TableCell>Username</TableCell>
                   {!isSmallScreen && <TableCell>Email</TableCell>}
                   {!isMediumScreen && <TableCell>Full Name</TableCell>}
-                  <TableCell>Roles</TableCell>
+                  <TableCell>Role</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell align="right" className="no-print" sx={{ width: '60px' }}>Actions</TableCell>
                 </TableRow>
@@ -473,12 +431,7 @@ const UsersList = () => {
                   filteredUsers.map((user) => (
                     <TableRow key={user.id} hover>
                       <TableCell>{user.id}</TableCell>
-                      <TableCell sx={{ display: 'flex', alignItems: 'center' }}>
-                        <Avatar sx={{ width: 32, height: 32, mr: 1.5, bgcolor: 'primary.main' }}>
-                          <PersonIcon fontSize="small" />
-                        </Avatar>
-                        {user.username}
-                      </TableCell>
+                      <TableCell>{user.username}</TableCell>
                       {!isSmallScreen && (
                         <TableCell>{user.email || 'N/A'}</TableCell>
                       )}
@@ -488,30 +441,44 @@ const UsersList = () => {
                       <TableCell>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                           {user.roles?.map(role => (
-                            <Chip
-                              key={role}
-                              label={role}
-                              size="small"
-                              color={
-                                role === 'ADMIN' ? 'primary' : 
-                                role === 'MANAGER' ? 'secondary' : 'default'
-                              }
-                            />
+                            <Box 
+                              key={role} 
+                              component="span"
+                              sx={{
+                                px: 1,
+                                py: 0.25,
+                                bgcolor: 'primary.light',
+                                color: 'primary.contrastText',
+                                borderRadius: 1,
+                                fontSize: '0.7rem',
+                                lineHeight: 1.5
+                              }}
+                            >
+                              {role}
+                            </Box>
                           ))}
                         </Box>
                       </TableCell>
                       <TableCell>
-                        <Chip
-                          label={user.active ? 'Active' : 'Inactive'}
-                          color={user.active ? 'success' : 'error'}
-                          size="small"
-                        />
+                        <Box
+                          component="span"
+                          sx={{
+                            px: 1,
+                            py: 0.25,
+                            borderRadius: 1,
+                            bgcolor: user.active ? 'success.light' : 'error.light',
+                            color: user.active ? 'success.contrastText' : 'error.contrastText',
+                            fontSize: '0.75rem',
+                            display: 'inline-block'
+                          }}
+                        >
+                          {user.active ? 'Active' : 'Inactive'}
+                        </Box>
                       </TableCell>
                       <TableCell align="right" className="no-print">
                         <IconButton
                           size="small"
                           onClick={(e) => handleMenuOpen(e, user.id)}
-                          disabled={!hasRole('ADMIN') && user.id !== currentUserId}
                         >
                           <MoreIcon fontSize="small" />
                         </IconButton>
@@ -529,14 +496,6 @@ const UsersList = () => {
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
-        anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
       >
         <MenuItem onClick={handleEditUser} dense>
           <EditIcon fontSize="small" sx={{ mr: 1 }} /> Edit
