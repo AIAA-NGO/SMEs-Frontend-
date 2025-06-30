@@ -201,12 +201,51 @@ const InventoryPage = () => {
   // Remove expired products
   const handleRemoveExpired = async () => {
     try {
-      await InventoryService.removeExpiredProducts();
-      toast.success('Expired products removed successfully!');
+      const confirmDelete = window.confirm(
+        'Are you sure you want to permanently delete all expired products? This action cannot be undone.'
+      );
+      
+      if (!confirmDelete) return;
+
+      const allProducts = await InventoryService.getInventoryStatus(
+        '', null, null, false, false, { page: 0, size: 1000 }
+      );
+      
+      const expiredProducts = allProducts.content.filter(product => 
+        product.expiryDate && isAfter(new Date(), parseISO(product.expiryDate))
+      );
+
+      const deletePromises = expiredProducts.map(product => 
+        InventoryService.deleteProduct(product.id)
+      );
+      
+      await Promise.all(deletePromises);
+      
+      toast.success(`${expiredProducts.length} expired products deleted successfully!`);
       fetchInventory();
       fetchExpiredItems();
     } catch (err) {
       toast.error(`Error removing expired products: ${err.message}`);
+    }
+  };
+
+  // Delete single product
+  const handleDeleteProduct = async (productId) => {
+    try {
+      const confirmDelete = window.confirm(
+        'Are you sure you want to permanently delete this product? This action cannot be undone.'
+      );
+      
+      if (!confirmDelete) return;
+
+      await InventoryService.deleteProduct(productId);
+      toast.success('Product deleted successfully!');
+      
+      fetchInventory();
+      fetchLowStockItems();
+      fetchExpiredItems();
+    } catch (err) {
+      toast.error(`Error deleting product: ${err.message}`);
     }
   };
 
@@ -307,7 +346,7 @@ const InventoryPage = () => {
                 ) : 'N/A'}
               </p>
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end space-x-2">
               <button
                 onClick={() => openAdjustmentModal(item)}
                 className="text-blue-600 hover:text-blue-900 text-sm font-medium flex items-center"
@@ -317,6 +356,17 @@ const InventoryPage = () => {
                 </svg>
                 Adjust
               </button>
+              {isExpired && (
+                <button
+                  onClick={() => handleDeleteProduct(item.id)}
+                  className="text-red-600 hover:text-red-900 text-sm font-medium flex items-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -383,6 +433,17 @@ const InventoryPage = () => {
               </svg>
               Adjust
             </button>
+            {isExpired && (
+              <button
+                onClick={() => handleDeleteProduct(item.id)}
+                className="text-red-600 hover:text-red-900 flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete
+              </button>
+            )}
           </td>
         </tr>
       );
@@ -665,7 +726,10 @@ const InventoryPage = () => {
             onClick={handleRemoveExpired}
             className="inline-flex items-center px-3 py-1 sm:px-4 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
           >
-            Remove All Expired
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Delete All Expired
           </button>
         </div>
       )}

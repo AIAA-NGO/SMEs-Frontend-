@@ -58,12 +58,6 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
           grid-template-columns: 50% 15% 15% 20%;
           gap: 2px;
         }
-        .discount-row {
-          display: grid;
-          grid-template-columns: 70% 30%;
-          gap: 2px;
-          padding-left: 10px;
-        }
       </style>
     </head>
     <body class="font-sans p-4 w-full max-w-[80mm] mx-auto">
@@ -99,8 +93,6 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
         ${items.map(item => {
           const itemPrice = item.price;
           const itemTotal = itemPrice * item.quantity;
-          const discountAmount = item.discountAmount * item.quantity;
-          const discountedPrice = itemPrice - item.discountAmount;
           const soldOutClass = item.isSoldOut ? 'sold-out' : '';
           
           return `
@@ -113,14 +105,6 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
             <div class="text-right">${itemPrice.toFixed(2)}</div>
             <div class="text-right font-medium">${itemTotal.toFixed(2)}</div>
           </div>
-          ${
-            item.discountAmount > 0 ? `
-            <div class="discount-row text-xs text-green-600 ${soldOutClass}">
-              <div>- Discount ${item.discountPercentage > 0 ? `(${item.discountPercentage}%)` : ''}</div>
-              <div class="text-right">- ${discountAmount.toFixed(2)}</div>
-            </div>
-            ` : ''
-          }
           `;
         }).join('')}
       </div>
@@ -130,10 +114,6 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
         <div class="flex justify-between">
           <span>Subtotal:</span>
           <span class="font-medium">Ksh ${subtotal.toFixed(2)}</span>
-        </div>
-        <div class="flex justify-between text-green-600">
-          <span>Discount:</span>
-          <span class="font-medium">- Ksh ${discount.toFixed(2)}</span>
         </div>
         <div class="flex justify-between">
           <span>Tax (16%):</span>
