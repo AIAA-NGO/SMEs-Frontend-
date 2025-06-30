@@ -1,149 +1,81 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import {
-  fetchAllRoles,
-  fetchRolePermissions,
-  assignRolePermissions,
-  fetchAllPermissions,
-  getDefaultPermissionsForRole
-} from '../../../services/permissionServices';
+import { useAuth } from '../../../context/AuthContext';
 
 const PermissionManagement = () => {
-  const [roles, setRoles] = useState([]);
+  const {
+    allRoles,
+    allPermissions,
+    loading,
+    rolesLoaded,
+    updateRolePermissions,
+    getDefaultPermissionsForRole,
+    loadRolesAndPermissions,
+    hasPermission
+  } = useAuth();
+
   const [selectedRole, setSelectedRole] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [rolePermissions, setRolePermissions] = useState({});
   const [error, setError] = useState(null);
-  const [allPermissions, setAllPermissions] = useState([]);
-  
-  // Permission categories structure
+
   const permissionCategories = [
     { name: 'Dashboard', permissions: ['dashboard_view'] },
-    { 
-      name: 'Customer', 
-      permissions: ['customer_create', 'customer_view', 'customer_update', 'customer_delete', 'customer_sales'] 
-    },
-    { 
-      name: 'Supplier', 
-      permissions: ['supplier_view', 'supplier_create', 'supplier_update', 'supplier_delete'] 
-    },
-    { 
-      name: 'Product', 
-      permissions: ['product_create', 'product_view', 'product_update', 'product_delete', 'product_import', 'product_purchase'] 
-    },
-    { 
-      name: 'Brand', 
-      permissions: ['brand_create', 'brand_view', 'brand_update', 'brand_delete'] 
-    },
-    { 
-      name: 'Category', 
-      permissions: ['category_create', 'category_view', 'category_update', 'category_delete'] 
-    },
-    { 
-      name: 'Unit', 
-      permissions: ['unit_create', 'unit_view', 'unit_update', 'unit_delete'] 
-    },
-    { 
-      name: 'Sale', 
-      permissions: ['sale_create', 'sale_view', 'sale_update', 'sale_delete', 'sale_edit'] 
-    },
-    { 
-      name: 'Purchase', 
-      permissions: ['purchase_create', 'purchase_view', 'purchase_update', 'purchase_delete'] 
-    },
-    { 
-      name: 'Report', 
-      permissions: ['reports_summary', 'reports_sales', 'reports_inventory'] 
-    },
-    { 
-      name: 'Role', 
-      permissions: ['role_create', 'role_view', 'role_update', 'role_delete'] 
-    },
-    { 
-      name: 'Permission', 
-      permissions: ['permission_view'] 
-    },
-    { 
-      name: 'User', 
-      permissions: ['user_create', 'user_view', 'user_update', 'user_delete', 'user_suspend'] 
-    },
-    { 
-      name: 'Settings', 
-      permissions: [
-        'website_settings', 'contact_settings', 'socials_settings', 
-        'style_settings', 'custom_settings', 'notification_settings',
-        'website_status_settings', 'invoice_settings'
-      ] 
-    }
+    { name: 'Customer', permissions: ['customer_view', 'customer_create', 'customer_update', 'customer_delete'] },
+    { name: 'Supplier', permissions: ['supplier_view', 'supplier_create', 'supplier_update', 'supplier_delete'] },
+    { name: 'Product', permissions: ['product_view', 'product_create', 'product_update', 'product_delete'] },
+    { name: 'Brand', permissions: ['brand_view', 'brand_create', 'brand_update', 'brand_delete'] },
+    { name: 'Category', permissions: ['category_view', 'category_create', 'category_update', 'category_delete'] },
+    { name: 'Unit', permissions: ['unit_view', 'unit_create', 'unit_update', 'unit_delete'] },
+    { name: 'Sale', permissions: ['sale_view', 'sale_create', 'sale_update', 'sale_return'] },
+    { name: 'Purchase', permissions: ['purchase_view', 'purchase_create', 'purchase_update'] },
+    { name: 'Report', permissions: ['reports_view'] },
+    { name: 'Role', permissions: ['role_view', 'role_create', 'role_update', 'role_manage'] },
+    { name: 'User', permissions: ['user_view', 'user_create', 'user_update'] },
+    { name: 'Settings', permissions: ['settings_manage'] },
+    { name: 'Inventory', permissions: ['inventory_view'] },
+    { name: 'POS', permissions: ['pos_access'] },
+    { name: 'Discount', permissions: ['discount_apply'] }
   ];
 
-  const [rolePermissions, setRolePermissions] = useState({});
-
-  // Load initial data
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setLoading(true);
-        const [rolesData, permissionsData] = await Promise.all([
-          fetchAllRoles(),
-          fetchAllPermissions()
-        ]);
-        
-        setRoles(rolesData);
-        setAllPermissions(permissionsData);
-        
-        if (rolesData.length > 0) {
-          setSelectedRole(rolesData[0].id);
-        }
-      } catch (error) {
-        setError('Failed to load initial data');
-        console.error('Initialization error:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (!rolesLoaded) {
+      loadRolesAndPermissions();
+    }
+  }, [rolesLoaded, loadRolesAndPermissions]);
 
-    loadInitialData();
-  }, []);
-
-  // Load permissions when role changes
   useEffect(() => {
     if (selectedRole) {
       const loadPermissions = async () => {
         try {
-          setLoading(true);
-          const permissions = await fetchRolePermissions(selectedRole);
+          const role = allRoles.find(r => r.id === selectedRole);
+          if (!role) return;
           
-          // Initialize all permissions to false
           const allPermissionNames = permissionCategories.flatMap(cat => cat.permissions);
           const initialPermissions = Object.fromEntries(
             allPermissionNames.map(perm => [perm, false])
           );
           
-          // Set to true for permissions the role has
-          permissions.forEach(perm => {
+          const rolePerms = getDefaultPermissionsForRole(role.name);
+          rolePerms.forEach(perm => {
             initialPermissions[perm] = true;
           });
           
           setRolePermissions(initialPermissions);
         } catch (error) {
-          setError(`Failed to load permissions for role ${selectedRole}`);
+          setError(`Failed to load permissions for role`);
           console.error('Permission load error:', error);
-        } finally {
-          setLoading(false);
         }
       };
 
       loadPermissions();
     }
-  }, [selectedRole]);
+  }, [selectedRole, allRoles]);
 
-  // Apply default permissions for the selected role
   const applyDefaultPermissions = async () => {
     if (!selectedRole) return;
     
     try {
-      setLoading(true);
-      const role = roles.find(r => r.id === selectedRole);
+      const role = allRoles.find(r => r.id === selectedRole);
       if (!role) return;
       
       const defaultPermissions = getDefaultPermissionsForRole(role.name);
@@ -158,34 +90,28 @@ const PermissionManagement = () => {
     } catch (error) {
       toast.error('Failed to load default permissions');
       console.error(error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Save permissions to backend
   const savePermissions = async () => {
     if (!selectedRole) return;
     
     try {
-      setLoading(true);
-      
-      // Get enabled permissions
       const enabledPermissions = Object.entries(rolePermissions)
         .filter(([_, value]) => value)
         .map(([key]) => key);
       
-      await assignRolePermissions(selectedRole, enabledPermissions);
-      toast.success('Permissions saved successfully!');
+      const success = await updateRolePermissions(selectedRole, enabledPermissions);
+      if (success) {
+        toast.success('Permissions saved successfully!');
+        loadRolesAndPermissions();
+      }
     } catch (error) {
       toast.error('Failed to save permissions');
       console.error('Save error:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Toggle single permission
   const togglePermission = (permission) => {
     setRolePermissions(prev => ({
       ...prev,
@@ -193,7 +119,6 @@ const PermissionManagement = () => {
     }));
   };
 
-  // Toggle all permissions in a category
   const toggleCategory = (category, enable) => {
     setRolePermissions(prev => {
       const newPermissions = {...prev};
@@ -204,8 +129,19 @@ const PermissionManagement = () => {
     });
   };
 
-  if (loading && !selectedRole) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+  if (!hasPermission('role_manage')) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="text-center p-6 bg-white rounded-lg shadow-md">
+          <h2 className="text-xl font-bold text-red-600 mb-2">Access Denied</h2>
+          <p className="text-gray-700">You don't have permission to manage role permissions.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading && !rolesLoaded) {
+    return <div className="flex justify-center items-center h-screen">Loading roles...</div>;
   }
 
   if (error) {
@@ -232,23 +168,28 @@ const PermissionManagement = () => {
                 onChange={(e) => setSelectedRole(Number(e.target.value))}
                 disabled={loading}
               >
-                {roles.map(role => (
-                  <option key={role.id} value={role.id}>{role.name}</option>
-                ))}
+                <option value="">Select a role</option>
+                {allRoles.length > 0 ? (
+                  allRoles.map(role => (
+                    <option key={role.id} value={role.id}>{role.name}</option>
+                  ))
+                ) : (
+                  <option disabled>No roles available</option>
+                )}
               </select>
             </div>
             
             <div className="flex gap-2">
               <button
                 onClick={applyDefaultPermissions}
-                disabled={loading}
+                disabled={loading || !selectedRole}
                 className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md disabled:opacity-50"
               >
                 Load Defaults
               </button>
               <button
                 onClick={savePermissions}
-                disabled={loading}
+                disabled={loading || !selectedRole}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-50"
               >
                 {loading ? 'Saving...' : 'Save Permissions'}
@@ -258,7 +199,11 @@ const PermissionManagement = () => {
         </div>
 
         <div className="p-6">
-          {loading ? (
+          {!selectedRole ? (
+            <div className="text-center py-8 text-gray-500">
+              Please select a role to manage permissions
+            </div>
+          ) : loading ? (
             <div className="flex justify-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
             </div>

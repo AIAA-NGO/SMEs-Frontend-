@@ -1,17 +1,16 @@
+// src/components/Navbar.js
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FaShoppingCart, FaUser, FaChevronDown, FaSignOutAlt } from "react-icons/fa";
-import { fetchCurrentUser, logoutUser } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 const Navbar = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [cartItemCount, setCartItemCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Get cart count from session storage
   const getCartItemCount = () => {
     const cartData = sessionStorage.getItem('cart');
     if (cartData) {
@@ -21,46 +20,12 @@ const Navbar = () => {
     return 0;
   };
 
-  // Check for existing auth state on initial load
-  useEffect(() => {
-    const checkAuthState = () => {
-      const storedToken = localStorage.getItem("token");
-      const storedUser = localStorage.getItem("userName");
-
-      if (storedToken && storedUser) {
-        setIsAuthenticated(true);
-      }
-    };
-    checkAuthState();
-  }, []);
-
-  // Fetch user data if authenticated
-  useEffect(() => {
-    const getUserData = async () => {
-      if (isAuthenticated) {
-        try {
-          const { data, error } = await fetchCurrentUser();
-          if (data && !error) {
-            setCurrentUser(data.user || data);
-          }
-        } catch (error) {
-          console.error("Failed to fetch user data:", error);
-        }
-      }
-    };
-    getUserData();
-  }, [isAuthenticated]);
-
-  // Update cart count when cart changes
   useEffect(() => {
     const handleStorageChange = () => {
       setCartItemCount(getCartItemCount());
     };
 
-    // Listen for changes to session storage
     window.addEventListener('storage', handleStorageChange);
-    
-    // Initial count
     setCartItemCount(getCartItemCount());
 
     return () => {
@@ -70,12 +35,7 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     try {
-      await logoutUser();
-      // Clear local storage
-      localStorage.removeItem("token");
-      localStorage.removeItem("userName");
-      
-      setIsAuthenticated(false);
+      logout();
       navigate("/signin");
       setShowDropdown(false);
     } catch (error) {
@@ -89,9 +49,7 @@ const Navbar = () => {
   return (
     <nav className="sticky top-0 z-40 w-full bg-white border-b border-gray-200 shadow-sm h-16 flex items-center px-4 sm:px-6">
       <div className="flex items-center justify-end w-full">
-        {/* Right Side Actions */}
         <div className="flex items-center space-x-4">
-          {/* Cart - Now links to /pos instead of /cart */}
           <Link
             to="/pos"
             className="relative flex items-center p-2 text-gray-700 hover:text-blue-600"
@@ -105,27 +63,18 @@ const Navbar = () => {
             <span className="ml-1 hidden sm:inline">Cart</span>
           </Link>
 
-          {/* User Dropdown */}
           <div className="relative">
             <button
               onClick={() => setShowDropdown(!showDropdown)}
               className="flex items-center space-x-1 focus:outline-none p-2"
             >
               <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-                {currentUser?.imageUrl ? (
-                  <img 
-                    src={currentUser.imageUrl} 
-                    alt={currentUser.username} 
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <FaUser className="text-gray-600" />
-                )}
+                <FaUser className="text-gray-600" />
               </div>
               
-              {(currentUser || localStorage.getItem("userName")) && (
+              {user && (
                 <span className="text-sm font-medium text-gray-700 hidden sm:inline">
-                  {currentUser?.username || localStorage.getItem("userName")}
+                  {user.name || user.username}
                 </span>
               )}
               
@@ -151,7 +100,7 @@ const Navbar = () => {
                     My Profile
                   </Link>
 
-                  {isAuthenticated ? (
+                  {user ? (
                     <button
                       onClick={handleLogout}
                       className="w-full flex items-center justify-center px-4 py-2 text-sm text-white bg-red-500 hover:bg-red-600 rounded mt-2 transition-colors"

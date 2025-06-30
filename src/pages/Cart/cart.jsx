@@ -442,20 +442,8 @@ const Cart = ({ onCloseCart }) => {
                 <FaMobileAlt className="mr-2" />
                 <span>M-Pesa</span>
               </button>
-              <button
-                onClick={() => setPaymentMethod('CARD')}
-                className={`flex items-center justify-center p-2 rounded-md border ${paymentMethod === 'CARD' ? 'bg-blue-100 border-blue-500' : 'bg-white border-gray-300'}`}
-              >
-                <FaCreditCard className="mr-2" />
-                <span>Card</span>
-              </button>
-              <button
-                onClick={() => setPaymentMethod('BANK')}
-                className={`flex items-center justify-center p-2 rounded-md border ${paymentMethod === 'BANK' ? 'bg-blue-100 border-blue-500' : 'bg-white border-gray-300'}`}
-              >
-                <FaUniversity className="mr-2" />
-                <span>Bank</span>
-              </button>
+              
+              
             </div>
 
             {paymentMethod === 'MPESA' && (

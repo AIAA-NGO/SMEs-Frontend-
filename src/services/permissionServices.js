@@ -1,4 +1,3 @@
-// permissionServices.js
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com/api';
@@ -12,48 +11,24 @@ const getAuthHeader = () => {
   };
 };
 
-// Get all roles
 export const fetchAllRoles = async () => {
   try {
     const response = await axios.get(`${API_BASE_URL}/roles`, getAuthHeader());
-    return response.data;
+    console.log('Roles API response:', response.data);
+    return Array.isArray(response.data) ? response.data : response.data.roles || [];
   } catch (error) {
-    console.error('Error fetching roles:', error);
+    console.error('Error fetching roles:', error.response?.data || error.message);
     throw error;
   }
 };
 
-// Get permissions for a specific role
-export const fetchRolePermissions = async (roleId) => {
-  try {
-    const response = await axios.get(
-      `${API_BASE_URL}/role-permissions/${roleId}/details`, 
-      getAuthHeader()
-    );
-    return response.data.permissions || [];
-  } catch (error) {
-    console.error('Error fetching role permissions:', error);
-    throw error;
-  }
-};
-
-// Assign permissions to a role
 export const assignRolePermissions = async (roleId, permissionNames) => {
   try {
-    // First get all permissions to map names to IDs
-    const allPermissions = await fetchAllPermissions();
-    
-    // Map permission names to their IDs
-    const permissionIds = permissionNames.map(permName => {
-      const perm = allPermissions.find(p => p.name === permName);
-      return perm ? perm.id : null;
-    }).filter(id => id !== null);
-
     const response = await axios.post(
       `${API_BASE_URL}/role-permissions/assign`,
       {
         roleId: roleId,
-        permissionIds: permissionIds
+        permissionNames: permissionNames
       },
       getAuthHeader()
     );
@@ -64,7 +39,6 @@ export const assignRolePermissions = async (roleId, permissionNames) => {
   }
 };
 
-// Get all available permissions
 export const fetchAllPermissions = async () => {
   try {
     const response = await axios.get(`${API_BASE_URL}/permissions`, getAuthHeader());
@@ -75,34 +49,39 @@ export const fetchAllPermissions = async () => {
   }
 };
 
-// Get default permissions for a role
 export const getDefaultPermissionsForRole = (roleName) => {
   const defaultPermissions = {
     ADMIN: [
       'dashboard_view',
-      'customer_create', 'customer_view', 'customer_update', 'customer_delete',
-      'supplier_create', 'supplier_view', 'supplier_update', 'supplier_delete',
-      'product_create', 'product_view', 'product_update', 'product_delete',
-      'sale_create', 'sale_view', 'sale_update', 'sale_delete',
-      'purchase_create', 'purchase_view', 'purchase_update', 'purchase_delete',
-      'role_create', 'role_view', 'role_update', 'role_delete',
-      'user_create', 'user_view', 'user_update', 'user_delete'
-    ],
-    CASHIER: [
-      'dashboard_view',
-      'customer_view',
-      'product_view',
-      'sale_create', 'sale_view'
+      'product_view', 'product_create',
+      'category_view', 'brand_view', 'unit_view',
+      'pos_access', 'supplier_view', 'customer_view',
+      'user_view', 'user_create', 'user_update',
+      'purchase_view', 'purchase_create', 'purchase_update',
+      'sale_view', 'sale_return', 'discount_apply',
+      'reports_view', 'settings_manage',
+      'role_manage', 'role_create',
+      'inventory_view'
     ],
     MANAGER: [
       'dashboard_view',
-      'customer_create', 'customer_view', 'customer_update',
-      'product_create', 'product_view', 'product_update',
-      'sale_create', 'sale_view', 'sale_update',
-      'purchase_view',
-      'reports_summary', 'reports_sales'
+      'category_view', 'product_view',
+      'sale_view', 'sale_return',
+      'purchase_view', 'inventory_view',
+      'reports_view'
+    ],
+    CASHIER: [
+      'dashboard_view',
+      'customer_view', 'product_view',
+      'sale_view', 'sale_return',
+      'pos_access'
+    ],
+    RECEIVING_CLERK: [
+      'product_view',
+      'purchase_view', 'purchase_create',
+      'purchase_update', 'inventory_view'
     ]
   };
 
-  return defaultPermissions[roleName.toUpperCase()] || [];
+  return defaultPermissions[roleName?.toUpperCase()] || [];
 };

@@ -1,30 +1,29 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { toast } from 'react-toastify';
+// src/routes/ProtectedRoute.js
+import { Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
-const ProtectedRoute = ({ children, requiredPermission }) => {
-  const navigate = useNavigate();
-  const { user, permissions } = useSelector(state => state.auth);
+const ProtectedRoute = ({ requiredPermissions = [], children }) => {
+  const { isAuthenticated, hasPermission } = useAuth();
 
-  useEffect(() => {
-    if (!user) {
-      navigate('/signin');
-      toast.error('Please login to access this page');
-      return;
-    }
-
-    if (requiredPermission && !permissions?.includes(requiredPermission)) {
-      navigate('/');
-      toast.error('You do not have permission to access this page');
-    }
-  }, [user, permissions, requiredPermission, navigate]);
-
-  if (!user || (requiredPermission && !permissions?.includes(requiredPermission))) {
-    return null;
+  if (!isAuthenticated) {
+    return <Navigate to="/signin" replace />;
   }
 
-  return children;
+  // If no specific permissions required, just check authentication
+  if (requiredPermissions.length === 0) {
+    return children ? children : <Outlet />;
+  }
+
+  // Check if user has any of the required permissions
+  const hasRequiredPermission = requiredPermissions.some(perm => 
+    hasPermission(perm)
+  );
+
+  if (!hasRequiredPermission) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  return children ? children : <Outlet />;
 };
 
 export default ProtectedRoute;

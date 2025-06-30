@@ -1,6 +1,10 @@
+// src/pages/auth/Signin.js
 import React, { useState } from "react";
 import { loginUser } from "../../services/api";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const Signin = () => {
   const [username, setUsername] = useState("");
@@ -8,6 +12,7 @@ const Signin = () => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -15,7 +20,6 @@ const Signin = () => {
     setIsLoading(true);
 
     try {
-      // Basic validation
       if (!username.trim() || !password.trim()) {
         setError("Please enter both username and password");
         setIsLoading(false);
@@ -24,46 +28,52 @@ const Signin = () => {
 
       const response = await loginUser({ username, password });
 
-      if (!response.data) {
-        setError("Invalid server response");
-        setIsLoading(false);
-        return;
-      }
-
-      const { token, username: userName } = response.data;
-
-      if (!token) {
+      if (!response.data?.token) {
         setError("Authentication failed. No token received.");
         setIsLoading(false);
         return;
       }
 
-      // Save info in localStorage
-      localStorage.setItem("token", token);
-      localStorage.setItem("userName", userName);
+      // Call login with the response data
+      login(response.data);
+      
+      // Show welcome message with name (falls back to username if name not available)
+      const displayName = response.data.name || response.data.username || 'User';
+      toast.success(`Welcome back, ${displayName}!`, {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
 
-      // Redirect ALL users to admin dashboard
-      navigate("/dashboard/admin");
+      // Redirect based on permissions
+      const { roles = [], permissions = [] } = response.data;
+      
+      if (permissions.includes('dashboard_view')) {
+        navigate("/dashboard");
+      } else if (permissions.includes('inventory_view')) {
+        navigate("/inventory");
+      } else if (permissions.includes('pos_access')) {
+        navigate("/pos");
+      } else if (roles.includes('ADMIN') || roles.includes('MANAGER')) {
+        navigate("/dashboard");
+      } else if (roles.includes('CASHIER')) {
+        navigate("/pos");
+      } else if (roles.includes('RECEIVING_CLERK')) {
+        navigate("/inventory");
+      } else {
+        navigate("/profile");
+      }
 
     } catch (err) {
       setIsLoading(false);
-
-      // Handle different error cases
-      if (err.response) {
-        if (err.response.status === 401) {
-          setError("Invalid username or password");
-        } else if (err.response.status === 404) {
-          setError("User not found");
-        } else {
-          setError("Login failed. Please try again later.");
-        }
-      } else if (err.request) {
-        setError("Network error. Please check your connection.");
+      if (err.response?.status === 401) {
+        setError("Invalid username or password");
       } else {
-        setError("An unexpected error occurred.");
+        setError("Login failed. Please try again later.");
       }
-
-      // Clear password field for security
       setPassword("");
     }
   };
