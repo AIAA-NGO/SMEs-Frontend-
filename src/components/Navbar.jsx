@@ -7,7 +7,7 @@ import { useAuth } from "../context/AuthContext";
 const Navbar = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const [cartItemCount, setCartItemCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -50,18 +50,21 @@ const Navbar = () => {
     <nav className="sticky top-0 z-40 w-full bg-white border-b border-gray-200 shadow-sm h-16 flex items-center px-4 sm:px-6">
       <div className="flex items-center justify-end w-full">
         <div className="flex items-center space-x-4">
-          <Link
-            to="/pos"
-            className="relative flex items-center p-2 text-gray-700 hover:text-blue-600"
-          >
-            <FaShoppingCart className="text-lg" />
-            {cartItemCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs h-5 w-5 flex items-center justify-center rounded-full">
-                {cartItemCount}
-              </span>
-            )}
-            <span className="ml-1 hidden sm:inline">Cart</span>
-          </Link>
+          {/* Only show Cart if user has pos_access permission */}
+          {hasPermission('pos_access') && (
+            <Link
+              to="/pos"
+              className="relative flex items-center p-2 text-gray-700 hover:text-blue-600"
+            >
+              <FaShoppingCart className="text-lg" />
+              {cartItemCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs h-5 w-5 flex items-center justify-center rounded-full">
+                  {cartItemCount}
+                </span>
+              )}
+              <span className="ml-1 hidden sm:inline">Cart</span>
+            </Link>
+          )}
 
           <div className="relative">
             <button

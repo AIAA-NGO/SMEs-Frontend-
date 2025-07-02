@@ -551,33 +551,9 @@ const InventoryPage = () => {
                         }}
                       />
                     </div>
-                  </div>
+                  
 
-                  <div className="space-y-2">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="mobile-lowStockOnly"
-                        checked={filters.lowStockOnly}
-                        onChange={(e) => setFilters(prev => ({ ...prev, lowStockOnly: e.target.checked, page: 0 }))}
-                        className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="mobile-lowStockOnly" className="ml-2 block text-sm text-gray-700">
-                        Low Stock Only
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="mobile-expiredOnly"
-                        checked={filters.expiredOnly}
-                        onChange={(e) => setFilters(prev => ({ ...prev, expiredOnly: e.target.checked, page: 0 }))}
-                        className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="mobile-expiredOnly" className="ml-2 block text-sm text-gray-700">
-                        Expired Only
-                      </label>
-                    </div>
+                  
                   </div>
 
                   <div>
@@ -650,56 +626,8 @@ const InventoryPage = () => {
         </nav>
       </div>
 
-      {/* Desktop Filters */}
-      <div className="hidden sm:block bg-white rounded-lg shadow-md p-4 md:p-6 mb-4 md:mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="md:col-span-2">
-            <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">Search</label>
-            <div className="relative rounded-md shadow-sm">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                id="search"
-                className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-12 py-2 sm:text-sm border-gray-300 rounded-md"
-                placeholder="Search by name or barcode"
-                value={filters.search}
-                onChange={(e) => {
-                  setFilters(prev => ({ ...prev, search: e.target.value, page: 0 }));
-                  handleSearch(e.target.value);
-                }}
-              />
-            </div>
-          </div>
-          <div className="flex items-end space-x-4">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="lowStockOnly"
-                checked={filters.lowStockOnly}
-                onChange={(e) => setFilters(prev => ({ ...prev, lowStockOnly: e.target.checked, page: 0 }))}
-                className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
-              />
-              <label htmlFor="lowStockOnly" className="ml-2 block text-sm text-gray-700">
-                Low Stock Only
-              </label>
-            </div>
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="expiredOnly"
-                checked={filters.expiredOnly}
-                onChange={(e) => setFilters(prev => ({ ...prev, expiredOnly: e.target.checked, page: 0 }))}
-                className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
-              />
-              <label htmlFor="expiredOnly" className="ml-2 block text-sm text-gray-700">
-                Expired Only
-              </label>
-            </div>
-          </div>
+     
+          
           <div className="flex justify-end items-end">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Items per page</label>
@@ -716,8 +644,8 @@ const InventoryPage = () => {
               </select>
             </div>
           </div>
-        </div>
-      </div>
+        
+      
 
       {/* Action buttons */}
       {activeTab === 'expired' && expiredItems.length > 0 && (

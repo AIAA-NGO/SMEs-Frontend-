@@ -10,6 +10,8 @@ import {
   getSuppliers,
   updateProduct
 } from '../../services/productServices';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', {
@@ -23,8 +25,6 @@ const ProductPage = () => {
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [viewMode, setViewMode] = useState(null);
   const [relationships, setRelationships] = useState({
@@ -49,6 +49,7 @@ const ProductPage = () => {
     supplierId: '',
     imageFile: null
   });
+  const [formErrors, setFormErrors] = useState({});
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -58,7 +59,6 @@ const ProductPage = () => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        setError('');
         
         const [productsData, categoriesData, brandsData, unitsData, suppliersData] = await Promise.all([
           getAllProducts(),
@@ -98,10 +98,10 @@ const ProductPage = () => {
               expiryDate: product.expiryDate || product.expiry_date || null,
               description: product.description || '',
               imageUrl,
-              categoryId: product.categoryId || product.category_id,
-              brandId: product.brandId || product.brand_id,
-              unitId: product.unitId || product.unit_id,
-              supplierId: product.supplierId || product.supplier_id,
+              categoryId: product.categoryId || product.category_id || '',
+              brandId: product.brandId || product.brand_id || '',
+              unitId: product.unitId || product.unit_id || '',
+              supplierId: product.supplierId || product.supplier_id || '',
               categoryName: categoriesData.find(c => c.id === (product.categoryId || product.category_id))?.name || 'N/A',
               brandName: brandsData.find(b => b.id === (product.brandId || product.brand_id))?.name || 'N/A',
               unitName: unitsData.find(u => u.id === (product.unitId || product.unit_id))?.name || 'N/A',
@@ -115,7 +115,14 @@ const ProductPage = () => {
       } catch (err) {
         if (isMounted) {
           console.error('Data loading error:', err);
-          setError('Failed to load product data. Please refresh the page.');
+          toast.error('Failed to load product data. Please refresh the page.', {
+            position: "top-right",
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          });
         }
       } finally {
         if (isMounted) {
@@ -127,7 +134,14 @@ const ProductPage = () => {
     fetchData();
 
     if (location.state?.success) {
-      setSuccess(location.state.success);
+      toast.success(location.state.success, {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
       navigate(location.pathname, { replace: true, state: {} });
       
       if (location.state?.shouldRefresh) {
@@ -144,15 +158,6 @@ const ProductPage = () => {
       });
     };
   }, [navigate, location]);
-
-  useEffect(() => {
-    if (success) {
-      const timer = setTimeout(() => {
-        setSuccess('');
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [success]);
 
   const handleSearch = (e) => {
     const term = e.target.value.toLowerCase();
@@ -176,10 +181,24 @@ const ProductPage = () => {
         await deleteProduct(id);
         setProducts(prev => prev.filter(p => p.id !== id));
         setFilteredProducts(prev => prev.filter(p => p.id !== id));
-        setSuccess('Product deleted successfully');
+        toast.success('Product deleted successfully', {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
       } catch (error) {
         console.error('Delete error:', error);
-        setError('Failed to delete product. Please try again.');
+        toast.error('Failed to delete product. Please try again.', {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
       }
     }
   };
@@ -197,12 +216,13 @@ const ProductPage = () => {
       quantityInStock: product.quantityInStock,
       lowStockThreshold: product.lowStockThreshold,
       expiryDate: product.expiryDate ? product.expiryDate.split('T')[0] : '',
-      categoryId: product.categoryId,
-      brandId: product.brandId,
-      unitId: product.unitId,
-      supplierId: product.supplierId,
+      categoryId: product.categoryId || '',
+      brandId: product.brandId || '',
+      unitId: product.unitId || '',
+      supplierId: product.supplierId || '',
       imageFile: null
     });
+    setFormErrors({});
   };
 
   const handleEditFormChange = (e) => {
@@ -218,10 +238,49 @@ const ProductPage = () => {
         [name]: value
       });
     }
+
+    // Clear error when field is changed
+    if (formErrors[name]) {
+      setFormErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    if (!editFormData.name.trim()) errors.name = 'Name is required';
+    if (!editFormData.sku.trim()) errors.sku = 'SKU is required';
+    if (!editFormData.price || isNaN(editFormData.price) || editFormData.price <= 0) errors.price = 'Valid price is required';
+    if (!editFormData.quantityInStock || isNaN(editFormData.quantityInStock) || editFormData.quantityInStock < 0) errors.quantityInStock = 'Valid quantity is required';
+    if (!editFormData.categoryId) errors.categoryId = 'Category is required';
+    if (!editFormData.supplierId) errors.supplierId = 'Supplier is required';
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleUpdateProduct = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      // Show a small toast for the first error found
+      const firstError = Object.values(formErrors)[0];
+      if (firstError) {
+        toast.error(firstError, {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: true,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+      }
+      return;
+    }
+
     try {
       setIsLoading(true);
       
@@ -238,8 +297,8 @@ const ProductPage = () => {
         formData.append('expiryDate', editFormData.expiryDate);
       }
       formData.append('categoryId', editFormData.categoryId);
-      formData.append('brandId', editFormData.brandId);
-      formData.append('unitId', editFormData.unitId);
+      if (editFormData.brandId) formData.append('brandId', editFormData.brandId);
+      if (editFormData.unitId) formData.append('unitId', editFormData.unitId);
       formData.append('supplierId', editFormData.supplierId);
       if (editFormData.imageFile) {
         formData.append('imageFile', editFormData.imageFile);
@@ -247,107 +306,208 @@ const ProductPage = () => {
 
       const updatedProduct = await updateProduct(selectedProduct.id, formData);
       
-      setProducts(prev => prev.map(p => 
+      // Update the products list with the new data
+      const updatedProducts = products.map(p => 
         p.id === selectedProduct.id ? { 
           ...p, 
           ...updatedProduct,
+          name: updatedProduct.name || p.name,
+          sku: updatedProduct.sku || p.sku,
+          barcode: updatedProduct.barcode || p.barcode,
+          description: updatedProduct.description || p.description,
+          price: updatedProduct.price || p.price,
+          costPrice: updatedProduct.costPrice || p.costPrice,
+          quantityInStock: updatedProduct.quantityInStock || p.quantityInStock,
+          lowStockThreshold: updatedProduct.lowStockThreshold || p.lowStockThreshold,
+          expiryDate: updatedProduct.expiryDate || p.expiryDate,
+          categoryId: updatedProduct.categoryId || p.categoryId,
+          brandId: updatedProduct.brandId || p.brandId,
+          unitId: updatedProduct.unitId || p.unitId,
+          supplierId: updatedProduct.supplierId || p.supplierId,
           imageUrl: updatedProduct.imageUrl || p.imageUrl,
-          categoryName: relationships.categories.find(c => c.id === updatedProduct.categoryId)?.name || p.categoryName,
-          brandName: relationships.brands.find(b => b.id === updatedProduct.brandId)?.name || p.brandName,
-          unitName: relationships.units.find(u => u.id === updatedProduct.unitId)?.name || p.unitName,
-          supplierName: relationships.suppliers.find(s => s.id === updatedProduct.supplierId)?.name || p.supplierName
+          categoryName: relationships.categories.find(c => c.id === (updatedProduct.categoryId || p.categoryId))?.name || p.categoryName,
+          brandName: relationships.brands.find(b => b.id === (updatedProduct.brandId || p.brandId))?.name || p.brandName,
+          unitName: relationships.units.find(u => u.id === (updatedProduct.unitId || p.unitId))?.name || p.unitName,
+          supplierName: relationships.suppliers.find(s => s.id === (updatedProduct.supplierId || p.supplierId))?.name || p.supplierName
         } : p
-      ));
+      );
       
-      setFilteredProducts(prev => prev.map(p => 
-        p.id === selectedProduct.id ? { 
-          ...p, 
-          ...updatedProduct,
-          imageUrl: updatedProduct.imageUrl || p.imageUrl,
-          categoryName: relationships.categories.find(c => c.id === updatedProduct.categoryId)?.name || p.categoryName,
-          brandName: relationships.brands.find(b => b.id === updatedProduct.brandId)?.name || p.brandName,
-          unitName: relationships.units.find(u => u.id === updatedProduct.unitId)?.name || p.unitName,
-          supplierName: relationships.suppliers.find(s => s.id === updatedProduct.supplierId)?.name || p.supplierName
-        } : p
-      ));
+      setProducts(updatedProducts);
+      setFilteredProducts(updatedProducts);
       
-      setSuccess('Product updated successfully');
+      toast.success('Product updated successfully', {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
       setViewMode(null);
     } catch (error) {
       console.error('Update error:', error);
-      setError(error.response?.data?.message || 'Failed to update product. Please try again.');
+      toast.error(error.response?.data?.message || 'Failed to update product. Please try again.', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
+  const exportToCSV = () => {
+    const headers = ['SKU', 'Name', 'Category', 'Brand', 'Price', 'Stock'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredProducts.map(product => [
+        `"${product.sku.replace(/"/g, '""')}"`,
+        `"${product.name.replace(/"/g, '""')}"`,
+        `"${product.categoryName.replace(/"/g, '""')}"`,
+        `"${product.brandName.replace(/"/g, '""')}"`,
+        product.price,
+        product.quantityInStock
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'products_export.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('CSV export started successfully', {
+      position: "top-right",
+      autoClose: 3000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+    });
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Product List</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            h1 { color: #333; text-align: center; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .low-stock { background-color: #fff3cd; }
+            .very-low-stock { background-color: #f8d7da; }
+            @media print {
+              body { margin: 0; padding: 10px; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Product Inventory Report</h1>
+          <p>Generated on: ${new Date().toLocaleString()}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Brand</th>
+                <th>Price</th>
+                <th>Stock</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredProducts.map(product => `
+                <tr class="${product.quantityInStock <= product.lowStockThreshold * 0.5 ? 'very-low-stock' : 
+                  product.quantityInStock <= product.lowStockThreshold ? 'low-stock' : ''}">
+                  <td>${product.sku}</td>
+                  <td>${product.name}</td>
+                  <td>${product.categoryName}</td>
+                  <td>${product.brandName}</td>
+                  <td>${formatCurrency(product.price)}</td>
+                  <td>${product.quantityInStock} ${product.unitName ? `(${product.unitName})` : ''}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                window.close();
+              }, 200);
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   return (
     <div className="p-2 sm:p-4 md:p-6 min-h-screen bg-gray-50">
+      <ToastContainer />
       <div className="max-w-full mx-auto">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800">Product Inventory</h1>
           <button
             onClick={() => navigate('/products/create')}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md shadow-sm transition duration-200 text-sm sm:text-base w-full md:w-auto"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md shadow-sm transition duration-200 text-sm sm:text-base w-full md:w-auto flex items-center justify-center gap-1"
           >
-            + Add New Product
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Add New Product
           </button>
         </div>
 
-        {/* Status Messages */}
-        {success && (
-          <div className="mb-3 p-2 sm:p-3 bg-green-100 text-green-700 rounded-md border border-green-200 text-sm sm:text-base">
-            {success}
-          </div>
-        )}
-
-        {error && (
-          <div className="mb-3 p-2 sm:p-3 bg-red-100 text-red-700 rounded-md border border-red-200 text-sm sm:text-base">
-            {error}
-          </div>
-        )}
-
         {/* Search and Actions */}
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-4">
-          <div className="flex-grow">
+          <div className="flex-grow relative">
             <input
               type="text"
-              placeholder="Search products..."
+              placeholder="Search products by name, SKU or barcode..."
               value={searchTerm}
               onChange={handleSearch}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-sm sm:text-base"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 pl-10 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-sm sm:text-base"
             />
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => {
-                const blob = new Blob([JSON.stringify(filteredProducts, null, 2)], {
-                  type: 'application/json',
-                });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = 'products_export.json';
-                link.click();
-              }}
-              className="bg-gray-200 hover:bg-gray-300 p-2 rounded-md shadow-sm transition"
+              onClick={exportToCSV}
+              className="bg-white hover:bg-gray-100 border border-gray-300 p-2 rounded-md shadow-sm transition flex items-center justify-center"
               title="Export Products"
             >
               <Download size={18} className="text-gray-700" />
+              <span className="hidden sm:inline ml-1 text-sm">Export</span>
             </button>
             <button
-              onClick={() => window.print()}
-              className="bg-gray-200 hover:bg-gray-300 p-2 rounded-md shadow-sm transition"
+              onClick={handlePrint}
+              className="bg-white hover:bg-gray-100 border border-gray-300 p-2 rounded-md shadow-sm transition flex items-center justify-center"
               title="Print Products"
             >
               <Printer size={18} className="text-gray-700" />
+              <span className="hidden sm:inline ml-1 text-sm">Print</span>
             </button>
           </div>
         </div>
 
         {/* Products Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
           {isLoading ? (
             <div className="flex justify-center items-center p-8 sm:p-12">
               <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-t-2 border-b-2 border-blue-500"></div>
@@ -412,9 +572,11 @@ const ProductPage = () => {
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap">
                           <span className={`inline-flex px-1 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-semibold leading-4 ${
-                            product.quantityInStock <= product.lowStockThreshold 
+                            product.quantityInStock <= product.lowStockThreshold * 0.5 
                               ? 'bg-red-100 text-red-800' 
-                              : 'bg-green-100 text-green-800'
+                              : product.quantityInStock <= product.lowStockThreshold 
+                                ? 'bg-yellow-100 text-yellow-800' 
+                                : 'bg-green-100 text-green-800'
                           }`}>
                             {product.quantityInStock} {product.unitName && `(${product.unitName})`}
                           </span>
@@ -429,21 +591,21 @@ const ProductPage = () => {
                                 setSelectedProduct(product);
                                 setViewMode('view');
                               }}
-                              className="text-blue-600 hover:text-blue-800 transition"
+                              className="text-blue-600 hover:text-blue-800 transition p-1 rounded hover:bg-blue-50"
                               title="View"
                             >
                               <Eye size={16} className="sm:h-4 sm:w-4" />
                             </button>
                             <button
                               onClick={() => handleEditClick(product)}
-                              className="text-green-600 hover:text-green-800 transition"
+                              className="text-green-600 hover:text-green-800 transition p-1 rounded hover:bg-green-50"
                               title="Edit"
                             >
                               <Pencil size={16} className="sm:h-4 sm:w-4" />
                             </button>
                             <button
                               onClick={() => handleDelete(product.id)}
-                              className="text-red-600 hover:text-red-800 transition"
+                              className="text-red-600 hover:text-red-800 transition p-1 rounded hover:bg-red-50"
                               title="Delete"
                             >
                               <Trash2 size={16} className="sm:h-4 sm:w-4" />
@@ -475,7 +637,7 @@ const ProductPage = () => {
                 <h2 className="text-lg sm:text-xl font-bold text-gray-900">Product Details</h2>
                 <button
                   onClick={() => setViewMode(null)}
-                  className="text-gray-400 hover:text-gray-500 transition"
+                  className="text-gray-400 hover:text-gray-500 transition p-1 rounded-full hover:bg-gray-100"
                 >
                   <X size={20} />
                 </button>
@@ -537,14 +699,16 @@ const ProductPage = () => {
               <div className="mt-4 sm:mt-6 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
                 <button
                   onClick={() => handleEditClick(selectedProduct)}
-                  className="px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-xs sm:text-sm"
+                  className="px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-xs sm:text-sm flex items-center gap-1"
                 >
+                  <Pencil size={14} />
                   Edit Product
                 </button>
                 <button
                   onClick={() => setViewMode(null)}
-                  className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition text-xs sm:text-sm"
+                  className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition text-xs sm:text-sm flex items-center gap-1"
                 >
+                  <X size={14} />
                   Close
                 </button>
               </div>
@@ -562,7 +726,7 @@ const ProductPage = () => {
                 <h2 className="text-lg sm:text-xl font-bold text-gray-900">Edit Product</h2>
                 <button
                   onClick={() => setViewMode(null)}
-                  className="text-gray-400 hover:text-gray-500 transition"
+                  className="text-gray-400 hover:text-gray-500 transition p-1 rounded-full hover:bg-gray-100"
                 >
                   <X size={20} />
                 </button>
@@ -577,9 +741,12 @@ const ProductPage = () => {
                       name="name"
                       value={editFormData.name}
                       onChange={handleEditFormChange}
-                      className="w-full border border-gray-300 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm"
+                      className={`w-full border ${formErrors.name ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm`}
                       required
                     />
+                    {formErrors.name && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors.name}</p>
+                    )}
                   </div>
 
                   <div className="col-span-1">
@@ -589,9 +756,12 @@ const ProductPage = () => {
                       name="sku"
                       value={editFormData.sku}
                       onChange={handleEditFormChange}
-                      className="w-full border border-gray-300 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm"
+                      className={`w-full border ${formErrors.sku ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm`}
                       required
                     />
+                    {formErrors.sku && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors.sku}</p>
+                    )}
                   </div>
 
                   <div className="col-span-1">
@@ -612,11 +782,14 @@ const ProductPage = () => {
                       name="price"
                       value={editFormData.price}
                       onChange={handleEditFormChange}
-                      className="w-full border border-gray-300 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm"
+                      className={`w-full border ${formErrors.price ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm`}
                       step="0.01"
                       min="0"
                       required
                     />
+                    {formErrors.price && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors.price}</p>
+                    )}
                   </div>
 
                   <div className="col-span-1">
@@ -639,10 +812,13 @@ const ProductPage = () => {
                       name="quantityInStock"
                       value={editFormData.quantityInStock}
                       onChange={handleEditFormChange}
-                      className="w-full border border-gray-300 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm"
+                      className={`w-full border ${formErrors.quantityInStock ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm`}
                       min="0"
                       required
                     />
+                    {formErrors.quantityInStock && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors.quantityInStock}</p>
+                    )}
                   </div>
 
                   <div className="col-span-1">
@@ -674,7 +850,7 @@ const ProductPage = () => {
                       name="categoryId"
                       value={editFormData.categoryId}
                       onChange={handleEditFormChange}
-                      className="w-full border border-gray-300 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm"
+                      className={`w-full border ${formErrors.categoryId ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm`}
                       required
                     >
                       <option value="">Select Category</option>
@@ -684,6 +860,9 @@ const ProductPage = () => {
                         </option>
                       ))}
                     </select>
+                    {formErrors.categoryId && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors.categoryId}</p>
+                    )}
                   </div>
 
                   <div className="col-span-1">
@@ -721,12 +900,13 @@ const ProductPage = () => {
                   </div>
 
                   <div className="col-span-1">
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Supplier *</label>
                     <select
                       name="supplierId"
                       value={editFormData.supplierId}
                       onChange={handleEditFormChange}
-                      className="w-full border border-gray-300 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm"
+                      className={`w-full border ${formErrors.supplierId ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm`}
+                      required
                     >
                       <option value="">Select Supplier</option>
                       {relationships.suppliers.map(supplier => (
@@ -735,6 +915,9 @@ const ProductPage = () => {
                         </option>
                       ))}
                     </select>
+                    {formErrors.supplierId && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors.supplierId}</p>
+                    )}
                   </div>
 
                   <div className="col-span-2">
@@ -750,7 +933,6 @@ const ProductPage = () => {
 
                   <div className="col-span-2">
                     <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Product Image</label>
-
                     <input
                       type="file"
                       name="imageFile"
@@ -775,18 +957,19 @@ const ProductPage = () => {
                   <button
                     type="button"
                     onClick={() => setViewMode(null)}
-                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition"
+                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition flex items-center gap-1"
                   >
+                    <X size={16} />
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition flex items-center justify-center"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition flex items-center justify-center gap-1"
                     disabled={isLoading}
                   >
                     {isLoading ? (
                       <>
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
@@ -794,7 +977,7 @@ const ProductPage = () => {
                       </>
                     ) : (
                       <>
-                        <Save size={16} className="mr-1" />
+                        <Save size={16} />
                         Save Changes
                       </>
                     )}

@@ -261,3 +261,23 @@ export const searchProducts = async (query) => {
     return [];
   }
 };
+// Add these new functions to your productServices.js
+export const checkBarcodeExists = async (barcode) => {
+  try {
+    const response = await api.get(`/products/check-barcode?barcode=${barcode}`);
+    return response.data; // Should return boolean
+  } catch (error) {
+    console.error("Error checking barcode:", error);
+    return false; // Assume barcode doesn't exist if there's an error
+  }
+};
+
+export const checkSkuExists = async (sku) => {
+  try {
+    const response = await api.get(`/products/check-sku?sku=${sku}`);
+    return response.data; // Should return boolean
+  } catch (error) {
+    console.error("Error checking SKU:", error);
+    return false; // Assume SKU doesn't exist if there's an error
+  }
+};

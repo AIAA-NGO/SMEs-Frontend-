@@ -28,7 +28,7 @@ import CreatePurchase from './pages/Purchase/CreatePurchase';
 import ReceivePurchases from './pages/Purchase/ReceivePurchases';
 import PurchaseDetails from './pages/Purchase/PurchaseDetails';
 import BusinessProfile from './pages/settings/business/BusinessProfile';
-import CurrencySettings from './pages/settings/business/CurrencySettings';
+
 import Roles from './pages/settings/business/Roles';
 import CreateRole from './pages/settings/business/CreateRole';
 import RolesPermissions from './pages/settings/business/RolesPermissions';
@@ -194,9 +194,7 @@ function App() {
                 <Route path="/settings/business/profile" element={<DashboardLayout><BusinessProfile /></DashboardLayout>} />
               </Route>
 
-              <Route element={<ProtectedRoute requiredPermissions={['settings_manage']} />}>
-                <Route path="/settings/business/currency" element={<DashboardLayout><CurrencySettings /></DashboardLayout>} />
-              </Route>
+      
 
               <Route element={<ProtectedRoute requiredPermissions={['role_manage']} />}>
                 <Route path="/settings/business/roles" element={<DashboardLayout><Roles /></DashboardLayout>} />

@@ -1,4 +1,3 @@
-// src/context/AuthContext.js
 import { createContext, useState, useEffect, useCallback, useContext, useMemo } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import {
@@ -15,7 +14,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [allRoles, setAllRoles] = useState([]);
   const [allPermissions, setAllPermissions] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Changed to true initially
   const [rolesLoaded, setRolesLoaded] = useState(false);
 
   const rolePermissions = useMemo(() => ({
@@ -97,6 +96,7 @@ export const AuthProvider = ({ children }) => {
   const login = (authData) => {
     localStorage.setItem('token', authData.token);
     localStorage.setItem('userName', authData.name || authData.username);
+    localStorage.setItem('userRoles', JSON.stringify(authData.roles)); // Store roles
     const permissions = getPermissionsFromRoles(authData.roles);
     setUser({
       id: authData.id,
@@ -112,34 +112,51 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('userName');
+    localStorage.removeItem('userRoles');
     setUser(null);
     setAllRoles([]);
     setAllPermissions([]);
     setRolesLoaded(false);
   }, []);
 
-  useEffect(() => {
+  const initializeAuth = useCallback(async () => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
         const decoded = jwtDecode(token);
-        const roles = decoded.roles || [];
-        const permissions = getPermissionsFromRoles(roles);
+        
+        // Check token expiration
+        if (decoded.exp * 1000 < Date.now()) {
+          throw new Error('Token expired');
+        }
+
+        // Try to get roles from localStorage first
+        const storedRoles = JSON.parse(localStorage.getItem('userRoles')) || decoded.roles || [];
+        const permissions = getPermissionsFromRoles(storedRoles);
+        
         setUser({
           id: decoded.id,
           username: decoded.sub,
           name: decoded.name || decoded.sub,
           email: decoded.email,
-          roles,
+          roles: storedRoles,
           permissions,
           token
         });
-        loadRolesAndPermissions();
+
+        // Load fresh roles and permissions in background
+        await loadRolesAndPermissions();
       } catch (error) {
+        console.error('Auth initialization error:', error);
         logout();
       }
     }
+    setLoading(false);
   }, [getPermissionsFromRoles, logout, loadRolesAndPermissions]);
+
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
 
   const value = {
     user,

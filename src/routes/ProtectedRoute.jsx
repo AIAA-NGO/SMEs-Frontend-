@@ -1,9 +1,13 @@
-// src/routes/ProtectedRoute.js
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import LoadingSpinner from '../components/LoadingSpinner'; // Create this component
 
 const ProtectedRoute = ({ requiredPermissions = [], children }) => {
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated, hasPermission, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/signin" replace />;

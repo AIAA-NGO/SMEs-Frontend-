@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { addProduct, getCategories, getBrands, getUnits, getSuppliers } from '../../services/productServices';
+import { 
+  addProduct, 
+  getCategories, 
+  getBrands, 
+  getUnits, 
+  getSuppliers,
+  checkBarcodeExists,
+  checkSkuExists
+} from '../../services/productServices';
 
 export default function CreateProduct() {
   const navigate = useNavigate();
@@ -9,6 +17,7 @@ export default function CreateProduct() {
   const [units, setUnits] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState('');
   const [imagePreview, setImagePreview] = useState(null);
   const [formErrors, setFormErrors] = useState({});
@@ -26,9 +35,62 @@ export default function CreateProduct() {
     categoryId: '',
     brandId: '',
     unitId: '',
-    imageFile: null, // Changed to match backend field name
+    imageFile: null,
     expiryDate: '',
   });
+
+  // Debounce function to limit API calls during typing
+  const debounce = (func, delay) => {
+    let timeoutId;
+    return (...args) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        func.apply(this, args);
+      }, delay);
+    };
+  };
+
+  // Check if barcode exists in database
+  const validateBarcode = async (barcode) => {
+    if (!barcode) return;
+    
+    try {
+      setIsValidating(true);
+      const exists = await checkBarcodeExists(barcode);
+      if (exists) {
+        setFormErrors(prev => ({ ...prev, barcode: 'This barcode is already in use' }));
+      } else if (formErrors.barcode === 'This barcode is already in use') {
+        setFormErrors(prev => ({ ...prev, barcode: undefined }));
+      }
+    } catch (err) {
+      console.error('Error validating barcode:', err);
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  // Check if SKU exists in database
+  const validateSku = async (sku) => {
+    if (!sku) return;
+    
+    try {
+      setIsValidating(true);
+      const exists = await checkSkuExists(sku);
+      if (exists) {
+        setFormErrors(prev => ({ ...prev, sku: 'This SKU is already in use' }));
+      } else if (formErrors.sku === 'This SKU is already in use') {
+        setFormErrors(prev => ({ ...prev, sku: undefined }));
+      }
+    } catch (err) {
+      console.error('Error validating SKU:', err);
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  // Debounced versions of validation functions
+  const debouncedValidateBarcode = debounce(validateBarcode, 500);
+  const debouncedValidateSku = debounce(validateSku, 500);
 
   useEffect(() => {
     const fetchDropdowns = async () => {
@@ -47,7 +109,7 @@ export default function CreateProduct() {
         setSuppliers(supp || []);
       } catch (err) {
         console.error('Error loading dropdowns:', err);
-        setError('Failed to load dropdowns. Please try again later.');
+        setError('Failed to load required data. Please try again later.');
       } finally {
         setIsLoading(false);
       }
@@ -56,15 +118,39 @@ export default function CreateProduct() {
     fetchDropdowns();
   }, []);
 
-  const validateForm = () => {
+  const validateForm = async () => {
     const errors = {};
-    if (!formData.name?.trim()) errors.name = 'Name is required';
+    if (!formData.name?.trim()) errors.name = 'Product name is required';
     if (!formData.sku?.trim()) errors.sku = 'SKU is required';
     if (!formData.supplierId) errors.supplierId = 'Supplier is required';
     if (!formData.categoryId) errors.categoryId = 'Category is required';
     if (!formData.unitId) errors.unitId = 'Unit is required';
     if (!formData.price || isNaN(formData.price)) errors.price = 'Valid price is required';
-    
+    if (formData.price && parseFloat(formData.price) <= 0) errors.price = 'Price must be greater than 0';
+    if (formData.costPrice && parseFloat(formData.costPrice) < 0) errors.costPrice = 'Cost price cannot be negative';
+    if (formData.expiryDate && new Date(formData.expiryDate) <= new Date()) {
+      errors.expiryDate = 'Expiry date must be in the future';
+    }
+
+    // Check for duplicates before submission
+    if (formData.barcode) {
+      try {
+        const barcodeExists = await checkBarcodeExists(formData.barcode);
+        if (barcodeExists) errors.barcode = 'This barcode is already in use';
+      } catch (err) {
+        console.error('Error validating barcode:', err);
+      }
+    }
+
+    if (formData.sku) {
+      try {
+        const skuExists = await checkSkuExists(formData.sku);
+        if (skuExists) errors.sku = 'This SKU is already in use';
+      } catch (err) {
+        console.error('Error validating SKU:', err);
+      }
+    }
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -72,32 +158,37 @@ export default function CreateProduct() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error for this field when user types
     if (formErrors[name]) {
       setFormErrors(prev => ({ ...prev, [name]: undefined }));
+    }
+
+    // Trigger real-time validation for barcode and SKU
+    if (name === 'barcode') {
+      debouncedValidateBarcode(value);
+    } else if (name === 'sku') {
+      debouncedValidateSku(value);
     }
   };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         setError('Only image files are allowed (JPEG, PNG, etc.)');
         return;
       }
   
-      // Validate file size (2MB max)
       if (file.size > 2 * 1024 * 1024) {
         setError('Image size should be less than 2MB');
         return;
       }
   
-      // Set preview
       const reader = new FileReader();
       reader.onloadend = () => setImagePreview(reader.result);
       reader.readAsDataURL(file);
   
-      // Store file object - using 'imageFile' to match backend
       setFormData(prev => ({ ...prev, imageFile: file }));
       setError('');
     }
@@ -105,33 +196,21 @@ export default function CreateProduct() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    const isValid = await validateForm();
+    if (!isValid) return;
 
     setIsLoading(true);
     setError('');
+    setFormErrors({});
 
     try {
       const formDataToSend = new FormData();
       
-      // Append all fields to FormData
-      formDataToSend.append('name', formData.name.trim());
-      formDataToSend.append('description', formData.description.trim() || '');
-      formDataToSend.append('sku', formData.sku.trim());
-      formDataToSend.append('barcode', formData.barcode.trim() || '');
-      formDataToSend.append('price', formData.price);
-      formDataToSend.append('costPrice', formData.costPrice || '0');
-      formDataToSend.append('quantityInStock', formData.quantityInStock);
-      formDataToSend.append('lowStockThreshold', formData.lowStockThreshold);
-      formDataToSend.append('supplierId', formData.supplierId);
-      formDataToSend.append('categoryId', formData.categoryId);
-      formDataToSend.append('brandId', formData.brandId || '');
-      formDataToSend.append('unitId', formData.unitId);
-      formDataToSend.append('expiryDate', formData.expiryDate || '');
-      
-      // Append image file if exists - using 'imageFile' as the field name to match backend
-      if (formData.imageFile) {
-        formDataToSend.append('imageFile', formData.imageFile);
-      }
+      Object.entries(formData).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          formDataToSend.append(key, value);
+        }
+      });
 
       const response = await addProduct(formDataToSend);
 
@@ -143,14 +222,33 @@ export default function CreateProduct() {
       });
     } catch (err) {
       console.error('Error creating product:', err);
-      if (err.response?.data?.errors) {
+      
+      if (err.response?.data?.message?.includes('duplicate key value violates unique constraint')) {
+        if (err.response.data.message.includes('barcode')) {
+          setFormErrors(prev => ({ ...prev, barcode: 'This barcode is already in use' }));
+        } else if (err.response.data.message.includes('sku')) {
+          setFormErrors(prev => ({ ...prev, sku: 'This SKU is already in use' }));
+        } else {
+          setError('This product already exists. Please check your inputs.');
+        }
+      } else if (err.response?.data?.errors) {
         const backendErrors = {};
         err.response.data.errors.forEach(error => {
-          backendErrors[error.field] = error.message || error.defaultMessage;
+          let fieldName = error.field?.startsWith('productRequest.') 
+            ? error.field.replace('productRequest.', '') 
+            : error.field;
+          
+          const simplifiedMessage = error.defaultMessage
+            ?.replace('must not be empty', 'is required')
+            ?.replace('must be in the future', 'must be a future date')
+            ?.replace('must be greater than 0', 'must be positive')
+            || error.message;
+          
+          backendErrors[fieldName] = simplifiedMessage;
         });
         setFormErrors(backendErrors);
       } else {
-        setError(err.response?.data?.message || err.message || 'Failed to create product');
+        setError(err.response?.data?.message || err.message || 'Failed to create product. Please check your inputs and try again.');
       }
     } finally {
       setIsLoading(false);
@@ -172,27 +270,36 @@ export default function CreateProduct() {
           rows={3}
         />
       ) : (
-        <input
-          type={type}
-          name={name}
-          value={formData[name] || ''}
-          onChange={handleChange}
-          className={`w-full border ${formErrors[name] ? 'border-red-500' : 'border-gray-300'} px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
-          disabled={isLoading}
-          min={type === 'number' ? '0' : undefined}
-          step={type === 'number' && name.includes('Price') ? '0.01' : '1'}
-        />
+        <div className="relative">
+          <input
+            type={type}
+            name={name}
+            value={formData[name] || ''}
+            onChange={handleChange}
+            className={`w-full border ${formErrors[name] ? 'border-red-500' : 'border-gray-300'} px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+            disabled={isLoading}
+            min={type === 'number' ? '0' : undefined}
+            step={type === 'number' && name.includes('Price') ? '0.01' : '1'}
+          />
+          {isValidating && (name === 'barcode' || name === 'sku') && (
+            <div className="absolute right-3 top-3">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+            </div>
+          )}
+        </div>
       )}
-      {formErrors[name] && <p className="mt-1 text-sm text-red-600">{formErrors[name]}</p>}
+      {formErrors[name] && (
+        <p className="mt-1 text-sm text-red-600">
+          {formErrors[name]}
+        </p>
+      )}
     </div>
   );
 
   const renderDropdown = (name, label, options, required = false) => {
     const getOptionLabel = (opt) => {
-      if (label === 'Supplier') {
-        return opt.companyName || `Supplier ${opt.id}`;
-      }
-      return opt.name || opt.companyName || `Supplier ${opt.id}`;
+      if (label === 'Supplier') return opt.companyName || `Supplier ${opt.id}`;
+      return opt.name || opt.companyName || `Option ${opt.id}`;
     };
 
     return (
@@ -321,7 +428,7 @@ export default function CreateProduct() {
           <button
             type="submit"
             className={`px-6 py-2 rounded-md text-white ${isLoading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} flex items-center`}
-            disabled={isLoading}
+            disabled={isLoading || isValidating}
           >
             {isLoading && (
               <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
