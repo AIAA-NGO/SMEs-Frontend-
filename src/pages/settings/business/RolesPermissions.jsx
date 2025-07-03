@@ -19,7 +19,7 @@ const PermissionManagement = () => {
   const [error, setError] = useState(null);
 
   const permissionCategories = [
-    { name: 'Dashboard', permissions: ['dashboard_view'] },
+    { name: 'Dashboard', permissions: ['dashboard_access'] },
     { name: 'Customer', permissions: ['customer_view'] },
     { name: 'Supplier', permissions: ['supplier_view'] },
     { name: 'Product', permissions: ['product_view', 'product_create'] },

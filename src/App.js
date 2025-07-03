@@ -54,11 +54,12 @@ function App() {
               <Route path="/signin" element={<Signin />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
               
-              {/* Dashboard - accessible to all authenticated users */}
-              <Route element={<ProtectedRoute />}>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<DashboardLayout><AdminDashboardControl/></DashboardLayout>} />
-              </Route>
+            
+              
+<Route element={<ProtectedRoute requiredPermissions={['dashboard_access']} />}>
+  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+  <Route path="/dashboard" element={<DashboardLayout><AdminDashboardControl/></DashboardLayout>} />
+</Route>
 
               {/* Products */}
               <Route element={<ProtectedRoute requiredPermissions={['product_view']} />}>

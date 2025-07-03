@@ -105,17 +105,20 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
         {/* Nav Links */}
         <nav className="flex flex-col gap-1 p-2 mt-2 select-none">
           {/* Home - Always visible to authenticated users */}
-          <Link
-            to="/"
-            onClick={onLinkClick}
-            className={`flex items-center gap-3 px-4 py-4 rounded-lg transition-all
-              ${isActive('/') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
-              ${isMinimized && !isMobile ? 'justify-center px-2' : ''}`}
-            title={isMinimized && !isMobile ? 'Home' : undefined}
-          >
-            <Home size={20} className={`${isActive('/') ? 'text-blue-400' : 'text-gray-300'}`} />
-            {(!isMinimized || isMobile) && <span className="font-medium">Home</span>}
-          </Link>
+          {/* Home - Only for users with dashboard_access permission */}
+{hasPermission('dashboard_access') && (
+  <Link
+    to="/"
+    onClick={onLinkClick}
+    className={`flex items-center gap-3 px-4 py-4 rounded-lg transition-all
+      ${isActive('/') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+      ${isMinimized && !isMobile ? 'justify-center px-2' : ''}`}
+    title={isMinimized && !isMobile ? 'Home' : undefined}
+  >
+    <Home size={20} className={`${isActive('/') ? 'text-blue-400' : 'text-gray-300'}`} />
+    {(!isMinimized || isMobile) && <span className="font-medium">Home</span>}
+  </Link>
+)}
 
           {/* Manage Product - Only for users with product_view permission */}
           {hasPermission('product_view') && (

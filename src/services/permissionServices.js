@@ -52,7 +52,7 @@ export const fetchAllPermissions = async () => {
 export const getDefaultPermissionsForRole = (roleName) => {
   const defaultPermissions = {
     ADMIN: [
-      'dashboard_view',
+      'dashboard_access',
       'product_view', 'product_create',
       'category_view', 'brand_view', 'unit_view',
       'pos_access', 'supplier_view', 'customer_view',
@@ -64,14 +64,14 @@ export const getDefaultPermissionsForRole = (roleName) => {
       'inventory_view'
     ],
     MANAGER: [
-      'dashboard_view',
+      'dashboard_access',
       'category_view', 'product_view',
       'sale_view', 'sale_return',
       'purchase_view', 'inventory_view',
       'salesreports_view','productsreports_view','inventoryreports_view','financialreports_view','suppliersreports_view','finance_view',
     ],
     CASHIER: [
-      'dashboard_view',
+      'dashboard_access',
       'customer_view', 'product_view',
       'sale_view', 'sale_return',
       'pos_access'

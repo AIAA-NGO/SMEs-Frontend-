@@ -19,7 +19,7 @@ export const AuthProvider = ({ children }) => {
 
   const rolePermissions = useMemo(() => ({
     ADMIN: [
-      'dashboard_view',
+      'dashboard_access',
       'product_view', 'product_create',
       'category_view', 'brand_view', 'unit_view',
       'pos_access', 'supplier_view', 'customer_view',
@@ -31,14 +31,14 @@ export const AuthProvider = ({ children }) => {
       'inventory_view'
     ],
     MANAGER: [
-      'dashboard_view',
+      'dashboard_access',
       'category_view', 'product_view',
       'sale_view', 'sale_return',
       'purchase_view', 'inventory_view',
       
     ],
     CASHIER: [
-      'dashboard_view',
+      'dashboard_access',
       'customer_view', 'product_view',
       'sale_view', 'sale_return',
       'pos_access'
