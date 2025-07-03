@@ -104,7 +104,6 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
 
         {/* Nav Links */}
         <nav className="flex flex-col gap-1 p-2 mt-2 select-none">
-          {/* Home - Always visible to authenticated users */}
           {/* Home - Only for users with dashboard_access permission */}
 {hasPermission('dashboard_access') && (
   <Link
