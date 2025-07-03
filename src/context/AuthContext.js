@@ -26,7 +26,7 @@ export const AuthProvider = ({ children }) => {
       'user_view', 'user_create', 'user_update',
       'purchase_view', 'purchase_create', 'purchase_update',
       'sale_view', 'sale_return', 'discount_apply',
-      'reports_view', 'settings_manage',
+      'salesreports_view','productsreports_view','inventoryreports_view','financialreports_view','suppliersreports_view','finance_view', 'settings_manage',
       'role_manage', 'role_create',
       'inventory_view'
     ],
@@ -35,7 +35,7 @@ export const AuthProvider = ({ children }) => {
       'category_view', 'product_view',
       'sale_view', 'sale_return',
       'purchase_view', 'inventory_view',
-      'reports_view'
+      
     ],
     CASHIER: [
       'dashboard_view',
@@ -44,9 +44,11 @@ export const AuthProvider = ({ children }) => {
       'pos_access'
     ],
     RECEIVING_CLERK: [
-      'product_view',
+      'product_view', 'product_create',
+      'category_view', 'brand_view', 'unit_view',
       'purchase_view', 'purchase_create',
-      'purchase_update', 'inventory_view'
+      'purchase_update', 'inventory_view','supplier_view','user_view', 'user_create', 'user_update', 'user_create', 'user_update',
+      'inventoryreports_view','financialreports_view','suppliersreports_view', 'settings_manage','role_manage','role_create',
     ]
   }), []);
 

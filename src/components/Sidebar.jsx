@@ -269,7 +269,7 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
           )}
 
           {/* Finance Module - Only for users with reports_view permission */}
-          {hasPermission('reports_view') && (
+          {hasPermission('finance_view') && (
             <div className="relative">
               <button
                 onClick={() => setFinanceOpen(!financeOpen)}
@@ -297,7 +297,7 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
                   ].map(item => ({
                     ...item,
                     icon: <FileText size={14} />,
-                    requiredPermission: 'reports_view',
+                    requiredPermission: 'finance_view',
                     onClick: () => setFinanceOpen(false)
                   })).map(renderMenuItem)}
                 </div>
@@ -356,46 +356,48 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
             </div>
           )}
 
-          {/* Reports - Only for users with reports_view permission */}
-          {hasPermission('reports_view') && (
-            <div className="relative">
-              <button
-                onClick={() => setReportsOpen(!reportsOpen)}
-                className={`flex items-center justify-between w-full px-4 py-4 rounded-lg transition-all
-                  ${isActive('/reports') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
-                  ${isMinimized && !isMobile ? 'justify-center px-2' : ''}`}
-                title={isMinimized && !isMobile ? 'Reports' : undefined}
-              >
-                <div className="flex items-center gap-3">
-                  <FileBarChart2 size={20} className={`${isActive('/reports') ? 'text-blue-400' : 'text-gray-300'}`} />
-                  {(!isMinimized || isMobile) && <span className="font-medium">Reports</span>}
-                </div>
-                {(!isMinimized || isMobile) && (
-                  <ChevronDown 
-                    size={16} 
-                    className={`transition-transform ${reportsOpen ? 'rotate-180' : ''} text-gray-400`}
-                  />
-                )}
-              </button>
-              {(reportsOpen && (!isMinimized || isMobile)) && (
-                <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
-                  {[
-                    { path: '/reports/sales', label: 'Sales Report' },
-                    { path: '/reports/products', label: 'Product Performance' },
-                    { path: '/reports/inventory', label: 'Inventory Valuation' },
-                    { path: '/reports/financial', label: 'Financial Reports' },
-                    { path: '/reports/suppliers', label: 'Supplier Purchases' }
-                  ].map(item => ({
-                    ...item,
-                    icon: <FileBarChart2 size={14} />,
-                    requiredPermission: 'reports_view',
-                    onClick: () => setReportsOpen(false)
-                  })).map(renderMenuItem)}
-                </div>
-              )}
-            </div>
-          )}
-
+          {/* Reports - Only for users with specific report permissions */}
+{(hasPermission('salesreports_view') || 
+  hasPermission('productsreports_view') || 
+  hasPermission('inventoryreports_view') || 
+  hasPermission('financialreports_view') || 
+  hasPermission('suppliersreports_view')) && (
+  <div className="relative">
+    <button
+      onClick={() => setReportsOpen(!reportsOpen)}
+      className={`flex items-center justify-between w-full px-4 py-4 rounded-lg transition-all
+        ${isActive('/reports') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+        ${isMinimized && !isMobile ? 'justify-center px-2' : ''}`}
+      title={isMinimized && !isMobile ? 'Reports' : undefined}
+    >
+      <div className="flex items-center gap-3">
+        <FileBarChart2 size={20} className={`${isActive('/reports') ? 'text-blue-400' : 'text-gray-300'}`} />
+        {(!isMinimized || isMobile) && <span className="font-medium">Reports</span>}
+      </div>
+      {(!isMinimized || isMobile) && (
+        <ChevronDown 
+          size={16} 
+          className={`transition-transform ${reportsOpen ? 'rotate-180' : ''} text-gray-400`}
+        />
+      )}
+    </button>
+    {(reportsOpen && (!isMinimized || isMobile)) && (
+      <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
+        {[
+          { path: '/reports/sales', label: 'Sales Report', requiredPermission: 'salesreports_view' },
+          { path: '/reports/products', label: 'Product Performance', requiredPermission: 'productsreports_view' },
+          { path: '/reports/inventory', label: 'Inventory Valuation', requiredPermission: 'inventoryreports_view' },
+          { path: '/reports/financial', label: 'Financial Reports', requiredPermission: 'financialreports_view' },
+          { path: '/reports/suppliers', label: 'Supplier Purchases', requiredPermission: 'suppliersreports_view' }
+        ].map(item => ({
+          ...item,
+          icon: <FileBarChart2 size={14} />,
+          onClick: () => setReportsOpen(false)
+        })).map(renderMenuItem)}
+      </div>
+    )}
+  </div>
+)}
           {/* Settings - Only for users with settings_manage permission */}
           {hasPermission('settings_manage') && (
             <div className="relative">
@@ -421,7 +423,7 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
                 <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
                   {[
                     { path: '/settings/business/profile', label: 'Business Profile' },
-                    { path: '/settings/business/currency', label: 'Currency Settings' },
+   
                     { path: '/settings/business/roles', label: 'Roles', requiredPermission: 'role_manage' },
                     { path: '/settings/business/roles-permissions', label: 'Roles & Permissions', requiredPermission: 'role_manage' }
                   ].map(item => ({

@@ -161,31 +161,31 @@ function App() {
               </Route>
 
               {/* Reports */}
-              <Route element={<ProtectedRoute requiredPermissions={['reports_view']} />}>
+              <Route element={<ProtectedRoute requiredPermissions={['salesreports_view']} />}>
                 <Route path="/reports/sales" element={<DashboardLayout><SalesReport /></DashboardLayout>} />
               </Route>
 
-              <Route element={<ProtectedRoute requiredPermissions={['reports_view']} />}>
+              <Route element={<ProtectedRoute requiredPermissions={['productsreports_view']} />}>
                 <Route path="/reports/products" element={<DashboardLayout><ProductPerformanceReport /></DashboardLayout>} />
               </Route>
 
-              <Route element={<ProtectedRoute requiredPermissions={['reports_view']} />}>
+              <Route element={<ProtectedRoute requiredPermissions={['inventoryreports_view']} />}>
                 <Route path="/reports/inventory" element={<DashboardLayout><InventoryValuationReport /></DashboardLayout>} />
               </Route>
 
-              <Route element={<ProtectedRoute requiredPermissions={['reports_view']} />}>
+              <Route element={<ProtectedRoute requiredPermissions={['financialreports_view']} />}>
                 <Route path="/reports/financial" element={<DashboardLayout><FinancialReports /></DashboardLayout>} />
               </Route>
 
-              <Route element={<ProtectedRoute requiredPermissions={['reports_view']} />}>
+              <Route element={<ProtectedRoute requiredPermissions={['suppliersreports_view']} />}>
                 <Route path="/reports/suppliers" element={<DashboardLayout><SupplierPurchasesReport /></DashboardLayout>} />
               </Route>
 
-              <Route element={<ProtectedRoute requiredPermissions={['reports_view']} />}>
+              <Route element={<ProtectedRoute requiredPermissions={['finance_view']} />}>
                 <Route path="/reports/income-statement" element={<DashboardLayout><IncomeStatement /></DashboardLayout>} />
               </Route>
 
-              <Route element={<ProtectedRoute requiredPermissions={['reports_view']} />}>
+              <Route element={<ProtectedRoute requiredPermissions={['finance_view']} />}>
                 <Route path="/reports/cash-flow" element={<DashboardLayout><CashFlow /></DashboardLayout>} />
               </Route>
 
