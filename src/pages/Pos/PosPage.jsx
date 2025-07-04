@@ -1,55 +1,12 @@
-// src/pages/Pos/PosPage.js
 import React, { useEffect, useState, useCallback } from 'react';
 import { FiShoppingCart, FiRefreshCw, FiAlertCircle, FiSearch, FiPlus, FiMinus } from 'react-icons/fi';
 import { BsCartPlus, BsStarFill, BsStarHalf, BsStar } from 'react-icons/bs';
-import { getAllProducts, getCategories, getProductImage } from '../../services/productServices';
+import { getAllProducts, getCategories } from '../../services/productServices';
 import { useCart } from '../../context/CartContext';
 
 const ProductCard = ({ product, cartQuantity }) => {
   const { addToCart } = useCart();
-  const [imageUrl, setImageUrl] = useState('');
-  const [imageLoading, setImageLoading] = useState(true);
-  const [imageError, setImageError] = useState(false);
   const [quantity, setQuantity] = useState(1);
-
-  useEffect(() => {
-    let isMounted = true;
-    
-    const fetchImage = async () => {
-      try {
-        setImageLoading(true);
-        setImageError(false);
-        const imageBlob = await getProductImage(product.id);
-        
-        if (isMounted) {
-          const url = URL.createObjectURL(imageBlob);
-          setImageUrl(url);
-        }
-      } catch (error) {
-        if (isMounted) {
-          setImageError(true);
-        }
-      } finally {
-        if (isMounted) {
-          setImageLoading(false);
-        }
-      }
-    };
-
-    if (product.hasImage) {
-      fetchImage();
-    } else {
-      setImageError(true);
-      setImageLoading(false);
-    }
-
-    return () => {
-      isMounted = false;
-      if (imageUrl) {
-        URL.revokeObjectURL(imageUrl);
-      }
-    };
-  }, [product.id, product.hasImage]);
 
   const handleQuantityChange = (newQuantity) => {
     if (newQuantity < 1) return;
@@ -79,21 +36,17 @@ const ProductCard = ({ product, cartQuantity }) => {
     <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col h-full border border-gray-200 hover:shadow-lg transition-shadow">
       {/* Product Image */}
       <div className="relative pb-[100%] bg-gray-100">
-        {imageLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="animate-pulse rounded-full h-12 w-12 bg-gray-300"></div>
-          </div>
-        ) : imageError ? (
+        {product.imageUrl ? (
+          <img
+            src={product.imageUrl}
+            alt={product.name}
+            className="absolute h-full w-full object-cover"
+          />
+        ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
             <FiShoppingCart className="text-3xl mb-1" />
             <span className="text-xs">No Image</span>
           </div>
-        ) : (
-          <img
-            src={imageUrl}
-            alt={product.name}
-            className="absolute h-full w-full object-cover"
-          />
         )}
         
         {/* Stock Badge */}
@@ -308,9 +261,8 @@ export default function PosPage() {
         getCategories(),
       ]);
       
-      const processedProducts = prodData.map(product => ({
+      const processedProducts = prodData.content.map(product => ({
         ...product,
-        hasImage: product.imageData !== null,
         price: Number(product.price),
         costPrice: product.costPrice ? Number(product.costPrice) : null
       }));
@@ -319,7 +271,7 @@ export default function PosPage() {
       setCategories(catData);
     } catch (err) {
       console.error('Failed to fetch data:', err);
-      setError(err.message || 'Failed to load products. Please try again.');
+      setError(err.response?.data?.message || 'Failed to load products. Please try again.');
       setProducts([]);
       setCategories([]);
     } finally {

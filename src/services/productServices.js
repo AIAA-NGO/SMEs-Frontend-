@@ -2,7 +2,6 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_BASE_URL,
-  // Removed default Content-Type header since we'll set it per request
 });
 
 api.interceptors.request.use((config) => {
@@ -31,47 +30,28 @@ const transformProduct = (product) => ({
   id: product.id,
   name: product.name || "",
   description: product.description || "",
-  quantity_in_stock: Number(product.quantityInStock || product.quantity_in_stock) || 0,
-  category_id: Number(product.categoryId || product.category_id) || 0,
-  supplier_id: product.supplierId || product.supplier_id || "",
+  quantityInStock: Number(product.quantityInStock || product.quantity_in_stock) || 0,
+  categoryId: Number(product.categoryId || product.category_id) || 0,
+  supplierId: product.supplierId || product.supplier_id || "",
   price: Number(product.price) || 0,
-  image_data: product.imageData || product.image_data,
-  image_content_type: product.imageContentType || product.image_content_type,
+  imageUrl: product.imageUrl || product.image_url || null,
   sku: product.sku || "",
   barcode: product.barcode || "",
-  brand_id: product.brandId || product.brand_id || null,
-  unit_id: product.unitId || product.unit_id || null,
-  cost_price: product.costPrice || product.cost_price || 0,
-  low_stock_threshold: product.lowStockThreshold || product.low_stock_threshold || 0,
-  expiry_date: product.expiryDate || product.expiry_date || null
+  brandId: product.brandId || product.brand_id || null,
+  unitId: product.unitId || product.unit_id || null,
+  costPrice: product.costPrice || product.cost_price || 0,
+  lowStockThreshold: product.lowStockThreshold || product.low_stock_threshold || 0,
+  expiryDate: product.expiryDate || product.expiry_date || null
 });
 
-export const getAllProducts = async () => {
+// Product Services
+export const getAllProducts = async (page = 0, size = 10) => {
   try {
-    let allProducts = [];
-    let currentPage = 0;
-    let totalPages = 1;
-    
-    while (currentPage < totalPages) {
-      const response = await api.get(`/products?page=${currentPage}`);
-      const responseData = response.data;
-      
-      if (responseData.content) {
-        allProducts = [...allProducts, ...responseData.content];
-        totalPages = responseData.totalPages || 1;
-      } else {
-        const data = extractArrayData(responseData);
-        allProducts = [...allProducts, ...data];
-        break;
-      }
-      
-      currentPage++;
-    }
-
-    return allProducts.map(transformProduct);
+    const response = await api.get(`/products?page=${page}&size=${size}`);
+    return response.data.content.map(transformProduct);
   } catch (error) {
     console.error("Error fetching products:", error);
-    return [];
+    throw error;
   }
 };
 
@@ -85,107 +65,16 @@ export const getProductById = async (id) => {
   }
 };
 
-export const getProductImage = async (id) => {
+export const createProduct = async (formData) => {
   try {
-    const response = await api.get(`/products/${id}/image`, {
-      responseType: 'arraybuffer'
-    });
-    return {
-      data: response.data,
-      contentType: response.headers['content-type']
-    };
-  } catch (error) {
-    console.error("Error fetching product image:", error);
-    throw error;
-  }
-};
-
-export const getCategories = async () => {
-  try {
-    const response = await api.get("/categories");
-    const data = extractArrayData(response.data);
-    
-    return data.map((category) => ({
-      id: category.id,
-      name: category.name || "Unnamed Category",
-      description: category.description || "",
-    }));
-  } catch (error) {
-    console.error("Error fetching categories:", error);
-    return [];
-  }
-};
-
-export const getBrands = async () => {
-  try {
-    const response = await api.get("/brands");
-    const data = extractArrayData(response.data);
-    
-    return data.map((brand) => ({
-      id: brand.id,
-      name: brand.name || "Unnamed Brand",
-      description: brand.description || "",
-    }));
-  } catch (error) {
-    console.error("Error fetching brands:", error);
-    return [];
-  }
-};
-
-export const getUnits = async () => {
-  try {
-    const response = await api.get("/units");
-    const data = extractArrayData(response.data);
-    
-    return data.map((unit) => ({
-      id: unit.id,
-      name: unit.name || "Unnamed Unit",
-      description: unit.description || "",
-      abbreviation: unit.abbreviation || unit.unitAbbreviation || "",
-    }));
-  } catch (error) {
-    console.error("Error fetching units:", error);
-    return [];
-  }
-};
-
-export const getSuppliers = async () => {
-  try {
-    const response = await api.get("/suppliers");
-    const data = extractArrayData(response.data);
-    
-    return data.map((supplier) => ({
-      id: supplier.id,
-      companyName: supplier.companyName || supplier.name || "Unnamed Supplier",
-      name: supplier.name || supplier.companyName || "Unnamed Supplier",
-      description: supplier.description || "",
-      contact: supplier.contact || "",
-      email: supplier.email || "",
-    }));
-  } catch (error) {
-    console.error("Error fetching suppliers:", error);
-    return [];
-  }
-};
-
-export const addProduct = async (productData) => {
-  try {
-    let config = {};
-    
-    if (productData instanceof FormData) {
-      config.headers = {
+    const response = await api.post('/products', formData, {
+      headers: {
         'Content-Type': 'multipart/form-data'
-      };
-    } else {
-      config.headers = {
-        'Content-Type': 'application/json'
-      };
-    }
-    
-    const response = await api.post("/products", productData, config);
-    return response.data;
+      }
+    });
+    return transformProduct(response.data);
   } catch (error) {
-    console.error("Error adding product:", error);
+    console.error("Error creating product:", error);
     if (error.response?.data?.errors) {
       const validationErrors = {};
       error.response.data.errors.forEach(err => {
@@ -197,24 +86,26 @@ export const addProduct = async (productData) => {
   }
 };
 
-export const updateProduct = async (productId, updatedData) => {
+export const updateProduct = async (id, productData) => {
   try {
-    let config = {};
-    
-    if (updatedData instanceof FormData) {
-      config.headers = {
-        'Content-Type': 'multipart/form-data'
-      };
-    } else {
-      config.headers = {
-        'Content-Type': 'application/json'
-      };
-    }
-    
-    const response = await api.put(`/products/${productId}`, updatedData, config);
-    return response.data;
+    const response = await api.put(`/products/${id}`, productData);
+    return transformProduct(response.data);
   } catch (error) {
     console.error("Error updating product:", error);
+    throw error;
+  }
+};
+
+export const updateProductWithImage = async (id, formData) => {
+  try {
+    const response = await api.put(`/products/${id}/with-image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return transformProduct(response.data);
+  } catch (error) {
+    console.error("Error updating product with image:", error);
     throw error;
   }
 };
@@ -232,21 +123,9 @@ export const deleteProduct = async (id) => {
 export const deleteProductImage = async (id) => {
   try {
     const response = await api.delete(`/products/${id}/image`);
-    return response.data;
+    return transformProduct(response.data);
   } catch (error) {
     console.error("Error deleting product image:", error);
-    throw error;
-  }
-};
-
-export const restockProduct = async (id, quantityToAdd) => {
-  try {
-    const response = await api.patch(`/products/${id}/restock`, {
-      quantity: quantityToAdd
-    });
-    return response.data;
-  } catch (error) {
-    console.error("Error restocking product:", error);
     throw error;
   }
 };
@@ -254,30 +133,185 @@ export const restockProduct = async (id, quantityToAdd) => {
 export const searchProducts = async (query) => {
   try {
     const response = await api.get(`/products/search?query=${query}`);
-    const data = extractArrayData(response.data);
-    return data.map(transformProduct);
+    return response.data.map(transformProduct);
   } catch (error) {
     console.error("Error searching products:", error);
-    return [];
+    throw error;
   }
 };
-// Add these new functions to your productServices.js
-export const checkBarcodeExists = async (barcode) => {
+
+export const getLowStockProducts = async () => {
   try {
-    const response = await api.get(`/products/check-barcode?barcode=${barcode}`);
-    return response.data; // Should return boolean
+    const response = await api.get('/products/low-stock');
+    return response.data.map(transformProduct);
   } catch (error) {
-    console.error("Error checking barcode:", error);
-    return false; // Assume barcode doesn't exist if there's an error
+    console.error("Error fetching low stock products:", error);
+    throw error;
   }
 };
+
+export const getProductsBySupplier = async (supplierId) => {
+  try {
+    const response = await api.get(`/products/supplier/${supplierId}`);
+    return response.data.map(transformProduct);
+  } catch (error) {
+    console.error("Error fetching products by supplier:", error);
+    throw error;
+  }
+};
+
+export const getProductsByCategory = async (categoryId) => {
+  try {
+    const response = await api.get(`/products/category/${categoryId}`);
+    return response.data.map(transformProduct);
+  } catch (error) {
+    console.error("Error fetching products by category:", error);
+    throw error;
+  }
+};
+
+export const getExpiringProducts = async (thresholdDate = null) => {
+  try {
+    const params = thresholdDate ? { params: { thresholdDate } } : {};
+    const response = await api.get('/products/expiring', params);
+    return response.data.map(transformProduct);
+  } catch (error) {
+    console.error("Error fetching expiring products:", error);
+    throw error;
+  }
+};
+
+export const getProductCount = async () => {
+  try {
+    const response = await api.get('/products/count');
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching product count:", error);
+    throw error;
+  }
+};
+
+// Supporting Services
+export const getCategories = async () => {
+  try {
+    const response = await api.get("/categories");
+    return extractArrayData(response.data).map(category => ({
+      id: category.id,
+      name: category.name || "Unnamed Category",
+      description: category.description || ""
+    }));
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    throw error;
+  }
+};
+
+export const getBrands = async () => {
+  try {
+    const response = await api.get("/brands");
+    return extractArrayData(response.data).map(brand => ({
+      id: brand.id,
+      name: brand.name || "Unnamed Brand",
+      description: brand.description || ""
+    }));
+  } catch (error) {
+    console.error("Error fetching brands:", error);
+    throw error;
+  }
+};
+
+export const getUnits = async () => {
+  try {
+    const response = await api.get("/units");
+    return extractArrayData(response.data).map(unit => ({
+      id: unit.id,
+      name: unit.name || "Unnamed Unit",
+      description: unit.description || "",
+      abbreviation: unit.abbreviation || ""
+    }));
+  } catch (error) {
+    console.error("Error fetching units:", error);
+    throw error;
+  }
+};
+
+export const getSuppliers = async () => {
+  try {
+    const response = await api.get("/suppliers");
+    return extractArrayData(response.data).map(supplier => ({
+      id: supplier.id,
+      companyName: supplier.companyName || supplier.name || "Unnamed Supplier",
+      contactPerson: supplier.contactPerson || "",
+      email: supplier.email || "",
+      phone: supplier.phone || "",
+      address: supplier.address || ""
+    }));
+  } catch (error) {
+    console.error("Error fetching suppliers:", error);
+    throw error;
+  }
+};
+
+export const getProductImage = async (id) => {
+  try {
+    const response = await api.get(`/products/${id}/image`, {
+      responseType: 'arraybuffer'
+    });
+    return new Blob([response.data], { type: response.headers['content-type'] });
+  } catch (error) {
+    console.error("Error fetching product image:", error);
+    throw error;
+  }
+};
+
+export const exportProductsToExcel = async () => {
+  try {
+    const response = await api.get('/products/export', {
+      responseType: 'blob'
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error exporting products:", error);
+    throw error;
+  }
+};
+
+export const importProductsFromExcel = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await api.post('/products/import', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error importing products:", error);
+    throw error;
+  }
+
+  
+};
+
 
 export const checkSkuExists = async (sku) => {
   try {
     const response = await api.get(`/products/check-sku?sku=${sku}`);
-    return response.data; // Should return boolean
+    return response.data.exists;
   } catch (error) {
     console.error("Error checking SKU:", error);
-    return false; // Assume SKU doesn't exist if there's an error
+    throw error;
+  }
+};
+
+export const checkBarcodeExists = async (barcode) => {
+  try {
+    const response = await api.get(`/products/check-barcode?barcode=${barcode}`);
+    return response.data.exists;
+  } catch (error) {
+    console.error("Error checking barcode:", error);
+    throw error;
   }
 };

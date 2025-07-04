@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
-  addProduct, 
+  createProduct, 
   getCategories, 
   getBrands, 
   getUnits, 
   getSuppliers,
-  checkBarcodeExists,
-  checkSkuExists
+  checkSkuExists,
+  checkBarcodeExists
 } from '../../services/productServices';
 
 export default function CreateProduct() {
@@ -17,10 +17,11 @@ export default function CreateProduct() {
   const [units, setUnits] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState('');
   const [imagePreview, setImagePreview] = useState(null);
   const [formErrors, setFormErrors] = useState({});
+  const [isCheckingSku, setIsCheckingSku] = useState(false);
+  const [isCheckingBarcode, setIsCheckingBarcode] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -38,59 +39,6 @@ export default function CreateProduct() {
     imageFile: null,
     expiryDate: '',
   });
-
-  // Debounce function to limit API calls during typing
-  const debounce = (func, delay) => {
-    let timeoutId;
-    return (...args) => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        func.apply(this, args);
-      }, delay);
-    };
-  };
-
-  // Check if barcode exists in database
-  const validateBarcode = async (barcode) => {
-    if (!barcode) return;
-    
-    try {
-      setIsValidating(true);
-      const exists = await checkBarcodeExists(barcode);
-      if (exists) {
-        setFormErrors(prev => ({ ...prev, barcode: 'This barcode is already in use' }));
-      } else if (formErrors.barcode === 'This barcode is already in use') {
-        setFormErrors(prev => ({ ...prev, barcode: undefined }));
-      }
-    } catch (err) {
-      console.error('Error validating barcode:', err);
-    } finally {
-      setIsValidating(false);
-    }
-  };
-
-  // Check if SKU exists in database
-  const validateSku = async (sku) => {
-    if (!sku) return;
-    
-    try {
-      setIsValidating(true);
-      const exists = await checkSkuExists(sku);
-      if (exists) {
-        setFormErrors(prev => ({ ...prev, sku: 'This SKU is already in use' }));
-      } else if (formErrors.sku === 'This SKU is already in use') {
-        setFormErrors(prev => ({ ...prev, sku: undefined }));
-      }
-    } catch (err) {
-      console.error('Error validating SKU:', err);
-    } finally {
-      setIsValidating(false);
-    }
-  };
-
-  // Debounced versions of validation functions
-  const debouncedValidateBarcode = debounce(validateBarcode, 500);
-  const debouncedValidateSku = debounce(validateSku, 500);
 
   useEffect(() => {
     const fetchDropdowns = async () => {
@@ -118,6 +66,74 @@ export default function CreateProduct() {
     fetchDropdowns();
   }, []);
 
+  // Check SKU availability when it changes
+  useEffect(() => {
+    const checkSku = async () => {
+      if (formData.sku && formData.sku.length >= 3) {
+        setIsCheckingSku(true);
+        try {
+          const exists = await checkSkuExists(formData.sku);
+          if (exists) {
+            setFormErrors(prev => ({
+              ...prev,
+              sku: 'SKU already exists'
+            }));
+          } else if (formErrors.sku === 'SKU already exists') {
+            setFormErrors(prev => {
+              const newErrors = {...prev};
+              delete newErrors.sku;
+              return newErrors;
+            });
+          }
+        } catch (err) {
+          console.error('Error checking SKU:', err);
+        } finally {
+          setIsCheckingSku(false);
+        }
+      }
+    };
+
+    const timer = setTimeout(() => {
+      checkSku();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.sku]);
+
+  // Check barcode availability when it changes
+  useEffect(() => {
+    const checkBarcode = async () => {
+      if (formData.barcode && formData.barcode.length >= 8) {
+        setIsCheckingBarcode(true);
+        try {
+          const exists = await checkBarcodeExists(formData.barcode);
+          if (exists) {
+            setFormErrors(prev => ({
+              ...prev,
+              barcode: 'Barcode already exists'
+            }));
+          } else if (formErrors.barcode === 'Barcode already exists') {
+            setFormErrors(prev => {
+              const newErrors = {...prev};
+              delete newErrors.barcode;
+              return newErrors;
+            });
+          }
+        } catch (err) {
+          console.error('Error checking barcode:', err);
+        } finally {
+          setIsCheckingBarcode(false);
+        }
+      }
+    };
+
+    const timer = setTimeout(() => {
+      checkBarcode();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.barcode]);
+
   const validateForm = async () => {
     const errors = {};
     if (!formData.name?.trim()) errors.name = 'Product name is required';
@@ -132,24 +148,9 @@ export default function CreateProduct() {
       errors.expiryDate = 'Expiry date must be in the future';
     }
 
-    // Check for duplicates before submission
-    if (formData.barcode) {
-      try {
-        const barcodeExists = await checkBarcodeExists(formData.barcode);
-        if (barcodeExists) errors.barcode = 'This barcode is already in use';
-      } catch (err) {
-        console.error('Error validating barcode:', err);
-      }
-    }
-
-    if (formData.sku) {
-      try {
-        const skuExists = await checkSkuExists(formData.sku);
-        if (skuExists) errors.sku = 'This SKU is already in use';
-      } catch (err) {
-        console.error('Error validating SKU:', err);
-      }
-    }
+    // Don't overwrite existing SKU/barcode errors if they exist
+    if (formErrors.sku) errors.sku = formErrors.sku;
+    if (formErrors.barcode) errors.barcode = formErrors.barcode;
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -159,16 +160,8 @@ export default function CreateProduct() {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
-    // Clear error for this field when user types
     if (formErrors[name]) {
       setFormErrors(prev => ({ ...prev, [name]: undefined }));
-    }
-
-    // Trigger real-time validation for barcode and SKU
-    if (name === 'barcode') {
-      debouncedValidateBarcode(value);
-    } else if (name === 'sku') {
-      debouncedValidateSku(value);
     }
   };
 
@@ -206,13 +199,34 @@ export default function CreateProduct() {
     try {
       const formDataToSend = new FormData();
       
-      Object.entries(formData).forEach(([key, value]) => {
-        if (value !== null && value !== undefined && value !== '') {
-          formDataToSend.append(key, value);
-        }
-      });
+      // Create product data object
+      const productData = {
+        name: formData.name,
+        description: formData.description || '',
+        sku: formData.sku,
+        barcode: formData.barcode || '',
+        price: formData.price,
+        costPrice: formData.costPrice || '',
+        quantityInStock: formData.quantityInStock,
+        lowStockThreshold: formData.lowStockThreshold,
+        supplierId: formData.supplierId,
+        categoryId: formData.categoryId,
+        brandId: formData.brandId || '',
+        unitId: formData.unitId,
+        expiryDate: formData.expiryDate || ''
+      };
 
-      const response = await addProduct(formDataToSend);
+      // Append as JSON blob
+      formDataToSend.append('product', new Blob([JSON.stringify(productData)], {
+        type: 'application/json'
+      }));
+      
+      // Append image file if present
+      if (formData.imageFile) {
+        formDataToSend.append('imageFile', formData.imageFile);
+      }
+
+      const response = await createProduct(formDataToSend);
 
       navigate('/products', { 
         state: { 
@@ -222,33 +236,13 @@ export default function CreateProduct() {
       });
     } catch (err) {
       console.error('Error creating product:', err);
-      
-      if (err.response?.data?.message?.includes('duplicate key value violates unique constraint')) {
-        if (err.response.data.message.includes('barcode')) {
-          setFormErrors(prev => ({ ...prev, barcode: 'This barcode is already in use' }));
-        } else if (err.response.data.message.includes('sku')) {
-          setFormErrors(prev => ({ ...prev, sku: 'This SKU is already in use' }));
-        } else {
-          setError('This product already exists. Please check your inputs.');
+      if (err.response?.status === 400 && err.response?.data) {
+        if (err.response.data.validationErrors) {
+          setFormErrors(err.response.data.validationErrors);
         }
-      } else if (err.response?.data?.errors) {
-        const backendErrors = {};
-        err.response.data.errors.forEach(error => {
-          let fieldName = error.field?.startsWith('productRequest.') 
-            ? error.field.replace('productRequest.', '') 
-            : error.field;
-          
-          const simplifiedMessage = error.defaultMessage
-            ?.replace('must not be empty', 'is required')
-            ?.replace('must be in the future', 'must be a future date')
-            ?.replace('must be greater than 0', 'must be positive')
-            || error.message;
-          
-          backendErrors[fieldName] = simplifiedMessage;
-        });
-        setFormErrors(backendErrors);
+        setError(err.response.data.message || 'Please fix the validation errors');
       } else {
-        setError(err.response?.data?.message || err.message || 'Failed to create product. Please check your inputs and try again.');
+        setError(err.message || 'Failed to create product. Please try again later.');
       }
     } finally {
       setIsLoading(false);
@@ -281,11 +275,14 @@ export default function CreateProduct() {
             min={type === 'number' ? '0' : undefined}
             step={type === 'number' && name.includes('Price') ? '0.01' : '1'}
           />
-          {isValidating && (name === 'barcode' || name === 'sku') && (
+          {(name === 'sku' && isCheckingSku) || (name === 'barcode' && isCheckingBarcode) ? (
             <div className="absolute right-3 top-3">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+              <svg className="animate-spin h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
             </div>
-          )}
+          ) : null}
         </div>
       )}
       {formErrors[name] && (
@@ -428,15 +425,19 @@ export default function CreateProduct() {
           <button
             type="submit"
             className={`px-6 py-2 rounded-md text-white ${isLoading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} flex items-center`}
-            disabled={isLoading || isValidating}
+            disabled={isLoading || isCheckingSku || isCheckingBarcode}
           >
-            {isLoading && (
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+            {isLoading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Creating...
+              </>
+            ) : (
+              'Create Product'
             )}
-            {isLoading ? 'Creating...' : 'Create Product'}
           </button>
         </div>
       </form>

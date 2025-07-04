@@ -237,17 +237,6 @@ const Dashboard = () => {
     };
   };
 
-  const calculateSaleProfit = (sale) => {
-    if (!sale.saleItems || sale.saleItems.length === 0) return 0;
-    
-    return sale.saleItems.reduce((total, item) => {
-      const unitPrice = item.unitPrice || 0;
-      const costPrice = item.costPrice || 0;
-      const quantity = item.quantity || 0;
-      return total + (unitPrice - costPrice) * quantity;
-    }, 0);
-  };
-
   const fetchSales = async () => {
     setLoading(prev => ({ ...prev, sales: true, salesTrend: true }));
     setError(prev => ({ ...prev, sales: null, salesTrend: null }));
@@ -271,17 +260,14 @@ const Dashboard = () => {
         monthlyLabels: monthlySales.months
       });
       
-      // Process recent sales with profit calculation and sort by date (newest first)
-      const salesWithProfit = data.map(sale => ({
-        ...sale,
-        profit: calculateSaleProfit(sale)
-      })).sort((a, b) => {
+      // Process recent sales and sort by date (newest first)
+      const sortedRecentSales = data.sort((a, b) => {
         const dateA = new Date(a.saleDate || a.createdAt);
         const dateB = new Date(b.saleDate || b.createdAt);
         return dateB - dateA; // Sort in descending order (newest first)
       });
       
-      setRecentSales(salesWithProfit.slice(0, 5));
+      setRecentSales(sortedRecentSales.slice(0, 5));
       
       setSummary(prev => ({
         ...calculateSummary(data),
