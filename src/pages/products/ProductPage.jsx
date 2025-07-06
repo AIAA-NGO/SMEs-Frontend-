@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Eye, Pencil, Trash2, Download, Printer, Save, X } from 'lucide-react';
+import { Eye, Pencil, Trash2, Download, Printer, Save, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { 
   getAllProducts, 
   deleteProduct,
@@ -47,9 +47,15 @@ const ProductPage = () => {
     brandId: '',
     unitId: '',
     supplierId: '',
-    imageFile: null
+    imageUrl: ''
   });
   const [formErrors, setFormErrors] = useState({});
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -61,7 +67,7 @@ const ProductPage = () => {
         setIsLoading(true);
         
         const [productsData, categoriesData, brandsData, unitsData, suppliersData] = await Promise.all([
-          getAllProducts(),
+          getAllProducts(currentPage - 1, itemsPerPage), // Pass pagination parameters
           getCategories(),
           getBrands(),
           getUnits(),
@@ -76,45 +82,33 @@ const ProductPage = () => {
             suppliers: suppliersData
           });
 
-          const processedProducts = productsData.map((product) => {
-            let imageUrl = null;
-            if (product.imageData) {
-              const blob = new Blob([new Uint8Array(product.imageData)], { 
-                type: product.imageContentType || 'image/jpeg' 
-              });
-              imageUrl = URL.createObjectURL(blob);
-            }
-            
-            return {
-              ...product,
-              id: product.id,
-              name: product.name || 'Unnamed Product',
-              sku: product.sku || 'N/A',
-              barcode: product.barcode || 'N/A',
-              price: product.price || 0,
-              costPrice: product.costPrice || product.cost_price || 0,
-              quantityInStock: product.quantityInStock || product.quantity_in_stock || 0,
-              lowStockThreshold: product.lowStockThreshold || product.low_stock_threshold || 0,
-              expiryDate: product.expiryDate || product.expiry_date || null,
-              description: product.description || '',
-              imageUrl,
-              categoryId: product.categoryId || product.category_id || '',
-              brandId: product.brandId || product.brand_id || '',
-              unitId: product.unitId || product.unit_id || '',
-              supplierId: product.supplierId || product.supplier_id || '',
-              categoryName: categoriesData.find(c => c.id === (product.categoryId || product.category_id))?.name || 'N/A',
-              brandName: brandsData.find(b => b.id === (product.brandId || product.brand_id))?.name || 'N/A',
-              unitName: unitsData.find(u => u.id === (product.unitId || product.unit_id))?.name || 'N/A',
-              supplierName: suppliersData.find(s => s.id === (product.supplierId || product.supplier_id))?.name || 'N/A'
-            };
-          });
+          // Process products from the API response
+          const processedProducts = productsData.content.map((product) => ({
+            ...product,
+            id: product.id,
+            name: product.name || 'Unnamed Product',
+            sku: product.sku || 'N/A',
+            barcode: product.barcode || 'N/A',
+            price: product.price || 0,
+            costPrice: product.costPrice || 0,
+            quantityInStock: product.quantityInStock || 0,
+            lowStockThreshold: product.lowStockThreshold || 0,
+            expiryDate: product.expiryDate || null,
+            description: product.description || '',
+            imageUrl: product.imageUrl ? `/images/products/${product.imageUrl}` : null,
+            categoryName: product.categoryName || 'N/A',
+            brandName: product.brandName || 'N/A',
+            unitName: product.unitName || 'N/A',
+            supplierName: product.supplierName || 'N/A'
+          }));
 
           setProducts(processedProducts);
           setFilteredProducts(processedProducts);
+          setTotalItems(productsData.totalElements); // Set total items count
         }
       } catch (err) {
         if (isMounted) {
-          console.error('Data loading error:', err);
+          console.error("Data loading error:", err);
           toast.error('Failed to load product data. Please refresh the page.', {
             position: "top-right",
             autoClose: 5000,
@@ -151,13 +145,8 @@ const ProductPage = () => {
 
     return () => {
       isMounted = false;
-      products.forEach(product => {
-        if (product.imageUrl) {
-          URL.revokeObjectURL(product.imageUrl);
-        }
-      });
     };
-  }, [navigate, location]);
+  }, [navigate, location, currentPage, itemsPerPage]);
 
   const handleSearch = (e) => {
     const term = e.target.value.toLowerCase();
@@ -173,6 +162,16 @@ const ProductPage = () => {
     } else {
       setFilteredProducts(products);
     }
+  };
+
+  // Pagination handlers
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (e) => {
+    setItemsPerPage(Number(e.target.value));
+    setCurrentPage(1); // Reset to first page when changing items per page
   };
 
   const handleDelete = async (id) => {
@@ -220,26 +219,18 @@ const ProductPage = () => {
       brandId: product.brandId || '',
       unitId: product.unitId || '',
       supplierId: product.supplierId || '',
-      imageFile: null
+      imageUrl: product.imageUrl ? product.imageUrl.replace('/images/products/', '') : ''
     });
     setFormErrors({});
   };
 
   const handleEditFormChange = (e) => {
-    const { name, value, files } = e.target;
-    if (name === 'imageFile') {
-      setEditFormData({
-        ...editFormData,
-        [name]: files[0]
-      });
-    } else {
-      setEditFormData({
-        ...editFormData,
-        [name]: value
-      });
-    }
+    const { name, value } = e.target;
+    setEditFormData({
+      ...editFormData,
+      [name]: value
+    });
 
-    // Clear error when field is changed
     if (formErrors[name]) {
       setFormErrors(prev => {
         const newErrors = { ...prev };
@@ -266,7 +257,6 @@ const ProductPage = () => {
     e.preventDefault();
     
     if (!validateForm()) {
-      // Show a small toast for the first error found
       const firstError = Object.values(formErrors)[0];
       if (firstError) {
         toast.error(firstError, {
@@ -284,29 +274,25 @@ const ProductPage = () => {
     try {
       setIsLoading(true);
       
-      const formData = new FormData();
-      formData.append('name', editFormData.name);
-      formData.append('sku', editFormData.sku);
-      formData.append('barcode', editFormData.barcode);
-      formData.append('description', editFormData.description);
-      formData.append('price', editFormData.price);
-      formData.append('costPrice', editFormData.costPrice);
-      formData.append('quantityInStock', editFormData.quantityInStock);
-      formData.append('lowStockThreshold', editFormData.lowStockThreshold);
-      if (editFormData.expiryDate) {
-        formData.append('expiryDate', editFormData.expiryDate);
-      }
-      formData.append('categoryId', editFormData.categoryId);
-      if (editFormData.brandId) formData.append('brandId', editFormData.brandId);
-      if (editFormData.unitId) formData.append('unitId', editFormData.unitId);
-      formData.append('supplierId', editFormData.supplierId);
-      if (editFormData.imageFile) {
-        formData.append('imageFile', editFormData.imageFile);
-      }
+      const productData = {
+        name: editFormData.name,
+        sku: editFormData.sku,
+        barcode: editFormData.barcode,
+        description: editFormData.description,
+        price: editFormData.price,
+        costPrice: editFormData.costPrice,
+        quantityInStock: editFormData.quantityInStock,
+        lowStockThreshold: editFormData.lowStockThreshold,
+        expiryDate: editFormData.expiryDate || null,
+        categoryId: editFormData.categoryId,
+        brandId: editFormData.brandId || null,
+        unitId: editFormData.unitId || null,
+        supplierId: editFormData.supplierId,
+        imageUrl: editFormData.imageUrl || null
+      };
 
-      const updatedProduct = await updateProduct(selectedProduct.id, formData);
+      const updatedProduct = await updateProduct(selectedProduct.id, productData);
       
-      // Update the products list with the new data
       const updatedProducts = products.map(p => 
         p.id === selectedProduct.id ? { 
           ...p, 
@@ -324,7 +310,7 @@ const ProductPage = () => {
           brandId: updatedProduct.brandId || p.brandId,
           unitId: updatedProduct.unitId || p.unitId,
           supplierId: updatedProduct.supplierId || p.supplierId,
-          imageUrl: updatedProduct.imageUrl || p.imageUrl,
+          imageUrl: updatedProduct.imageUrl ? `/images/products/${updatedProduct.imageUrl}` : p.imageUrl,
           categoryName: relationships.categories.find(c => c.id === (updatedProduct.categoryId || p.categoryId))?.name || p.categoryName,
           brandName: relationships.brands.find(b => b.id === (updatedProduct.brandId || p.brandId))?.name || p.brandName,
           unitName: relationships.units.find(u => u.id === (updatedProduct.unitId || p.unitId))?.name || p.unitName,
@@ -454,6 +440,11 @@ const ProductPage = () => {
     printWindow.document.close();
   };
 
+  // Calculate pagination variables
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startItem = (currentPage - 1) * itemsPerPage + 1;
+  const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+
   return (
     <div className="p-2 sm:p-4 md:p-6 min-h-screen bg-gray-50">
       <ToastContainer />
@@ -539,6 +530,7 @@ const ProductPage = () => {
                                 alt={product.name} 
                                 className="h-full w-full object-cover"
                                 onError={(e) => {
+                                  e.target.onerror = null;
                                   e.target.src = '';
                                   e.target.parentElement.classList.add('bg-gray-200');
                                 }}
@@ -626,6 +618,83 @@ const ProductPage = () => {
             </div>
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {filteredProducts.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-700">
+                Showing {startItem} to {endItem} of {totalItems} items
+              </span>
+              <select
+                value={itemsPerPage}
+                onChange={handleItemsPerPageChange}
+                className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 outline-none"
+              >
+                {[5, 10, 20, 50, 100].map(size => (
+                  <option key={size} value={size}>
+                    Show {size}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage === 1}
+                className={`p-1 rounded-md ${currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`}
+              >
+                <ChevronsLeft size={18} />
+              </button>
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className={`p-1 rounded-md ${currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`}
+              >
+                <ChevronLeft size={18} />
+              </button>
+              
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => handlePageChange(pageNum)}
+                    className={`w-8 h-8 rounded-md text-sm ${currentPage === pageNum ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className={`p-1 rounded-md ${currentPage === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`}
+              >
+                <ChevronRight size={18} />
+              </button>
+              <button
+                onClick={() => handlePageChange(totalPages)}
+                disabled={currentPage === totalPages}
+                className={`p-1 rounded-md ${currentPage === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`}
+              >
+                <ChevronsRight size={18} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* View Modal */}
@@ -651,6 +720,11 @@ const ProductPage = () => {
                         src={selectedProduct.imageUrl} 
                         alt={selectedProduct.name} 
                         className="h-full w-full object-contain"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '';
+                          e.target.parentElement.classList.add('bg-gray-200');
+                        }}
                       />
                     ) : (
                       <div className="h-full w-full bg-gray-200 flex items-center justify-center text-gray-400">
@@ -932,21 +1006,27 @@ const ProductPage = () => {
                   </div>
 
                   <div className="col-span-2">
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Product Image</label>
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Image URL</label>
                     <input
-                      type="file"
-                      name="imageFile"
+                      type="text"
+                      name="imageUrl"
+                      value={editFormData.imageUrl}
                       onChange={handleEditFormChange}
-                      className="w-full border border-gray-300 px-3 py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                      accept="image/*"
+                      className="w-full border border-gray-300 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm"
+                      placeholder="filename.jpg"
                     />
-                    {selectedProduct.imageUrl && (
+                    {editFormData.imageUrl && (
                       <div className="mt-2">
-                        <p className="text-sm text-gray-500 mb-1">Current Image:</p>
+                        <p className="text-xs text-gray-500 mb-1">Image Preview:</p>
                         <img 
-                          src={selectedProduct.imageUrl} 
-                          alt="Current product" 
+                          src={`/images/products/${editFormData.imageUrl}`} 
+                          alt="Preview" 
                           className="h-20 w-20 object-contain border rounded-md"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = '';
+                            e.target.parentElement.classList.add('bg-gray-200');
+                          }}
                         />
                       </div>
                     )}

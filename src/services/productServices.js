@@ -2,7 +2,6 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_BASE_URL,
-  // Removed default Content-Type header since we'll set it per request
 });
 
 api.interceptors.request.use((config) => {
@@ -15,7 +14,10 @@ api.interceptors.request.use((config) => {
 
 const extractArrayData = (data) => {
   if (data && typeof data === "object" && !Array.isArray(data)) {
-    const possibleKeys = ["content", "products", "data", "items", "results"];
+    if (data.content) {
+      return data.content;
+    }
+    const possibleKeys = ["products", "data", "items", "results"];
     for (const key of possibleKeys) {
       if (Array.isArray(data[key])) {
         return data[key];
@@ -31,47 +33,31 @@ const transformProduct = (product) => ({
   id: product.id,
   name: product.name || "",
   description: product.description || "",
-  quantity_in_stock: Number(product.quantityInStock || product.quantity_in_stock) || 0,
-  category_id: Number(product.categoryId || product.category_id) || 0,
-  supplier_id: product.supplierId || product.supplier_id || "",
+  quantityInStock: Number(product.quantityInStock || product.quantity_in_stock) || 0,
+  categoryId: Number(product.categoryId || product.category_id) || 0,
+  supplierId: product.supplierId || product.supplier_id || "",
   price: Number(product.price) || 0,
-  image_data: product.imageData || product.image_data,
-  image_content_type: product.imageContentType || product.image_content_type,
+  imageUrl: product.imageUrl || null,
   sku: product.sku || "",
   barcode: product.barcode || "",
-  brand_id: product.brandId || product.brand_id || null,
-  unit_id: product.unitId || product.unit_id || null,
-  cost_price: product.costPrice || product.cost_price || 0,
-  low_stock_threshold: product.lowStockThreshold || product.low_stock_threshold || 0,
-  expiry_date: product.expiryDate || product.expiry_date || null
+  brandId: product.brandId || product.brand_id || null,
+  unitId: product.unitId || product.unit_id || null,
+  costPrice: product.costPrice || product.cost_price || 0,
+  lowStockThreshold: product.lowStockThreshold || product.low_stock_threshold || 0,
+  expiryDate: product.expiryDate || product.expiry_date || null,
+  categoryName: product.categoryName || null,
+  brandName: product.brandName || null,
+  unitName: product.unitName || null,
+  supplierName: product.supplierName || null
 });
 
 export const getAllProducts = async () => {
   try {
-    let allProducts = [];
-    let currentPage = 0;
-    let totalPages = 1;
-    
-    while (currentPage < totalPages) {
-      const response = await api.get(`/products?page=${currentPage}`);
-      const responseData = response.data;
-      
-      if (responseData.content) {
-        allProducts = [...allProducts, ...responseData.content];
-        totalPages = responseData.totalPages || 1;
-      } else {
-        const data = extractArrayData(responseData);
-        allProducts = [...allProducts, ...data];
-        break;
-      }
-      
-      currentPage++;
-    }
-
-    return allProducts.map(transformProduct);
+    const response = await api.get("/products");
+    return response.data; // Return the full response with pagination data
   } catch (error) {
     console.error("Error fetching products:", error);
-    return [];
+    throw error;
   }
 };
 
@@ -80,110 +66,15 @@ export const getProductById = async (id) => {
     const response = await api.get(`/products/${id}`);
     return transformProduct(response.data);
   } catch (error) {
-    console.error("Error fetching product:", error);
+    console.error(`Error fetching product ${id}:`, error);
     throw error;
-  }
-};
-
-export const getProductImage = async (id) => {
-  try {
-    const response = await api.get(`/products/${id}/image`, {
-      responseType: 'arraybuffer'
-    });
-    return {
-      data: response.data,
-      contentType: response.headers['content-type']
-    };
-  } catch (error) {
-    console.error("Error fetching product image:", error);
-    throw error;
-  }
-};
-
-export const getCategories = async () => {
-  try {
-    const response = await api.get("/categories");
-    const data = extractArrayData(response.data);
-    
-    return data.map((category) => ({
-      id: category.id,
-      name: category.name || "Unnamed Category",
-      description: category.description || "",
-    }));
-  } catch (error) {
-    console.error("Error fetching categories:", error);
-    return [];
-  }
-};
-
-export const getBrands = async () => {
-  try {
-    const response = await api.get("/brands");
-    const data = extractArrayData(response.data);
-    
-    return data.map((brand) => ({
-      id: brand.id,
-      name: brand.name || "Unnamed Brand",
-      description: brand.description || "",
-    }));
-  } catch (error) {
-    console.error("Error fetching brands:", error);
-    return [];
-  }
-};
-
-export const getUnits = async () => {
-  try {
-    const response = await api.get("/units");
-    const data = extractArrayData(response.data);
-    
-    return data.map((unit) => ({
-      id: unit.id,
-      name: unit.name || "Unnamed Unit",
-      description: unit.description || "",
-      abbreviation: unit.abbreviation || unit.unitAbbreviation || "",
-    }));
-  } catch (error) {
-    console.error("Error fetching units:", error);
-    return [];
-  }
-};
-
-export const getSuppliers = async () => {
-  try {
-    const response = await api.get("/suppliers");
-    const data = extractArrayData(response.data);
-    
-    return data.map((supplier) => ({
-      id: supplier.id,
-      companyName: supplier.companyName || supplier.name || "Unnamed Supplier",
-      name: supplier.name || supplier.companyName || "Unnamed Supplier",
-      description: supplier.description || "",
-      contact: supplier.contact || "",
-      email: supplier.email || "",
-    }));
-  } catch (error) {
-    console.error("Error fetching suppliers:", error);
-    return [];
   }
 };
 
 export const addProduct = async (productData) => {
   try {
-    let config = {};
-    
-    if (productData instanceof FormData) {
-      config.headers = {
-        'Content-Type': 'multipart/form-data'
-      };
-    } else {
-      config.headers = {
-        'Content-Type': 'application/json'
-      };
-    }
-    
-    const response = await api.post("/products", productData, config);
-    return response.data;
+    const response = await api.post("/products", productData);
+    return transformProduct(response.data);
   } catch (error) {
     console.error("Error adding product:", error);
     if (error.response?.data?.errors) {
@@ -197,24 +88,19 @@ export const addProduct = async (productData) => {
   }
 };
 
-export const updateProduct = async (productId, updatedData) => {
+export const updateProduct = async (id, productData) => {
   try {
-    let config = {};
-    
-    if (updatedData instanceof FormData) {
-      config.headers = {
-        'Content-Type': 'multipart/form-data'
-      };
-    } else {
-      config.headers = {
-        'Content-Type': 'application/json'
-      };
-    }
-    
-    const response = await api.put(`/products/${productId}`, updatedData, config);
-    return response.data;
+    const response = await api.put(`/products/${id}`, productData);
+    return transformProduct(response.data);
   } catch (error) {
-    console.error("Error updating product:", error);
+    console.error(`Error updating product ${id}:`, error);
+    if (error.response?.data?.errors) {
+      const validationErrors = {};
+      error.response.data.errors.forEach(err => {
+        validationErrors[err.field] = err.defaultMessage || err.message;
+      });
+      throw { validationErrors };
+    }
     throw error;
   }
 };
@@ -224,29 +110,7 @@ export const deleteProduct = async (id) => {
     await api.delete(`/products/${id}`);
     return id;
   } catch (error) {
-    console.error("Error deleting product:", error);
-    throw error;
-  }
-};
-
-export const deleteProductImage = async (id) => {
-  try {
-    const response = await api.delete(`/products/${id}/image`);
-    return response.data;
-  } catch (error) {
-    console.error("Error deleting product image:", error);
-    throw error;
-  }
-};
-
-export const restockProduct = async (id, quantityToAdd) => {
-  try {
-    const response = await api.patch(`/products/${id}/restock`, {
-      quantity: quantityToAdd
-    });
-    return response.data;
-  } catch (error) {
-    console.error("Error restocking product:", error);
+    console.error(`Error deleting product ${id}:`, error);
     throw error;
   }
 };
@@ -258,6 +122,82 @@ export const searchProducts = async (query) => {
     return data.map(transformProduct);
   } catch (error) {
     console.error("Error searching products:", error);
-    return [];
+    throw error;
   }
+};
+
+export const getLowStockProducts = async () => {
+  try {
+    const response = await api.get('/products/low-stock');
+    const data = extractArrayData(response.data);
+    return data.map(transformProduct);
+  } catch (error) {
+    console.error("Error fetching low stock products:", error);
+    throw error;
+  }
+};
+
+export const restockProduct = async (id, quantity) => {
+  try {
+    const response = await api.patch(`/products/${id}/restock`, { quantity });
+    return transformProduct(response.data);
+  } catch (error) {
+    console.error(`Error restocking product ${id}:`, error);
+    throw error;
+  }
+};
+
+export const getCategories = async () => {
+  try {
+    const response = await api.get('/categories');
+    return extractArrayData(response.data);
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    throw error;
+  }
+};
+
+export const getBrands = async () => {
+  try {
+    const response = await api.get('/brands');
+    return extractArrayData(response.data);
+  } catch (error) {
+    console.error("Error fetching brands:", error);
+    throw error;
+  }
+};
+
+export const getUnits = async () => {
+  try {
+    const response = await api.get('/units');
+    return extractArrayData(response.data);
+  } catch (error) {
+    console.error("Error fetching units:", error);
+    throw error;
+  }
+};
+
+export const getSuppliers = async () => {
+  try {
+    const response = await api.get('/suppliers');
+    return extractArrayData(response.data);
+  } catch (error) {
+    console.error("Error fetching suppliers:", error);
+    throw error;
+  }
+};
+
+export default {
+  getAllProducts,
+  getProductById,
+  addProduct,
+  updateProduct,
+  deleteProduct,
+  searchProducts,
+  getLowStockProducts,
+  restockProduct,
+  getCategories,
+  getBrands,
+  getUnits,
+  getSuppliers
 };
