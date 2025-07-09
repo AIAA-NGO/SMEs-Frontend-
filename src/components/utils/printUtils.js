@@ -24,12 +24,12 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
     isSoldOut: item.isSoldOut || false
   }));
 
-  // Calculate totals
+  // Calculate totals - price already includes tax
   const subtotal = receipt.subtotal || items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const discount = receipt.discount || items.reduce((sum, item) => sum + (item.discountAmount * item.quantity), 0);
   const taxableAmount = Math.max(0, subtotal - discount);
-  const tax = receipt.tax || taxableAmount * 0.16;
-  const total = receipt.total || taxableAmount + tax;
+  const tax = receipt.tax || taxableAmount - (taxableAmount / 1.16); // Reverse calculate 16% tax
+  const total = receipt.total || subtotal; // Total is same as subtotal (tax inclusive)
 
   const receiptContent = `
     <!DOCTYPE html>
@@ -112,8 +112,12 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
       <!-- Totals -->
       <div class="text-sm mt-4 space-y-1">
         <div class="flex justify-between">
-          <span>Subtotal:</span>
+          <span>Subtotal (incl. tax):</span>
           <span class="font-medium">Ksh ${subtotal.toFixed(2)}</span>
+        </div>
+        <div class="flex justify-between">
+          <span>Discount:</span>
+          <span class="font-medium">Ksh ${discount.toFixed(2)}</span>
         </div>
         <div class="flex justify-between">
           <span>Tax (16%):</span>

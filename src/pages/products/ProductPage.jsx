@@ -66,8 +66,8 @@ const ProductPage = () => {
       try {
         setIsLoading(true);
         
-        const [productsData, categoriesData, brandsData, unitsData, suppliersData] = await Promise.all([
-          getAllProducts(currentPage - 1, itemsPerPage), // Pass pagination parameters
+        const [productsResponse, categoriesData, brandsData, unitsData, suppliersData] = await Promise.all([
+          getAllProducts(currentPage - 1, itemsPerPage),
           getCategories(),
           getBrands(),
           getUnits(),
@@ -82,8 +82,12 @@ const ProductPage = () => {
             suppliers: suppliersData
           });
 
-          // Process products from the API response
-          const processedProducts = productsData.content.map((product) => ({
+          // Handle both paginated and non-paginated responses
+          const productsArray = Array.isArray(productsResponse.content) ? 
+            productsResponse.content : 
+            Array.isArray(productsResponse) ? productsResponse : [];
+          
+          const processedProducts = productsArray.map((product) => ({
             ...product,
             id: product.id,
             name: product.name || 'Unnamed Product',
@@ -104,7 +108,7 @@ const ProductPage = () => {
 
           setProducts(processedProducts);
           setFilteredProducts(processedProducts);
-          setTotalItems(productsData.totalElements); // Set total items count
+          setTotalItems(productsResponse.totalElements || productsArray.length);
         }
       } catch (err) {
         if (isMounted) {
@@ -171,7 +175,7 @@ const ProductPage = () => {
 
   const handleItemsPerPageChange = (e) => {
     setItemsPerPage(Number(e.target.value));
-    setCurrentPage(1); // Reset to first page when changing items per page
+    setCurrentPage(1);
   };
 
   const handleDelete = async (id) => {

@@ -442,8 +442,6 @@ const Cart = ({ onCloseCart }) => {
                 <FaMobileAlt className="mr-2" />
                 <span>M-Pesa</span>
               </button>
-              
-              
             </div>
 
             {paymentMethod === 'MPESA' && (
@@ -481,12 +479,16 @@ const Cart = ({ onCloseCart }) => {
             )}
           </div>
 
-          {/* Order Summary - Removed discount line */}
+          {/* Updated Order Summary Section */}
           <div className="bg-gray-50 rounded-lg p-3 mb-3">
             <h3 className="font-bold mb-2">Cart Summary</h3>
             <div className="flex justify-between mb-1">
-              <span>Subtotal:</span>
+              <span>Subtotal (incl. tax):</span>
               <span>Ksh {cart.subtotal?.toFixed(2) || '0.00'}</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span>Discount:</span>
+              <span>Ksh {cart.discount?.toFixed(2) || '0.00'}</span>
             </div>
             <div className="flex justify-between mb-1">
               <span>Tax (16%):</span>

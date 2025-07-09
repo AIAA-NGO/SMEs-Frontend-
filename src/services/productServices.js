@@ -13,20 +13,28 @@ api.interceptors.request.use((config) => {
 });
 
 const extractArrayData = (data) => {
-  if (data && typeof data === "object" && !Array.isArray(data)) {
-    if (data.content) {
-      return data.content;
-    }
-    const possibleKeys = ["products", "data", "items", "results"];
-    for (const key of possibleKeys) {
-      if (Array.isArray(data[key])) {
-        return data[key];
-      }
-    }
-    console.error("Invalid response format:", data);
-    return [];
+  if (!data) return [];
+  
+  // Handle paginated responses
+  if (data.content && Array.isArray(data.content)) {
+    return data.content;
   }
-  return data;
+  
+  // Handle other possible array locations
+  const possibleKeys = ["products", "data", "items", "results"];
+  for (const key of possibleKeys) {
+    if (Array.isArray(data[key])) {
+      return data[key];
+    }
+  }
+  
+  // If it's already an array, return it
+  if (Array.isArray(data)) {
+    return data;
+  }
+  
+  // Fallback to empty array
+  return [];
 };
 
 const transformProduct = (product) => ({
@@ -54,7 +62,8 @@ const transformProduct = (product) => ({
 export const getAllProducts = async () => {
   try {
     const response = await api.get("/products");
-    return response.data; // Return the full response with pagination data
+    const products = extractArrayData(response.data);
+    return products.map(transformProduct);
   } catch (error) {
     console.error("Error fetching products:", error);
     throw error;
@@ -180,7 +189,16 @@ export const getUnits = async () => {
 export const getSuppliers = async () => {
   try {
     const response = await api.get('/suppliers');
-    return extractArrayData(response.data);
+    const data = extractArrayData(response.data);
+    return data.map(supplier => ({
+      id: supplier.id,
+      companyName: supplier.companyName || "",
+      contactPerson: supplier.contactPerson || supplier.contact_person || "",
+      email: supplier.email || "",
+      phone: supplier.phone || "",
+      address: supplier.address || "",
+      website: supplier.website || ""
+    }));
   } catch (error) {
     console.error("Error fetching suppliers:", error);
     throw error;
