@@ -85,7 +85,7 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
           <div className="flex items-center gap-3">
             {(!isMinimized || isMobile) && (
               <span className="text-xl font-bold select-none bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-blue-600">
-                InventoryPro
+                Peak Uniforms MIS
               </span>
             )}
           </div>

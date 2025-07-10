@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import { getAllProducts } from '../../services/productServices';
 import { getCategories } from '../../services/productServices';
 import { getProfitLossReport } from '../../services/profitService';
+import { getSalesByDateRange } from '../../services/salesService';
 
 const ProductPerformanceReport = () => {
   const [startDate, setStartDate] = useState(dayjs().subtract(1, 'month'));
@@ -95,14 +96,6 @@ const ProductPerformanceReport = () => {
       sorter: (a, b) => (a.revenue || 0) - (b.revenue || 0),
     },
     { 
-      title: 'Cost', 
-      dataIndex: 'cost', 
-      key: 'cost',
-      render: val => <span className="text-red-600 font-medium">{formatCurrency(val)}</span>,
-      width: 120,
-      sorter: (a, b) => (a.cost || 0) - (b.cost || 0),
-    },
-    { 
       title: 'Profit', 
       dataIndex: 'profit', 
       key: 'profit',
@@ -138,33 +131,40 @@ const ProductPerformanceReport = () => {
     setLoading(true);
     try {
       // Fetch all necessary data in parallel
-      const [categoriesData, products, profitData] = await Promise.all([
+      const [categoriesData, products, salesData] = await Promise.all([
         getCategories(),
         getAllProducts(),
-        getProfitLossReport(startDate.toDate(), endDate.toDate())
+        getSalesByDateRange(startDate.toDate(), endDate.toDate())
       ]);
 
-      console.log('API Responses:', { categoriesData, products, profitData });
+      console.log('API Responses:', { categoriesData, products, salesData });
 
       // Set categories
       setCategories(categoriesData || []);
 
-      // Process the profit data with products
+      // Process the sales data to get units sold per product
+      const productSalesMap = {};
+      salesData.forEach(sale => {
+        sale.items.forEach(item => {
+          if (!productSalesMap[item.productId]) {
+            productSalesMap[item.productId] = 0;
+          }
+          productSalesMap[item.productId] += item.quantity;
+        });
+      });
+
+      // Process the products data
       if (Array.isArray(products)) {
-        const productBreakdown = Array.isArray(profitData?.productBreakdown) 
-          ? profitData.productBreakdown 
-          : [];
-
         const processedData = products.map(product => {
-          const productStats = productBreakdown.find(
-            item => item.productId === product.id
-          ) || { revenue: 0, cost: 0, quantity: 0 };
-
-          const revenue = Number(productStats.revenue) || 0;
-          const cost = Number(productStats.cost) || 0;
-          const unitsSold = Number(productStats.quantity) || 0;
+          const unitsSold = productSalesMap[product.id] || 0;
+          const sellingPrice = Number(product.price) || 0;
+          const costPrice = Number(product.costPrice || product.cost_price) || 0;
+          
+          // Calculate financial metrics
+          const revenue = unitsSold * sellingPrice;
+          const cost = unitsSold * costPrice;
           const profit = revenue - cost;
-          const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
+          const profitMargin = revenue > 0 ? (profit / revenue) : 0;
 
           // Find category name from categories data
           const productCategory = categoriesData?.find(
@@ -177,8 +177,8 @@ const ProductPerformanceReport = () => {
             productId: product.id,
             productName: product.name || `Product ${product.id}`,
             categoryName,
-            costPrice: Number(product.costPrice || product.cost_price) || 0,
-            sellingPrice: Number(product.price) || 0,
+            costPrice,
+            sellingPrice,
             unitsSold,
             revenue,
             cost,
@@ -188,7 +188,20 @@ const ProductPerformanceReport = () => {
         });
 
         setData(processedData);
-        calculateSummary(processedData, profitData);
+        
+        // Calculate summary statistics
+        const totalRevenue = processedData.reduce((sum, item) => sum + (item.revenue || 0), 0);
+        const totalCosts = processedData.reduce((sum, item) => sum + (item.cost || 0), 0);
+        const totalProfit = totalRevenue - totalCosts;
+        const avgProfitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+        setSummaryData({
+          totalProducts: processedData.length,
+          totalRevenue,
+          totalCosts,
+          totalProfit,
+          avgProfitMargin
+        });
       } else {
         message.error('No product data available');
         setData([]);
@@ -200,22 +213,6 @@ const ProductPerformanceReport = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Calculate summary statistics
-  const calculateSummary = (reportData, profitData) => {
-    const totalRevenue = reportData.reduce((sum, item) => sum + (item.revenue || 0), 0);
-    const totalCosts = reportData.reduce((sum, item) => sum + (item.cost || 0), 0);
-    const totalProfit = totalRevenue - totalCosts;
-    const avgProfitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
-
-    setSummaryData({
-      totalProducts: reportData.length,
-      totalRevenue,
-      totalCosts,
-      totalProfit,
-      avgProfitMargin
-    });
   };
 
   // Export report
@@ -232,7 +229,7 @@ const ProductPerformanceReport = () => {
         columns.map(col => {
           const value = item[col.dataIndex];
           if (col.dataIndex === 'profitMargin') return formatPercentage(value);
-          if (['costPrice', 'sellingPrice', 'revenue', 'cost', 'profit'].includes(col.dataIndex)) {
+          if (['costPrice', 'sellingPrice', 'revenue', 'profit'].includes(col.dataIndex)) {
             return formatCurrency(value).replace(/[^\d.,-]/g, '');
           }
           return `"${value || ''}"`;
@@ -328,15 +325,6 @@ const ProductPerformanceReport = () => {
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic 
-              title="Total Costs" 
-              value={formatCurrency(summaryData.totalCosts)} 
-              valueStyle={{ fontSize: '16px', fontWeight: 'bold', color: '#dc2626' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic 
               title="Net Profit" 
               value={formatCurrency(summaryData.totalProfit)} 
               valueStyle={{ 
@@ -355,7 +343,7 @@ const ProductPerformanceReport = () => {
           dataSource={data} 
           loading={loading}
           rowKey="productId"
-          scroll={{ x: 1300 }}
+          scroll={{ x: 1100 }}
           pagination={{ 
             pageSize: 10,
             showSizeChanger: true,
